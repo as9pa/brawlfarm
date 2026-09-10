@@ -100,7 +100,7 @@ class Controller:
 
         # Session-recap bookkeeping (printed on stop). Trophies come from API snapshots;
         # skins from skin-reward events. (Currency gain-tracking was removed in round 7
-        # — trophy-only minimalism, docs/note6.md.)
+        # — trophy-only minimalism, legacy owner note, not ported.)
         self.rewards = rewards.SessionRewards()
         self._start_trophies = None
         self._last_trophies = None
