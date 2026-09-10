@@ -18,7 +18,7 @@ arrow and close any stray popup via close_x. Idempotent — safe to re-run (re-s
 same sort/brawler is a no-op, toggles are only tapped when ON).
 
 A later, separate feature will reuse select_lowest_trophy_brawler() when a brawler hits
-1000 trophies (prestige) to rotate to the new lowest — see docs/future-plans/.
+1000 trophies (prestige) to rotate to the new lowest — see the legacy planning notes (not ported).
 """
 
 from __future__ import annotations

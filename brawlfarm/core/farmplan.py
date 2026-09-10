@@ -34,9 +34,9 @@ ladder subsumes least, and /mode overrides made /farm pointless. Stored plans
 with either mode alias to ladder at load time (:func:`load_plan`), so no data
 migration is needed in either direction.
 
-r6 (round 6 owner feedback, docs/more instructions.md): "optimal" is FOLDED INTO
-ladder — there was one obvious pick between the two, so the rate-based rotation
-that used to be optimal-only is now just how ladder behaves. Ladder's lowest-first
+r6 (round 6 owner feedback, legacy owner-instructions note, not ported): "optimal" is
+FOLDED INTO ladder — there was one obvious pick between the two, so the rate-based
+rotation that used to be optimal-only is now just how ladder behaves. Ladder's lowest-first
 selection PLUS rate-based rotation: the controller asks :func:`rotation_decision`
 (the win-rate model v2 — empirical-Bayes-shrunk recency rate over games.csv) and,
 when it says rotate AND the brawler is not on a winstreak (:func:`recent_winstreak`
@@ -52,8 +52,8 @@ plans alias to ladder at load (same v5 pattern — no data migration).
 menu (it fired on every freshly-selected brawler). The "absolute_floor" net-losing
 trigger stays on. The live accounts run prestige/lowest, which never rotates.
 
-Ladder selection additionally carries the WIN-RATE BIAS (Q2,
-docs/future-plans/winrate-aware-farming.md): candidates inside the current step
+Ladder selection additionally carries the WIN-RATE BIAS (Q2, legacy planning note
+"winrate-aware farming", not ported): candidates inside the current step
 band are ordered by their trailing net trophy rate from games.csv
 (:func:`rates_by_brawler`), and a clearly-hotter one (>= config.WINRATE_MARGIN
 over the roster minimum's score) is promoted — picked BY NAME — instead of the
@@ -149,7 +149,7 @@ def _step_goal(brawlers: list[dict], cap: int) -> int:
     return min(floor, cap)
 
 
-# --- win-rate model v2 (r8, docs/research/winrate-model.md) ----------------------
+# --- win-rate model v2 (r8, legacy research note "winrate model", not ported) ----
 # Two statistical upgrades to the original Q2 trailing-mean bias, surface-compatible
 # (same choose_target signature, same kill-switch, same callers):
 #   (a) EMPIRICAL-BAYES SHRINKAGE — a brawler's score is pulled toward the account's
@@ -162,7 +162,7 @@ def _step_goal(brawlers: list[dict], cap: int) -> int:
 #       register smoothly with no cliff at the window edge.
 # The model is the SAME math in both consumers: the proactive selection bias
 # (_winrate_pick) and the reactive rotation trigger (rotation_decision). See the
-# worked examples + replay in docs/research/winrate-model.md.
+# worked examples + replay in the legacy research note "winrate model" (not ported).
 
 
 def _shrink(ewma: float, n: float, mu0: float, k: float) -> float:
@@ -316,8 +316,8 @@ def _winrate_pick(pool: list[dict], step_goal: int, data_dir: str | Path | None)
     Why shrinkage instead of v1's min-sample/neutral-prior cliff: a brawler with a
     handful of games is pulled toward the account mean smoothly — a 3-game hot
     streak can't promote, a well-sampled +5/game one still can — with no
-    discontinuity at the 10-game line (worked examples in
-    docs/research/winrate-model.md).
+    discontinuity at the 10-game line (worked examples in the legacy research note
+    "winrate model", not ported).
 
     Returns the promoted name, or None meaning "use today's default pick". EVERY
     uncertain or degenerate case — kill-switch off, missing/garbled/empty csv,
