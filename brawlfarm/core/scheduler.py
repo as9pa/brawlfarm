@@ -988,6 +988,28 @@ def clear_override(name: str) -> None:
         pass
 
 
+def read_override(name: str) -> dict | None:
+    """The account's manual override (/start or /stop), or None when there is none, the
+    file is unreadable, or the account is not configured. Read-only twin of
+    write_override: pruning an expired override stays the tick's job, so the panel can
+    show one that is about to lapse."""
+    try:
+        raw = _read_json(_override_path(name))
+    except KeyError:  # not in config.INSTANCES
+        return None
+    if not raw or raw.get("mode") not in ("run", "stop") or not raw.get("until"):
+        return None
+    return {"mode": raw["mode"], "until": raw["until"], "set_at": raw.get("set_at")}
+
+
+def is_enabled(name: str) -> bool:
+    """Is the schedule ON for this account? The DEFAULT-ON rule of _ctl_enabled as a
+    public call: a missing control file or a missing entry counts as enabled, and only an
+    explicit enabled=false (what the panel's switch writes) opts out."""
+    accounts = read_control().get("accounts") or {}
+    return _ctl_enabled(accounts.get(name) or {})
+
+
 def read_schedule(name: str) -> dict | None:
     return _read_json(_schedule_path(name))
 
