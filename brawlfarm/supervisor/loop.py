@@ -63,7 +63,6 @@ class Supervisor:
         self._alive, self._kill, self._sleep, self._refresh = alive, killer, sleep, events_refresh
         self._backoff = OfflineBackoff()
         self._stop_asked: dict[str, datetime] = {}
-        self._run_until: dict[str, datetime] = {}
         self._launched_at: dict[str, datetime] = {}
         self._procs: dict[str, object] = {}
         self._views: dict[str, InstanceView] = {}
@@ -179,6 +178,7 @@ class Supervisor:
                     self._kill(pid, log=log.warning)
                     self._sleep(0.5)
                     alive, health = False, Health.DEAD
+                self._kill_hung_launch(name)
                 self._launch_worker(inst, desired, now)
                 launched = True
                 note = "Starting"
@@ -229,6 +229,20 @@ class Supervisor:
         poll = getattr(proc, "poll", None)
         return poll is None or poll() is None
 
+    def _kill_hung_launch(self, name: str) -> None:
+        """One worker per instance: a worker we launched that never wrote status.json has no
+        PID in the file to kill, so kill it by the PID of our own launch record before the
+        relaunch (still kill-by-PID, still guarded by kill_worker's command-line check)."""
+        proc = self._procs.get(name)
+        poll = getattr(proc, "poll", None)
+        pid = getattr(proc, "pid", None)
+        if pid and (poll is None or poll() is None):
+            log.warning(
+                "%s: launched pid %s never wrote status.json, killing before relaunch", name, pid
+            )
+            self._kill(pid, log=log.warning)
+            self._sleep(0.5)
+
     def _request_stop(self, name: str, now: datetime) -> None:
         if name in self._stop_asked:
             return
@@ -250,20 +264,8 @@ class Supervisor:
         self._stop_asked.pop(name, None)
         return True
 
-    def _run_minutes_left(self, name: str, now: datetime) -> float | None:
-        """Minutes left on a ``start(name, hours=...)`` request. The scheduler echoes that
-        cap back as desired.max_minutes only while the schedule is on; with it off a run
-        override just means always-run, so the loop keeps the deadline itself."""
-        until = self._run_until.get(name)
-        if until is None:
-            return None
-        if until <= now:
-            self._run_until.pop(name, None)
-            return None
-        return max(1.0, round((until - now).total_seconds() / 60.0, 1))
-
     def _launch_worker(self, inst: S.InstanceSettings, desired: dict | None, now: datetime) -> None:
-        max_minutes = (desired or {}).get("max_minutes") or self._run_minutes_left(inst.name, now)
+        max_minutes = (desired or {}).get("max_minutes")
         args = S.worker_args(self.settings, float(max_minutes) if max_minutes else None)
         env = {**os.environ, **S.worker_env(self.settings, inst, self.home)}
         self._flag(inst.name).unlink(missing_ok=True)
@@ -282,12 +284,9 @@ class Supervisor:
         now = self._clock()
         self.settings.instance(name)
         if hours:
-            until = now + timedelta(hours=hours)
-            scheduler.write_override(name, "run", until)
-            self._run_until[name] = until
+            scheduler.write_override(name, "run", now + timedelta(hours=hours))
         else:
             scheduler.clear_override(name)
-            self._run_until.pop(name, None)
         self._flag(name).unlink(missing_ok=True)
         self._stop_asked.pop(name, None)
         self._backoff.clear(name)
@@ -298,7 +297,6 @@ class Supervisor:
         now = self._clock()
         self.settings.instance(name)
         scheduler.write_override(name, "stop", now + timedelta(days=STOP_OVERRIDE_DAYS))
-        self._run_until.pop(name, None)
         self._request_stop(name, now)
         self.poke()
 
