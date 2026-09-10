@@ -189,6 +189,17 @@ def test_stale_worker_is_killed_then_relaunched(sup, world, tmp_path) -> None:
     assert [n for _, _, n in world.launches] == ["Pie64"]
 
 
+def test_hung_worker_is_killed_before_relaunch(tmp_path, world) -> None:
+    sup = make_sup(tmp_path, world, ("Pie64",))
+    sup.tick()  # launches a worker that never writes status.json
+    first = world.procs[0]
+    world.now += timedelta(seconds=240)  # boot grace over, still no heartbeat, still running
+    views = sup.tick()
+    assert world.kills == [first.pid]
+    assert [n for _, _, n in world.launches] == ["Pie64", "Pie64"]
+    assert _view(views, "Pie64").state == InstanceState.STARTING
+
+
 def test_graceful_stop_then_kill_after_escalation(sup, world, tmp_path) -> None:
     world.alive.add(4242)
     _heartbeat(tmp_path, "Pie64", 4242, world.now)
@@ -292,6 +303,7 @@ def test_scheduled_break_and_run_for_hours(sup, world, tmp_path) -> None:
     scheduler.write_override("Pie64", "stop", world.now + timedelta(hours=2))
     views = sup.tick()
     assert _view(views, "Pie64").state == InstanceState.STOPPED
+    scheduler.set_enabled(["Pie64"], True)  # caps come from the scheduler, so turn it on
     sup.start("Pie64", hours=1.5)
     views = sup.tick()
     assert _view(views, "Pie64").state == InstanceState.STARTING
