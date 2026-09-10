@@ -193,12 +193,8 @@ def rotate_big_logs(now: datetime | None = None, *, dry_run: bool = False) -> di
 
 
 def main(argv: list[str] | None = None) -> int:
-    ap = argparse.ArgumentParser(
-        description="Rotate old session JSONL into monthly archives"
-    )
-    ap.add_argument(
-        "--dry-run", action="store_true", help="report what would move, change nothing"
-    )
+    ap = argparse.ArgumentParser(description="Rotate old session JSONL into monthly archives")
+    ap.add_argument("--dry-run", action="store_true", help="report what would move, change nothing")
     args = ap.parse_args(argv)
     results = rotate_all(dry_run=args.dry_run)
     tag = "[dry-run] " if args.dry_run else ""
@@ -208,10 +204,7 @@ def main(argv: list[str] | None = None) -> int:
             f"kept_newest={s['kept_newest']} errors={s['errors']}"
         )
     for name, s in rotate_big_logs(dry_run=args.dry_run).items():
-        print(
-            f"{tag}{name}: rolled={s['rolled']} skipped={s['skipped']} "
-            f"errors={s['errors']}"
-        )
+        print(f"{tag}{name}: rolled={s['rolled']} skipped={s['skipped']} errors={s['errors']}")
     return 0
 
 

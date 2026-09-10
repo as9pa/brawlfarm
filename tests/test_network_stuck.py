@@ -51,9 +51,7 @@ def _ctrl(monkeypatch):
     c.start = time.monotonic()
     c.running = True
     c.recovered = []
-    monkeypatch.setattr(
-        Controller, "recover", lambda self, reason: self.recovered.append(reason)
-    )
+    monkeypatch.setattr(Controller, "recover", lambda self, reason: self.recovered.append(reason))
     monkeypatch.setattr(Controller, "advance_results", lambda self, screen: None)
     monkeypatch.setattr(Controller, "_write_status", lambda self: None)
     monkeypatch.setattr(Controller, "log", lambda self, msg: None)
@@ -94,12 +92,8 @@ def test_recover_stops_instead_of_relaunching_when_stop_pending(monkeypatch):
     stopped = []
     monkeypatch.setattr(Controller, "stop", lambda self, reason: stopped.append(reason))
     relaunched = []
-    monkeypatch.setattr(
-        controller_mod.adb, "force_stop", lambda: relaunched.append("force_stop")
-    )
-    monkeypatch.setattr(
-        controller_mod.adb, "launch_app", lambda: relaunched.append("launch")
-    )
+    monkeypatch.setattr(controller_mod.adb, "force_stop", lambda: relaunched.append("force_stop"))
+    monkeypatch.setattr(controller_mod.adb, "launch_app", lambda: relaunched.append("launch"))
     c._stop_flag_seen = True  # scheduler/Discord asked us to stop
     c.recovery_attempts = 0
     c.dl = _DL()
@@ -121,12 +115,8 @@ def test_recover_still_relaunches_mid_session(monkeypatch):
     monkeypatch.setattr(controller_mod.time, "sleep", lambda s: None)
     calls = []
     monkeypatch.setattr(controller_mod.adb, "go_home", lambda: calls.append("home"))
-    monkeypatch.setattr(
-        controller_mod.adb, "force_stop", lambda: calls.append("force_stop")
-    )
-    monkeypatch.setattr(
-        controller_mod.adb, "launch_app", lambda: calls.append("launch")
-    )
+    monkeypatch.setattr(controller_mod.adb, "force_stop", lambda: calls.append("force_stop"))
+    monkeypatch.setattr(controller_mod.adb, "launch_app", lambda: calls.append("launch"))
     c.dl = _DL()
     c.last_change = 0.0
     c.recover("results_stuck")

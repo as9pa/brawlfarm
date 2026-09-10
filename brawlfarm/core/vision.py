@@ -262,17 +262,13 @@ def read_lines_boxes(
     return out
 
 
-def read_text(
-    screen: np.ndarray, region: tuple | None = None, scale: float = 2.0
-) -> str:
+def read_text(screen: np.ndarray, region: tuple | None = None, scale: float = 2.0) -> str:
     """OCR a region (or the whole frame) and return all detected text joined into
     one string. Returns "" if nothing is read."""
     return " ".join(text for text, _ in read_lines(screen, region, scale)).strip()
 
 
-def read_int(
-    screen: np.ndarray, region: tuple | None = None, scale: float = 3.0
-) -> int | None:
+def read_int(screen: np.ndarray, region: tuple | None = None, scale: float = 3.0) -> int | None:
     """Read the first integer in `region` (trophy total, players "N/12", "Teams
     left: N", ...). Strips thousands separators. Returns None if no digits found.
     Uses a higher default `scale` since number labels are usually small."""

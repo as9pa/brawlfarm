@@ -25,16 +25,12 @@ from __future__ import annotations
 
 import time
 
-from brawlfarm.core import config
-from brawlfarm.core import adb, recalib, states, vision
+from brawlfarm.core import adb, config, recalib, states, vision
 
 
 def _on_brawlers_screen(screen) -> bool:
     """True if the BRAWLERS screen is open (its 'BRAWLERS' header sits top-centre)."""
-    return (
-        vision.find_text(screen, "BRAWLERS", region=config.BRAWLERS_HEADER_REGION)
-        is not None
-    )
+    return vision.find_text(screen, "BRAWLERS", region=config.BRAWLERS_HEADER_REGION) is not None
 
 
 def _toggle_is_on(screen, center) -> bool:
@@ -66,13 +62,9 @@ def _set_sort(item_label: str, log) -> bool:
     active sort is harmless). Returns whether the item was found+tapped."""
     adb.tap(*config.BRAWLER_SORT_LABEL)
     time.sleep(1.2)
-    item = vision.find_text(
-        adb.screencap(), item_label, region=config.BRAWLER_SORT_DROPDOWN_REGION
-    )
+    item = vision.find_text(adb.screencap(), item_label, region=config.BRAWLER_SORT_DROPDOWN_REGION)
     if item is None:
-        log(
-            f"[brawlers] {item_label!r} not found in the sort dropdown — leaving sort as is"
-        )
+        log(f"[brawlers] {item_label!r} not found in the sort dropdown — leaving sort as is")
         return False
     adb.tap(*item)
     time.sleep(1.2)
@@ -96,9 +88,7 @@ def _exit_to_menu() -> None:
             x = vision.find(screen, "close_x")
             adb.tap(*(x.center if x is not None else config.CLOSE_X_BUTTON))
         else:
-            adb.tap(
-                *config.QUESTS_CLOSE_BUTTON
-            )  # top-left back arrow (shared menu-screen exit)
+            adb.tap(*config.QUESTS_CLOSE_BUTTON)  # top-left back arrow (shared menu-screen exit)
         time.sleep(1.2)
 
 
@@ -164,9 +154,7 @@ def _visible_cards(screen, owned_norm: set[str]) -> dict[str, tuple[int, int]]:
     label sits bottom-right IN the card, so the tap point is the nearest column
     center, BRAWLER_NAME_LABEL_DY above the label."""
     cards: dict[str, tuple[int, int]] = {}
-    for text, _conf, (lx, ly) in vision.read_lines_boxes(
-        screen, region=config.BRAWLER_GRID_REGION
-    ):
+    for text, _conf, (lx, ly) in vision.read_lines_boxes(screen, region=config.BRAWLER_GRID_REGION):
         n = _norm(text)
         if n not in owned_norm:
             continue
@@ -182,9 +170,7 @@ def _scroll_grid(px: int) -> None:
     """Scroll the grid by ~``px`` (positive = toward the END of the list). Swipes are
     shortened by BRAWLER_SCROLL_FACTOR because the fling adds ~20% travel; long
     durations keep the fling small and repeatable."""
-    swipe_px = min(
-        int(abs(px) * config.BRAWLER_SCROLL_FACTOR), config.BRAWLER_SCROLL_MAX_PX
-    )
+    swipe_px = min(int(abs(px) * config.BRAWLER_SCROLL_FACTOR), config.BRAWLER_SCROLL_MAX_PX)
     swipe_px = max(swipe_px, config.BRAWLER_SCROLL_MIN_PX)
     x = config.BRAWLER_SCROLL_X
     if px > 0:  # content up
@@ -254,9 +240,7 @@ def select_brawler_by_name_checked(
                 log(f"[brawlers] selected {target} (detail showed {shown!r})")
                 _exit_to_menu()
                 return target, None
-            log(
-                f"[brawlers] detail screen shows {shown!r}, wanted {target!r} — backing out"
-            )
+            log(f"[brawlers] detail screen shows {shown!r}, wanted {target!r} — backing out")
             _exit_to_menu()
             return None, None
         # Not visible: estimate how far off we are from any recognized card.
@@ -291,9 +275,7 @@ def select_brawler_by_name_checked(
     return None, suspicion
 
 
-def _detail_name_matches(
-    screen, target_n: str, owned_norm: set[str]
-) -> tuple[bool, str | None]:
+def _detail_name_matches(screen, target_n: str, owned_norm: set[str]) -> tuple[bool, str | None]:
     """Verify the detail screen belongs to the target brawler. Gotcha (measured live):
     the header shows the EQUIPPED SKIN's name when one is set — BO read as
     "WARRIOR"+"BO", EL PRIMO's skin OCR'd as the space-collapsed "VAMPRIMO". So:

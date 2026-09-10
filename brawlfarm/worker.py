@@ -20,9 +20,7 @@ from brawlfarm.core.controller import Controller
 def main() -> int:
     ap = argparse.ArgumentParser(description="Brawl Stars Trio Showdown auto-farm bot")
     ap.add_argument("--max-games", type=int, default=None, help="stop after N matches")
-    ap.add_argument(
-        "--max-minutes", type=float, default=None, help="stop after N minutes"
-    )
+    ap.add_argument("--max-minutes", type=float, default=None, help="stop after N minutes")
     ap.add_argument(
         "--debug-shots",
         action="store_true",

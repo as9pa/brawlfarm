@@ -54,14 +54,10 @@ def _ctrl(monkeypatch):
     monkeypatch.setattr(ctrlmod.adb, "tap", lambda *a, **k: None)
     monkeypatch.setattr(ctrlmod.time, "sleep", lambda *_a: None)  # no real wait
     # capture event shots without touching disk
-    monkeypatch.setattr(
-        c, "event_shot", lambda screen, tag: c.shots.append(tag), raising=False
-    )
+    monkeypatch.setattr(c, "event_shot", lambda screen, tag: c.shots.append(tag), raising=False)
     # capture stop reasons without running the real stop side effects
     c.stopped_with = []
-    monkeypatch.setattr(
-        c, "stop", lambda reason: (c.shots and None, c.stopped_with.append(reason))
-    )
+    monkeypatch.setattr(c, "stop", lambda reason: (c.shots and None, c.stopped_with.append(reason)))
     return c
 
 

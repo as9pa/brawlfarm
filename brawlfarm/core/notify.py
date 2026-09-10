@@ -147,9 +147,7 @@ def _send_ntfy(requests, server, topic, title, message, png) -> bool:
             headers["Message"] = _ascii(message)
             r = requests.put(url, data=png, headers=headers, timeout=10)
         else:
-            r = requests.post(
-                url, data=message.encode("utf-8"), headers=headers, timeout=10
-            )
+            r = requests.post(url, data=message.encode("utf-8"), headers=headers, timeout=10)
         return r.status_code < 300
     except Exception:
         return False

@@ -33,7 +33,8 @@ def load_games(path: str | Path | None = None) -> pd.DataFrame:
     df = pd.read_csv(path)
     if "battleTime" in df:
         df["battleTime"] = pd.to_datetime(
-            df["battleTime"], format=_BATTLETIME_FMT, errors="coerce", utc=True)
+            df["battleTime"], format=_BATTLETIME_FMT, errors="coerce", utc=True
+        )
     if "logged_at" in df:
         df["logged_at"] = pd.to_datetime(df["logged_at"], errors="coerce")
     for col in ("rank", "trophyChange", "duration_s"):
@@ -74,12 +75,16 @@ def summarize(games: pd.DataFrame, trophies: pd.DataFrame) -> dict:
         rank = games["rank"].dropna() if "rank" in games else pd.Series(dtype=float)
         if len(rank):
             s["avg_rank"] = round(float(rank.mean()), 2)
-            s["good_finishes"] = int((rank <= 4).sum())          # showdown: top-4
+            s["good_finishes"] = int((rank <= 4).sum())  # showdown: top-4
             s["good_finish_rate"] = round(float((rank <= 4).mean()) * 100, 1)
         dur = games["duration_s"].dropna() if "duration_s" in games else pd.Series(dtype=float)
         if len(dur):
             s["avg_duration_s"] = round(float(dur.mean()), 1)
-        bt = games["battleTime"].dropna() if "battleTime" in games else pd.Series(dtype="datetime64[ns]")
+        bt = (
+            games["battleTime"].dropna()
+            if "battleTime" in games
+            else pd.Series(dtype="datetime64[ns]")
+        )
         if len(bt) >= 2:
             span_h = (bt.max() - bt.min()).total_seconds() / 3600
             s["span_hours"] = round(span_h, 2)
@@ -92,7 +97,11 @@ def summarize(games: pd.DataFrame, trophies: pd.DataFrame) -> dict:
             s["trophies_start"] = int(tt.iloc[0])
             s["trophies_latest"] = int(tt.iloc[-1])
             s["trophies_gained"] = int(tt.iloc[-1] - tt.iloc[0])
-        la = trophies["logged_at"].dropna() if "logged_at" in trophies else pd.Series(dtype="datetime64[ns]")
+        la = (
+            trophies["logged_at"].dropna()
+            if "logged_at" in trophies
+            else pd.Series(dtype="datetime64[ns]")
+        )
         if len(la) >= 2 and len(tt) >= 2:
             span_h = (la.max() - la.min()).total_seconds() / 3600
             if span_h > 0:
@@ -111,8 +120,7 @@ def per_brawler(games: pd.DataFrame) -> pd.DataFrame:
         aggs["net_trophies"] = ("trophyChange", "sum")
     if "rank" in games:
         aggs["avg_rank"] = ("rank", "mean")
-    return games.groupby("brawler").agg(**aggs).round(2).sort_values(
-        "games", ascending=False)
+    return games.groupby("brawler").agg(**aggs).round(2).sort_values("games", ascending=False)
 
 
 def rank_distribution(games: pd.DataFrame) -> pd.Series:

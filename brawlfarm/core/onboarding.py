@@ -36,8 +36,7 @@ import time
 
 import cv2
 
-from brawlfarm.core import config
-from brawlfarm.core import adb, vision
+from brawlfarm.core import adb, config, vision
 
 
 # Registered farm instances — DERIVED from config.INSTANCES (not hardcoded) so every
@@ -175,9 +174,7 @@ def start_login(port: int | str, email: str, log=print) -> tuple[str, object]:
             break
     if field is None:
         _close_overlay()
-        raise OnboardError(
-            "couldn't find the email field — see the captures/onboard/ screenshots"
-        )
+        raise OnboardError("couldn't find the email field — see the captures/onboard/ screenshots")
     adb.tap(*field)
     time.sleep(1.0)
     adb.input_text(email)

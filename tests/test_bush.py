@@ -61,9 +61,7 @@ def test_not_at_target_when_outside():
 def test_relocates_when_gas_on_two_edges():
     central = _bush(FS[0] // 2 + 20, FS[1] // 2)  # near map center
     edgey = _bush(60, 60)  # near a corner
-    a = mv.bush_decision(
-        [edgey, central], SELF, FS, {"top", "left"}, {"top": 0.1, "left": 0.1}
-    )
+    a = mv.bush_decision([edgey, central], SELF, FS, {"top", "left"}, {"top": 0.1, "left": 0.1})
     assert a.kind == "relocate"
     assert a.target == (central.cx, central.cy)  # the more-central bush
 
@@ -71,9 +69,7 @@ def test_relocates_when_gas_on_two_edges():
 def test_relocates_when_one_edge_is_deep():
     # a single gassed edge, but deep in its band (>= BUSH_GAS_PROXIMITY) ≈ gas near us
     central = _bush(FS[0] // 2, FS[1] // 2)
-    a = mv.bush_decision(
-        [central], SELF, FS, {"right"}, {"right": config.BUSH_GAS_PROXIMITY}
-    )
+    a = mv.bush_decision([central], SELF, FS, {"right"}, {"right": config.BUSH_GAS_PROXIMITY})
     assert a.kind == "relocate"
 
 
@@ -89,9 +85,7 @@ def test_relocate_picks_bush_closest_to_center():
     c1 = _bush(FS[0] // 2 + 300, FS[1] // 2)
     c2 = _bush(FS[0] // 2 + 50, FS[1] // 2)  # closer to center
     c3 = _bush(FS[0] // 2 + 600, FS[1] // 2)
-    a = mv.bush_decision(
-        [c1, c2, c3], SELF, FS, {"left", "right"}, {"left": 0.2, "right": 0.2}
-    )
+    a = mv.bush_decision([c1, c2, c3], SELF, FS, {"left", "right"}, {"left": 0.2, "right": 0.2})
     assert a.target == (c2.cx, c2.cy)
 
 
@@ -119,10 +113,7 @@ def test_detector_finds_a_green_blob():
 
 
 def test_detector_empty_on_black_frame():
-    assert (
-        mv.bush_clusters(np.zeros((config.SCREEN_H, config.SCREEN_W, 3), np.uint8))
-        == []
-    )
+    assert mv.bush_clusters(np.zeros((config.SCREEN_H, config.SCREEN_W, 3), np.uint8)) == []
 
 
 def test_detector_drops_specks_below_min_area():

@@ -77,9 +77,7 @@ def world(monkeypatch):
     monkeypatch.setattr(vision, "color_fraction", w.color_fraction)
     # _exit_to_menu sees the MENU immediately (its own popup loop is pinned below)
     monkeypatch.setattr(states, "classify", lambda screen: states.State.MENU)
-    monkeypatch.setattr(
-        settings, "_event_shot", lambda screen, tag: w.shots.append(tag)
-    )
+    monkeypatch.setattr(settings, "_event_shot", lambda screen, tag: w.shots.append(tag))
     monkeypatch.setattr(time, "sleep", lambda s: None)  # keep the polls instant
     return w
 
@@ -125,9 +123,7 @@ def test_unmute_social_verify_fail_bails_before_any_radio_tap(world):
 def test_exit_to_menu_closes_popups_with_taps_only(world, monkeypatch):
     # a popup on the way out is closed via its detected/fallback ✕ — taps only
     seq = [states.State.POPUP]
-    monkeypatch.setattr(
-        states, "classify", lambda s: seq.pop(0) if seq else states.State.MENU
-    )
+    monkeypatch.setattr(states, "classify", lambda s: seq.pop(0) if seq else states.State.MENU)
     monkeypatch.setattr(vision, "find", lambda s, name: None)  # template miss
     settings._exit_to_menu(lambda m: None)
     assert world.taps == [config.CLOSE_X_BUTTON]

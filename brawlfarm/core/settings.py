@@ -37,8 +37,7 @@ import time
 
 import cv2
 
-from brawlfarm.core import config
-from brawlfarm.core import adb, states, vision
+from brawlfarm.core import adb, config, states, vision
 
 
 def _event_shot(screen, tag: str) -> None:

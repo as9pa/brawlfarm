@@ -161,9 +161,7 @@ def test_prestige_all_maxed_with_fallback_returns_fallback():
 def test_prestige_all_maxed_fallback_matches_case_insensitively():
     # plan stores any case; the brawler's actual roster name is returned.
     plan = {"mode": "prestige", "goal_trophies": 1000, "maxed_fallback": "frank"}
-    target, goal = farmplan.choose_target(
-        plan, _bs_named(("Frank", 1200), ("Spike", 1000))
-    )
+    target, goal = farmplan.choose_target(plan, _bs_named(("Frank", 1200), ("Spike", 1000)))
     assert target == "Frank"
     assert goal == 1000
 
@@ -171,9 +169,7 @@ def test_prestige_all_maxed_fallback_matches_case_insensitively():
 def test_prestige_all_maxed_no_fallback_returns_none():
     # unchanged behavior: no fallback -> None (controller holds).
     plan = {"mode": "prestige", "goal_trophies": 1000}
-    target, goal = farmplan.choose_target(
-        plan, _bs_named(("FRANK", 1200), ("SPIKE", 1000))
-    )
+    target, goal = farmplan.choose_target(plan, _bs_named(("FRANK", 1200), ("SPIKE", 1000)))
     assert target is None
     assert goal == 1000
 
@@ -182,9 +178,7 @@ def test_prestige_all_maxed_fallback_not_owned_returns_none():
     # fallback set but the named brawler is NOT in the roster -> hold (None), never
     # invent a target.
     plan = {"mode": "prestige", "goal_trophies": 1000, "maxed_fallback": "FRANK"}
-    target, goal = farmplan.choose_target(
-        plan, _bs_named(("SPIKE", 1000), ("TARA", 1200))
-    )
+    target, goal = farmplan.choose_target(plan, _bs_named(("SPIKE", 1000), ("TARA", 1200)))
     assert target is None
     assert goal == 1000
 
@@ -192,9 +186,7 @@ def test_prestige_all_maxed_fallback_not_owned_returns_none():
 def test_prestige_fallback_empty_string_treated_as_unset():
     # a blank / whitespace fallback is "unset" -> hold.
     plan = {"mode": "prestige", "goal_trophies": 1000, "maxed_fallback": "  "}
-    target, goal = farmplan.choose_target(
-        plan, _bs_named(("FRANK", 1200), ("SPIKE", 1000))
-    )
+    target, goal = farmplan.choose_target(plan, _bs_named(("FRANK", 1200), ("SPIKE", 1000)))
     assert target is None and goal == 1000
 
 
@@ -219,8 +211,6 @@ def test_maxed_fallback_default_is_none():
 
 
 def test_maxed_fallback_survives_save_load(tmp_path):
-    farmplan.save_plan(
-        {"mode": "prestige", "maxed_fallback": "FRANK"}, data_dir=tmp_path
-    )
+    farmplan.save_plan({"mode": "prestige", "maxed_fallback": "FRANK"}, data_dir=tmp_path)
     plan = farmplan.load_plan(data_dir=tmp_path)
     assert plan["maxed_fallback"] == "FRANK"

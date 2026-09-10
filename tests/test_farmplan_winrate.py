@@ -27,9 +27,7 @@ def _write_games(tmp_path, rows):
     """rows = (brawler, trophyChange, is_showdown) in chronological order."""
     p = tmp_path / "games.csv"
     with p.open("w", newline="", encoding="utf-8") as f:
-        w = csv.DictWriter(
-            f, fieldnames=["battleTime", "brawler", "trophyChange", "is_showdown"]
-        )
+        w = csv.DictWriter(f, fieldnames=["battleTime", "brawler", "trophyChange", "is_showdown"])
         w.writeheader()
         for i, (brawler, tc, sd) in enumerate(rows):
             w.writerow(
@@ -211,9 +209,10 @@ def test_missing_csv_is_today_exactly(tmp_path, monkeypatch):
     # ladder with a rotation: today's by-name next-lowest, unchanged
     plan = {"mode": "ladder", "goal_trophies": 1000}
     brawlers = _bs(("COLD", 36), ("NEXT", 140), ("HIGH", 500))
-    assert farmplan.choose_target(
-        plan, brawlers, exclude={"COLD"}, data_dir=tmp_path
-    ) == ("NEXT", 200)
+    assert farmplan.choose_target(plan, brawlers, exclude={"COLD"}, data_dir=tmp_path) == (
+        "NEXT",
+        200,
+    )
 
 
 def test_garbled_csv_is_today_exactly(tmp_path, monkeypatch):
@@ -258,7 +257,5 @@ def test_unaliased_mode_never_consults_the_stats(tmp_path, monkeypatch):
         raise AssertionError("an unaliased mode must never read win-rate stats")
 
     monkeypatch.setattr(farmplan, "_winrate_stats", boom)
-    t, g = farmplan.choose_target(
-        {"mode": "least"}, _bs(("A", 36), ("B", 140)), data_dir=tmp_path
-    )
+    t, g = farmplan.choose_target({"mode": "least"}, _bs(("A", 36), ("B", 140)), data_dir=tmp_path)
     assert (t, g) == (None, 1000)

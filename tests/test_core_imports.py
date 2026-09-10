@@ -10,9 +10,28 @@ import sys
 import pytest
 
 MODULES = [
-    "adb", "api", "brawlers", "config", "controller", "datalog", "events", "farmplan",
-    "janitor", "jsonio", "match_vision", "notify", "onboarding", "quests", "recalib",
-    "rewards", "scheduler", "settings", "states", "stats", "status", "vision",
+    "adb",
+    "api",
+    "brawlers",
+    "config",
+    "controller",
+    "datalog",
+    "events",
+    "farmplan",
+    "janitor",
+    "jsonio",
+    "match_vision",
+    "notify",
+    "onboarding",
+    "quests",
+    "recalib",
+    "rewards",
+    "scheduler",
+    "settings",
+    "states",
+    "stats",
+    "status",
+    "vision",
 ]
 
 

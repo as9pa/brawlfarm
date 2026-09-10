@@ -21,9 +21,7 @@ def _write_games(tmp_path, rows):
     """rows = (brawler, trophyChange, is_showdown) in chronological order."""
     p = tmp_path / "games.csv"
     with p.open("w", newline="", encoding="utf-8") as f:
-        w = csv.DictWriter(
-            f, fieldnames=["battleTime", "brawler", "trophyChange", "is_showdown"]
-        )
+        w = csv.DictWriter(f, fieldnames=["battleTime", "brawler", "trophyChange", "is_showdown"])
         w.writeheader()
         for i, (brawler, tc, sd) in enumerate(rows):
             w.writerow(
@@ -267,7 +265,5 @@ def test_rotation_kill_switch(tmp_path, monkeypatch):
         raise AssertionError("kill switch must prevent any read")
 
     monkeypatch.setattr(farmplan, "shrunk_rates", boom)
-    rotate, reason = farmplan.rotation_decision(
-        "CUR", _bs(("CUR", 520)), data_dir=tmp_path
-    )
+    rotate, reason = farmplan.rotation_decision("CUR", _bs(("CUR", 520)), data_dir=tmp_path)
     assert (rotate, reason) == (False, None)

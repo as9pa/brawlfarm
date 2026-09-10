@@ -30,10 +30,10 @@ import time
 
 import cv2
 
-from brawlfarm.core import config
 from brawlfarm.core import (
     adb,
     brawlers,
+    config,
     farmplan,
     match_vision,
     quests,
@@ -56,9 +56,7 @@ RETURN_PATIENCE = 4  # short: let menu-load transitions resolve to MENU before t
 DROP_TAPS = 30  # tap-through budget for drops/reward reveals (chaos can split 2/4/8)
 BACK_TRIES = 4  # BACK attempts if tapping never reaches a known screen
 MAX_RECOVERY = 4  # consecutive recoveries (without reaching menu) before stop
-MEGA_QUEST_MAX_STREAK = (
-    2  # backstop: don't re-enter QUESTS this many times w/o a game played
-)
+MEGA_QUEST_MAX_STREAK = 2  # backstop: don't re-enter QUESTS this many times w/o a game played
 # (guards against a mis-read gold indicator that never clears -> quests<->menu thrash)
 # Network-stuck detection (owner-reported 2026-06-10): a short disconnect can wedge
 # the game on the END of a Showdown match FOREVER with dead buttons. Frames keep
@@ -88,9 +86,7 @@ class Controller:
         self.max_games = max_games
         self.max_minutes = max_minutes
         self.debug_shots = debug_shots
-        self.select_brawler = (
-            select_brawler  # select lowest-trophy brawler once at start
-        )
+        self.select_brawler = select_brawler  # select lowest-trophy brawler once at start
         self.dnd = dnd  # set the in-game invite mutes (DND) once at start
 
         self.running = True
@@ -154,13 +150,9 @@ class Controller:
         # button that stays lit (e.g. a mis-read) is tapped at most once per cooldown.
         self._ability_last: dict[str, float] = {}
         # Fast re-entry + status-heartbeat + mid-session brawler-switch bookkeeping.
-        self._unknown_streak = (
-            0  # consecutive UNKNOWN frames (detects the home screen fast)
-        )
+        self._unknown_streak = 0  # consecutive UNKNOWN frames (detects the home screen fast)
         self._loop_i = 0  # loop counter; throttles the status heartbeat write
-        self._farm_brawler = (
-            None  # API name of the brawler we grind (for the goal switch)
-        )
+        self._farm_brawler = None  # API name of the brawler we grind (for the goal switch)
         # Trophy goal for the farmed brawler: the farm plan (core/farmplan.py) can set a
         # per-target goal; default = the existing 1000 reselect threshold.
         self._farm_goal = config.RESELECT_TROPHY_THRESHOLD
@@ -254,10 +246,7 @@ class Controller:
 
     def maybe_log_battlelog(self, force: bool = False) -> None:
         now = time.monotonic()
-        if (
-            not force
-            and now - self.last_battlelog_api < config.API_BATTLELOG_MIN_INTERVAL
-        ):
+        if not force and now - self.last_battlelog_api < config.API_BATTLELOG_MIN_INTERVAL:
             return
         self.last_battlelog_api = now
         try:
@@ -303,9 +292,7 @@ class Controller:
             low = min(brawler_list, key=lambda b: b.get("trophies", 0), default=None)
             if low:
                 self._farm_brawler = low.get("name")
-                self.log(
-                    f"farm brawler = {self._farm_brawler} ({low.get('trophies')} trophies)"
-                )
+                self.log(f"farm brawler = {self._farm_brawler} ({low.get('trophies')} trophies)")
         except ApiError as e:
             self.dl.event("api_error", where="capture_farm_brawler", err=str(e))
 
@@ -346,9 +333,7 @@ class Controller:
         # then re-asks farmplan with it excluded. Prestige never rotates.
         if plan is not None and plan.get("mode") == "ladder":
             try:
-                rotate, reason = farmplan.rotation_decision(
-                    self._farm_brawler, brawler_list
-                )
+                rotate, reason = farmplan.rotation_decision(self._farm_brawler, brawler_list)
                 if rotate:
                     if farmplan.recent_winstreak(self._farm_brawler):
                         # Rotation triggered, but on a winstreak — keep it (the
@@ -403,13 +388,9 @@ class Controller:
                         fb = (plan or {}).get("maxed_fallback")
                         fb = fb.strip() if isinstance(fb, str) else ""
                         fb_owned = bool(fb) and any(
-                            (x.get("name") or "").upper() == fb.upper()
-                            for x in brawler_list
+                            (x.get("name") or "").upper() == fb.upper() for x in brawler_list
                         )
-                        if (
-                            fb_owned
-                            and (self._farm_brawler or "").upper() != fb.upper()
-                        ):
+                        if fb_owned and (self._farm_brawler or "").upper() != fb.upper():
                             self._account_maxed = False
                             self._reselect_pending = True
                             self.log(
@@ -501,9 +482,7 @@ class Controller:
         # the blind drop tap-through — a blind safe-point tap can miss the CTA and stall
         # here for hours. Bounded by CEREMONY_MAX_SCREENS; once exhausted we fall through
         # to the drop/BACK/recover ladder below.
-        if self._ceremony_count < config.CEREMONY_MAX_SCREENS and self._handle_ceremony(
-            screen
-        ):
+        if self._ceremony_count < config.CEREMONY_MAX_SCREENS and self._handle_ceremony(screen):
             self.unknown_clears = 0
             return
         # UNKNOWN. Could be: a menu-load transition (resolves to MENU on its own), or a
@@ -530,9 +509,7 @@ class Controller:
             # one tap/loop because the screencap+poll cost dominates; we re-check each pass.
             step = n - RETURN_PATIENCE
             if step % config.DROP_OCR_EVERY == 1 and self._drop_wants_hold(screen):
-                adb.tap_hold(
-                    *config.SAFE_HOLD_POINT, config.DROP_HOLD_MS
-                )  # Angel/Demon/Nova
+                adb.tap_hold(*config.SAFE_HOLD_POINT, config.DROP_HOLD_MS)  # Angel/Demon/Nova
                 time.sleep(0.6)
             elif step % 7 == 0:
                 adb.swipe(560, 450, 1040, 450, 250)  # slash a Monster Egg
@@ -588,10 +565,7 @@ class Controller:
         # available the QUESTS button is gold — go activate it. This is the ONLY menu action
         # taken between games. Activating clears the gold so it won't re-fire; the streak cap
         # backstops a mis-read gold that never clears (so we never thrash quests<->menu).
-        if (
-            self._mega_quest_streak < MEGA_QUEST_MAX_STREAK
-            and quests.quests_button_has_new(screen)
-        ):
+        if self._mega_quest_streak < MEGA_QUEST_MAX_STREAK and quests.quests_button_has_new(screen):
             self._mega_quest_streak += 1
             self._do_mega_quest()
             return  # re-evaluate the menu next loop
@@ -630,15 +604,11 @@ class Controller:
             recovered = self.navigate_to_trio_showdown()
             self.dl.event("wrong_mode", score=round(miss_score, 3), recovered=recovered)
             if not recovered:
-                self.log(
-                    "WARNING: could not select Trio Showdown — stopping (mode_verify_failed)."
-                )
+                self.log("WARNING: could not select Trio Showdown — stopping (mode_verify_failed).")
                 self.stop("mode_verify_failed")
             return  # re-evaluate the menu next loop (now Trio, or stopped)
 
-        self._mega_quest_streak = (
-            0  # committing to a game clears the mega-quest backstop
-        )
+        self._mega_quest_streak = 0  # committing to a game clears the mega-quest backstop
         self.tap(config.PLAY_BUTTON, kind="play")
         self.matchmaking_seen = False
         self.set_phase("queuing")
@@ -648,10 +618,7 @@ class Controller:
         """True if a hold-drop (Angel / Demon / Nova) is on screen. These show
         "TAP AND HOLD!" centred near the bottom and ONLY open on a press-and-hold —
         tap-only loops forever on them. OCR a tight band so the check stays cheap."""
-        return (
-            vision.find_text(screen, "HOLD", region=config.DROP_HOLD_TEXT_REGION)
-            is not None
-        )
+        return vision.find_text(screen, "HOLD", region=config.DROP_HOLD_TEXT_REGION) is not None
 
     def _handle_skin_popup(self, screen) -> bool:
         """A drop awarded a SKIN -> "NEW <rarity> SKIN!" popup with CONTINUE / EQUIP NOW.
@@ -664,9 +631,7 @@ class Controller:
         for text, _ in vision.read_lines(screen):
             u = text.upper()
             if "SKIN" in u and "NEW" in u:  # "NEW EPIC SKIN!"
-                rarity = (
-                    u.replace("NEW", "").replace("SKIN", "").replace("!", "").strip()
-                ) or "?"
+                rarity = (u.replace("NEW", "").replace("SKIN", "").replace("!", "").strip()) or "?"
             elif (
                 # "EQUIPNOW" = the documented OCR space-collapse of "EQUIP NOW"
                 u in ("CONTINUE", "EQUIP NOW", "EQUIPNOW", "EQUIP", "NOW")
@@ -735,9 +700,7 @@ class Controller:
         CONTINUE. Returns True iff it acted (so the caller can re-loop instead of
         force-stopping). Cheap, idempotent, and bounded to a single pass per call —
         the caller decides whether to escalate."""
-        if self._ceremony_count < config.CEREMONY_MAX_SCREENS and self._handle_ceremony(
-            screen
-        ):
+        if self._ceremony_count < config.CEREMONY_MAX_SCREENS and self._handle_ceremony(screen):
             return True
         m = vision.find(screen, "close_x")
         if m is not None:
@@ -767,9 +730,7 @@ class Controller:
         adb.tap(*config.MODE_BANNER)  # open the Events / mode selector
         time.sleep(2.5)  # let the event cards load in
         screen = adb.screencap()
-        card = vision.find_text(
-            screen, "SHOWDOWN", exact=True
-        )  # the standard Showdown card
+        card = vision.find_text(screen, "SHOWDOWN", exact=True)  # the standard Showdown card
         if card is None:
             adb.keyevent(4)
             time.sleep(1.0)  # back out to the menu
@@ -815,10 +776,7 @@ class Controller:
                 per_day=per_day,
             )
             if suspicion:
-                self.log(
-                    f"recalib tripwire [{surface}]: {suspicion} "
-                    f"(streak {streak}/{threshold})"
-                )
+                self.log(f"recalib tripwire [{surface}]: {suspicion} (streak {streak}/{threshold})")
             if fire:
                 self.dl.event(
                     "recalibrate",
@@ -842,9 +800,7 @@ class Controller:
         never crashes."""
         resolved_ok = False
         try:
-            target, goal, owned = farmplan.resolve_target(
-                self.api, exclude=self._rotated
-            )
+            target, goal, owned = farmplan.resolve_target(self.api, exclude=self._rotated)
             self._farm_goal = goal
             resolved_ok = True
         except Exception as e:  # API/plan hiccup -> plain lowest-trophy fallback
@@ -874,15 +830,11 @@ class Controller:
         if target:
             self.log(f"brawler select: planned -> {target} (goal {self._farm_goal})")
             try:
-                name, suspicion = brawlers.select_brawler_by_name_checked(
-                    target, owned, self.log
-                )
+                name, suspicion = brawlers.select_brawler_by_name_checked(target, owned, self.log)
                 # Tripwire (ops-resilience.md §B): screen verified but the grid OCR
                 # read 0 owned names over a full scroll, two sessions in a row.
                 # (The lowest-trophy fallback path has no grid OCR, so no signal.)
-                self._note_recalib(
-                    "brawlers", suspicion, config.RECALIB_BRAWLERS_STREAK
-                )
+                self._note_recalib("brawlers", suspicion, config.RECALIB_BRAWLERS_STREAK)
                 if name:
                     self.dl.event(
                         "select_brawler",
@@ -892,9 +844,7 @@ class Controller:
                     )
                     self._farm_brawler = name
                     return
-                self.log(
-                    f"planned select failed for {target} -> lowest-trophy fallback"
-                )
+                self.log(f"planned select failed for {target} -> lowest-trophy fallback")
             except Exception as e:
                 self.dl.event("select_brawler_error", err=repr(e))
                 self.log(f"brawler select error: {e!r}")
@@ -1052,9 +1002,7 @@ class Controller:
         away from gassed edges when gas is on screen, and swipes."""
         self._heading += random.uniform(-config.MOVE_TURN_MAX, config.MOVE_TURN_MAX)
         if gas_fr is not None and self._gas_edges:
-            self._heading = match_vision.gas_bias_heading(
-                self._heading, gas_fr, self._gas_edges
-            )
+            self._heading = match_vision.gas_bias_heading(self._heading, gas_fr, self._gas_edges)
         self._swipe_heading(self._heading)
 
     def _steer_to_bush(self, action, now: float, gas_fr=None) -> None:
@@ -1074,9 +1022,7 @@ class Controller:
             self._swipe_heading(self._heading)
             if self._bush_logged != "gas_relocate":
                 self._bush_logged = "gas_relocate"
-                self.dl.event(
-                    "gas_relocate", target=list(action.target), n=self._relocations
-                )
+                self.dl.event("gas_relocate", target=list(action.target), n=self._relocations)
                 self.log(f"bush: gas closing -> relocate toward {action.target}")
             return
         # HIDE
@@ -1173,13 +1119,9 @@ class Controller:
                 if self._bush_logged is not None:
                     self._bush_logged = None  # left bush behavior -> allow a fresh log
             self.last_move = now
-            self._move_gap = random.uniform(
-                config.MOVE_INTERVAL_MIN, config.MOVE_INTERVAL_MAX
-            )
+            self._move_gap = random.uniform(config.MOVE_INTERVAL_MIN, config.MOVE_INTERVAL_MAX)
         if now - self.last_attack >= self._attack_gap:
-            self.tap(
-                self._jitter(config.ATTACK_POINT)
-            )  # auto-aim attack (slight pos jitter)
+            self.tap(self._jitter(config.ATTACK_POINT))  # auto-aim attack (slight pos jitter)
             self.tap(self._jitter(config.SUPER_BUTTON))  # harmless no-op unless charged
             self.last_attack = now
             self._attack_gap = config.ATTACK_INTERVAL + random.uniform(
@@ -1191,10 +1133,7 @@ class Controller:
         # still bounds it so a stuck-lit read can't turn into tap spam.
         if config.ABILITY_BUTTONS_ENABLED and config.ABILITY_BUTTONS:
             for name, frac in match_vision.ready_abilities(screen).items():
-                if (
-                    now - self._ability_last.get(name, 0.0)
-                    < config.ABILITY_TAP_COOLDOWN
-                ):
+                if now - self._ability_last.get(name, 0.0) < config.ABILITY_TAP_COOLDOWN:
                     continue
                 self._ability_last[name] = now
                 self.tap(
@@ -1279,9 +1218,7 @@ class Controller:
         if self.popup_count <= 2:
             # Prefer the live ✕ location; fall back to the configured promo coord.
             m = vision.find(screen, "close_x")
-            point = (
-                (int(m.x + m.w / 2), int(m.y + m.h / 2)) if m else config.CLOSE_X_BUTTON
-            )
+            point = (int(m.x + m.w / 2), int(m.y + m.h / 2)) if m else config.CLOSE_X_BUTTON
             self.tap(point, kind="close_x")
         elif self.popup_count <= 6:
             adb.keyevent(4)  # BACK — reliable across varied ✕ styles/positions
@@ -1419,10 +1356,7 @@ class Controller:
             return "stop_flag"
         if self.max_games and self.games_played >= self.max_games:
             return "max_games"
-        if (
-            self.max_minutes
-            and (time.monotonic() - self.start) / 60 >= self.max_minutes
-        ):
+        if self.max_minutes and (time.monotonic() - self.start) / 60 >= self.max_minutes:
             return "max_minutes"
         return None
 
@@ -1551,9 +1485,7 @@ class Controller:
                         if self._unknown_streak >= 2 and self._unknown_streak % 5 == 2:
                             pkg = adb.current_package()
                             if pkg and pkg != config.BS_PACKAGE:
-                                self.log(
-                                    f"game not in foreground ({pkg}) -> re-entering"
-                                )
+                                self.log(f"game not in foreground ({pkg}) -> re-entering")
                                 self.dl.event("game_left_foreground", pkg=pkg)
                                 self.ensure_game_open()
                                 self._unknown_streak = 0
@@ -1571,9 +1503,7 @@ class Controller:
                         # Poll the graceful-stop flag on the same cheap cadence
                         # (~11 s); honored at the next menu by _soft_stop_reason.
                         try:
-                            self._stop_flag_seen = (
-                                config.DATA_DIR / "stop.flag"
-                            ).exists()
+                            self._stop_flag_seen = (config.DATA_DIR / "stop.flag").exists()
                         except OSError:
                             pass
                     time.sleep(config.LOOP_POLL_INTERVAL)

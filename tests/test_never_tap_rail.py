@@ -81,9 +81,7 @@ def _call_simple_name(call: ast.Call) -> str | None:
 
 
 def _const_tuple(node: ast.AST) -> tuple | None:
-    if isinstance(node, ast.Tuple) and all(
-        isinstance(e, ast.Constant) for e in node.elts
-    ):
+    if isinstance(node, ast.Tuple) and all(isinstance(e, ast.Constant) for e in node.elts):
         return tuple(e.value for e in node.elts)
     return None
 

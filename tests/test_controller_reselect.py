@@ -258,9 +258,7 @@ def test_select_prestige_maxed_holds_not_lowest(monkeypatch):
     # must NOT run the in-game lowest sort (which would grind a >goal brawler).
     from brawlfarm.core import brawlers
 
-    monkeypatch.setattr(
-        farmplan, "resolve_target", lambda api, exclude=(): (None, 1000, [])
-    )
+    monkeypatch.setattr(farmplan, "resolve_target", lambda api, exclude=(): (None, 1000, []))
     monkeypatch.setattr(
         farmplan,
         "load_plan",

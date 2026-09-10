@@ -303,9 +303,7 @@ def rates_by_brawler(
     return per
 
 
-def _winrate_pick(
-    pool: list[dict], step_goal: int, data_dir: str | Path | None
-) -> str | None:
+def _winrate_pick(pool: list[dict], step_goal: int, data_dir: str | Path | None) -> str | None:
     """The proactive selection bias (model v2). Among ``pool`` (ladder: the roster
     minus the session's rotated-out brawlers — exclusion filters BEFORE scoring, so
     a proven-cold brawler can never be re-picked by a stale good score), consider
@@ -492,9 +490,7 @@ def choose_target(
         fallback = plan.get("maxed_fallback")
         if isinstance(fallback, str) and fallback.strip():
             want = fallback.strip().upper()
-            match = next(
-                (b for b in brawlers if (b.get("name") or "").upper() == want), None
-            )
+            match = next((b for b in brawlers if (b.get("name") or "").upper() == want), None)
             if match is not None:
                 return match.get("name"), max(goal, PRESTIGE_GOAL)
         return None, max(goal, PRESTIGE_GOAL)
@@ -504,9 +500,7 @@ def choose_target(
     return None, goal
 
 
-def resolve_target(
-    api, exclude: set[str] | tuple = ()
-) -> tuple[str | None, int, list[str]]:
+def resolve_target(api, exclude: set[str] | tuple = ()) -> tuple[str | None, int, list[str]]:
     """Controller-facing one-call resolution: load this instance's plan and return
     (target_name, goal_trophies, owned_names). target_name is None when the
     lowest-trophy in-game selection should run (ladder mode, or nothing

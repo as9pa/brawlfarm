@@ -226,9 +226,7 @@ def _draw_session_len(rng) -> float:
     LONG_SESSION_P chance it is re-clipped into the long tail [120,150]. This is
     exactly the per-session draw the old model used (reused verbatim per the round-6
     brief — only the day-fill logic around it changed)."""
-    ln = _clip(
-        rng.lognormvariate(SESSION_MU, SESSION_SIGMA), SESSION_LO_MIN, SESSION_HI_MIN
-    )
+    ln = _clip(rng.lognormvariate(SESSION_MU, SESSION_SIGMA), SESSION_LO_MIN, SESSION_HI_MIN)
     if rng.random() < LONG_SESSION_P:  # occasional heavy-tail long session
         ln = _clip(
             rng.lognormvariate(SESSION_MU, SESSION_SIGMA) * 2.0,
@@ -258,13 +256,9 @@ def _draw_outings(rng) -> list[tuple[float, float]]:
     after it (so the outing replaces a break, never a session)."""
     count = rng.randint(OUTING_MIN_COUNT, OUTING_MAX_COUNT)
     pairs: list[tuple[float, float]] = []
-    for _ in range(
-        OUTING_MAX_COUNT
-    ):  # always draw MAX — keeps the stream position fixed
+    for _ in range(OUTING_MAX_COUNT):  # always draw MAX — keeps the stream position fixed
         frac = rng.uniform(OUTING_TARGET_LO, OUTING_TARGET_HI)
-        dur = _clip(
-            rng.lognormvariate(OUTING_MU, OUTING_SIGMA), OUTING_LO_MIN, OUTING_HI_MIN
-        )
+        dur = _clip(rng.lognormvariate(OUTING_MU, OUTING_SIGMA), OUTING_LO_MIN, OUTING_HI_MIN)
         pairs.append((frac * 1440.0, dur))
     return sorted(pairs[:count])
 
@@ -603,9 +597,7 @@ def _draw_account_day(
     if re_derive:
         seam_prev = _parse(st["seam_prev"]) if st.get("seam_prev") else None
     else:
-        seam_prev = (
-            _parse(st["last_session_end"]) if st.get("last_session_end") else None
-        )
+        seam_prev = _parse(st["last_session_end"]) if st.get("last_session_end") else None
 
     if os.environ.get("BRAWL_SCHED_TEST_PLAN") == "1":
         plan = _test_plan(wake)
@@ -613,9 +605,7 @@ def _draw_account_day(
         # re-derive replays from the snapshotted start; a fresh draw uses `wake` as
         # the earliest-start floor (midnight+phase / seam wins at the normal rollover).
         floor = _parse(st["wake"]) if re_derive else wake
-        plan = draw_day_plan(
-            salt, tag, date_str, nonce, wake=floor, prev_day_end=seam_prev
-        )
+        plan = draw_day_plan(salt, tag, date_str, nonce, wake=floor, prev_day_end=seam_prev)
 
     st.update(
         {
@@ -726,9 +716,7 @@ def _tick_inner(now: datetime) -> int:
             sched = _read_json(_schedule_path(name)) or {"account": name}
             sched["desired"] = evaluate(now, None, 0, override, enabled=False)
             _write_json(_schedule_path(name), sched)
-            parts.append(
-                f"{name}={sched['desired']['state']}({sched['desired']['reason']})"
-            )
+            parts.append(f"{name}={sched['desired']['state']}({sched['desired']['reason']})")
         print(f"tick {_iso(now)}  " + "  ".join(parts))
         return 0
 
@@ -806,11 +794,7 @@ def _tick_inner(now: datetime) -> int:
                 except (OSError, ValueError, TypeError, csv.Error):
                     played = 0  # bad csv/status data must never block evaluation
         desired = evaluate(now, plan, played, override, enabled)
-        sched = (
-            dict(plan)
-            if (enabled and plan)
-            else (_read_json(_schedule_path(name)) or {})
-        )
+        sched = dict(plan) if (enabled and plan) else (_read_json(_schedule_path(name)) or {})
         sched["account"] = name
         sched["desired"] = desired
         if enabled:
@@ -872,9 +856,7 @@ def preview(days: int, now: datetime | None = None) -> None:
     control = _read_json(_control_path()) or {}
     for name, plans in sims.items():
         enabled = _ctl_enabled((control.get("accounts") or {}).get(name) or {})
-        print(
-            f"\n=== {name} — {days}-day preview (scheduling {'ON' if enabled else 'OFF'}) ==="
-        )
+        print(f"\n=== {name} — {days}-day preview (scheduling {'ON' if enabled else 'OFF'}) ===")
         for p in plans:
             day = datetime.strptime(p["plan_date"], "%Y-%m-%d")
             head = f"{day.strftime('%a %Y-%m-%d')}"
@@ -911,9 +893,7 @@ def simulate(days: int) -> None:
         for p in plans:
             ss = p["sessions"]
             for i, s in enumerate(ss[:-1]):
-                gap = (
-                    _parse(ss[i + 1]["start"]) - _parse(s["end"])
-                ).total_seconds() / 60
+                gap = (_parse(ss[i + 1]["start"]) - _parse(s["end"])).total_seconds() / 60
                 (outing_gaps if s.get("outing_after") else breaks).append(gap)
         totals = [p["total_minutes"] / 60 for p in plans]
         outs = [p.get("outings", 0) for p in plans]
@@ -1036,13 +1016,9 @@ def main(argv: list[str] | None = None) -> int:
         sys.stdout.reconfigure(encoding="utf-8")  # console may be cp1252 (like run.py)
     except Exception:
         pass
-    ap = argparse.ArgumentParser(
-        description="Anti-ban scheduler (see module docstring)"
-    )
+    ap = argparse.ArgumentParser(description="Anti-ban scheduler (see module docstring)")
     sub = ap.add_subparsers(dest="cmd", required=True)
-    t = sub.add_parser(
-        "tick", help="draw-if-needed + evaluate all accounts (the watchdog's call)"
-    )
+    t = sub.add_parser("tick", help="draw-if-needed + evaluate all accounts (the watchdog's call)")
     t.add_argument("--now", default=None, help="inject a fake clock (ISO, for tests)")
     p = sub.add_parser("preview", help="print the upcoming timeline (no writes)")
     p.add_argument("--days", type=int, default=7)
