@@ -3,11 +3,13 @@ published on the bus as they arrive, listed newest first and dismissed one at a 
 
 from __future__ import annotations
 
+import sys
+import threading
 from pathlib import Path
 
 import pytest
 
-from brawlfarm.api.alerts import Alert, AlertStore
+from brawlfarm.api.alerts import MAX_ALERTS, Alert, AlertStore
 from brawlfarm.api.events import EventBus
 from tests.apihelpers import make_client
 
@@ -70,6 +72,47 @@ def test_the_store_is_bounded() -> None:
     for n in range(5):
         store.add("alpha", "crash", {"n": n})
     assert [a.detail for a in store.list()] == ["n=4", "n=3", "n=2"]
+
+
+def test_add_and_read_are_safe_from_two_threads() -> None:
+    """The tailer adds on the loop thread while the supervisor's offline hook adds from the
+    tick's worker thread, so the id counter, the deque and every reader are contended. The
+    interpreter's switch interval is squeezed for the duration: at the default 5 ms each
+    thread runs its whole loop inside one quantum and the race never gets a chance to show.
+    """
+    store = AlertStore()
+    barrier = threading.Barrier(2)
+    minted: list[list[Alert]] = [[], []]
+    failures: list[Exception] = []
+
+    def spam(slot: int) -> None:
+        barrier.wait()  # both threads race the counter from the same instant
+        try:
+            for n in range(200):
+                minted[slot].append(store.add("alpha", "crash", {"n": n}))
+                if n % 10 == 0:  # reading while the other thread appends must not raise
+                    store.list(include_dismissed=True)
+                    store.unread_count()
+                    store.dismiss(n)
+        except Exception as exc:  # a thread that dies would otherwise just print and pass
+            failures.append(exc)
+
+    previous_interval = sys.getswitchinterval()
+    sys.setswitchinterval(1e-6)
+    try:
+        threads = [threading.Thread(target=spam, args=(slot,)) for slot in range(2)]
+        for thread in threads:
+            thread.start()
+        for thread in threads:
+            thread.join()
+    finally:
+        sys.setswitchinterval(previous_interval)
+
+    assert failures == []
+    ids = [alert.id for batch in minted for alert in batch]
+    assert len(ids) == 400
+    assert len(set(ids)) == 400  # no two alerts ever share an id
+    assert len(store.list(include_dismissed=True)) == MAX_ALERTS  # the deque cap holds
 
 
 def test_alert_routes_list_and_dismiss(api) -> None:

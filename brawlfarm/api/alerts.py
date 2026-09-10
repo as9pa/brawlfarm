@@ -9,6 +9,7 @@ this now" list, not a record; the session files keep the history.
 
 from __future__ import annotations
 
+import threading
 from collections import deque
 from dataclasses import asdict, dataclass
 from datetime import datetime
@@ -40,24 +41,32 @@ class Alert:
 
 
 class AlertStore:
+    """Two threads write here: the feed tailer on the event loop thread and the supervisor's
+    offline hook on the tick's worker thread. So every method holds `_lock` -- `_next_id += 1`
+    is a read-modify-write, and iterating the deque while the other thread appends raises
+    "deque mutated during iteration". Only bus.publish is left outside; it is thread-safe by
+    design and must not run under a lock a listener could contend with."""
+
     def __init__(self, bus=None, *, maxlen: int = MAX_ALERTS) -> None:
         self._bus = bus
         self._alerts: deque[Alert] = deque(maxlen=maxlen)
         self._next_id = 1
+        self._lock = threading.Lock()
 
     def add(self, instance: str, kind: str, fields: dict, ts: str | None = None) -> Alert:
         """Record an alert and publish it on the bus. The detail line is built the same way
         notify.maybe_alert builds its message, so the drawer and the phone agree."""
-        alert = Alert(
-            id=self._next_id,
-            ts=ts or datetime.now().isoformat(timespec="seconds"),
-            instance=instance,
-            kind=kind,
-            title=notify.alert_title(kind),
-            detail=", ".join(f"{k}={v}" for k, v in fields.items() if v is not None),
-        )
-        self._next_id += 1
-        self._alerts.append(alert)
+        with self._lock:
+            alert = Alert(
+                id=self._next_id,
+                ts=ts or datetime.now().isoformat(timespec="seconds"),
+                instance=instance,
+                kind=kind,
+                title=notify.alert_title(kind),
+                detail=", ".join(f"{k}={v}" for k, v in fields.items() if v is not None),
+            )
+            self._next_id += 1
+            self._alerts.append(alert)
         if self._bus is not None:
             self._bus.publish("alert", asdict(alert))
         return alert
@@ -72,18 +81,23 @@ class AlertStore:
         return self.add(instance, kind, fields, ts=str(stamped) if stamped else None)
 
     def list(self, *, include_dismissed: bool = False) -> list[Alert]:
-        """Newest first, which is the order the drawer shows them in."""
-        return [a for a in reversed(self._alerts) if include_dismissed or not a.dismissed]
+        """Newest first, which is the order the drawer shows them in. The deque is copied
+        under the lock and filtered outside it, so a writer never waits on a reader."""
+        with self._lock:
+            snapshot = list(self._alerts)
+        return [a for a in reversed(snapshot) if include_dismissed or not a.dismissed]
 
     def dismiss(self, alert_id: int) -> bool:
-        for alert in self._alerts:
-            if alert.id == alert_id:
-                alert.dismissed = True
-                return True
+        with self._lock:
+            for alert in self._alerts:
+                if alert.id == alert_id:
+                    alert.dismissed = True
+                    return True
         return False
 
     def unread_count(self) -> int:
-        return sum(1 for alert in self._alerts if not alert.dismissed)
+        with self._lock:
+            return sum(1 for alert in self._alerts if not alert.dismissed)
 
 
 @router.get("/api/alerts")
