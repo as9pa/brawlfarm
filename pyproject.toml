@@ -12,13 +12,16 @@ dependencies = [
   "python-dotenv>=1.0",
   "rapidocr-onnxruntime>=1.3",
   "pandas>=2.2",
+  "pydantic>=2.9",
+  "tomli-w>=1.1",
+  "psutil>=6.1",
 ]
 
 [project.scripts]
 brawlfarm = "brawlfarm.__main__:main"
 
 [dependency-groups]
-dev = ["pytest>=8.3", "ruff>=0.12"]
+dev = ["pytest>=8.3", "pytest-asyncio>=0.24", "ruff>=0.12"]
 
 [build-system]
 requires = ["hatchling"]
@@ -40,3 +43,5 @@ ignore = ["E501"]
 testpaths = ["tests"]
 cache_dir = ".pytest_cache"
 pythonpath = ["."]
+asyncio_mode = "strict"
+asyncio_default_fixture_loop_scope = "function"

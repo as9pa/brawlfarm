@@ -21,8 +21,15 @@ from pathlib import Path
 from brawlfarm.core import config, notify
 from brawlfarm.core.api import is_showdown, my_brawler
 
-GAMES_CSV = config.DATA_DIR / "games.csv"
-TROPHIES_CSV = config.DATA_DIR / "menu_trophies.csv"
+
+def games_csv() -> Path:
+    """Per-instance games log; resolved at call time so config.set_home() is honoured."""
+    return config.DATA_DIR / "games.csv"
+
+
+def trophies_csv() -> Path:
+    return config.DATA_DIR / "menu_trophies.csv"
+
 
 # --- startup-narration step events -------------------------------------------------
 #
@@ -101,8 +108,8 @@ def _ensure_csv(path: Path, fields: list[str]) -> None:
 class DataLog:
     def __init__(self):
         config.DATA_DIR.mkdir(parents=True, exist_ok=True)
-        _ensure_csv(GAMES_CSV, GAME_FIELDS)
-        _ensure_csv(TROPHIES_CSV, TROPHY_FIELDS)
+        _ensure_csv(games_csv(), GAME_FIELDS)
+        _ensure_csv(trophies_csv(), TROPHY_FIELDS)
         self._seen_battles = self._load_seen()
 
         ts = datetime.now().strftime("%Y%m%d-%H%M%S")
@@ -116,7 +123,7 @@ class DataLog:
     def _load_seen(self) -> set[str]:
         seen: set[str] = set()
         try:
-            with GAMES_CSV.open("r", newline="", encoding="utf-8") as f:
+            with games_csv().open("r", newline="", encoding="utf-8") as f:
                 for row in csv.DictReader(f):
                     bt = row.get("battleTime")
                     if bt:
@@ -130,7 +137,7 @@ class DataLog:
     def log_games_from_battlelog(self, items: list[dict]) -> int:
         """Append any battlelog entries we haven't logged yet. Returns # new rows."""
         new = 0
-        with GAMES_CSV.open("a", newline="", encoding="utf-8") as f:
+        with games_csv().open("a", newline="", encoding="utf-8") as f:
             w = csv.DictWriter(f, fieldnames=GAME_FIELDS)
             # Oldest first so the file reads chronologically.
             for e in reversed(items):
@@ -166,7 +173,7 @@ class DataLog:
     def log_menu_trophies(self, player: dict) -> None:
         if not player:  # no account registered — api.get_player() skipped the call
             return
-        with TROPHIES_CSV.open("a", newline="", encoding="utf-8") as f:
+        with trophies_csv().open("a", newline="", encoding="utf-8") as f:
             csv.DictWriter(f, fieldnames=TROPHY_FIELDS).writerow(
                 {
                     "logged_at": _now_iso(),
