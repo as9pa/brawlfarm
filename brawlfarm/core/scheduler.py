@@ -677,12 +677,22 @@ def tick(now: datetime | None = None) -> int:
         return 1
 
 
+# The [scheduler].default_enabled setting: what an account with no explicit enabled
+# flag means. The supervisor sets it from config.toml before the first tick.
+DEFAULT_ENABLED = True
+
+
+def set_default_enabled(flag: bool) -> None:
+    global DEFAULT_ENABLED
+    DEFAULT_ENABLED = bool(flag)
+
+
 def _ctl_enabled(c: dict) -> bool:
-    """DEFAULT-ON semantics: an account entry without the ``enabled`` key — which
-    includes a missing entry and a missing control file entirely ({}) — counts as
-    ENABLED. Only an explicit enabled=false (written when the user turns the
-    schedule off) means always-run."""
-    return bool(c.get("enabled", True))
+    """DEFAULT-ON semantics (configurable through set_default_enabled): an account
+    entry without the ``enabled`` key — which includes a missing entry and a missing
+    control file entirely ({}) — counts as ENABLED. Only an explicit enabled=false
+    (written when the user turns the schedule off) means always-run."""
+    return bool(c.get("enabled", DEFAULT_ENABLED))
 
 
 def _tick_inner(now: datetime) -> int:
@@ -992,14 +1002,15 @@ def desired_from(sched: dict | None, now: datetime | None = None) -> dict | None
 def enabled_from(sched: dict | None) -> bool:
     """Is the scheduler ON, from an ALREADY-READ schedule dict? (v3 §A4 contract,
     the read-once twin of manager.schedule_enabled.) A top-level ``enabled`` key
-    wins, else ``desired.enabled``; missing → True (DEFAULT-ON)."""
+    wins, else ``desired.enabled``; missing → DEFAULT_ENABLED (DEFAULT-ON unless
+    set_default_enabled says otherwise)."""
     sched = sched or {}
     if "enabled" in sched:
         return bool(sched["enabled"])
     d = sched.get("desired") or {}
     if "enabled" in d:
         return bool(d["enabled"])
-    return True
+    return DEFAULT_ENABLED
 
 
 def sched_desired(name: str, now: datetime | None = None) -> dict | None:

@@ -18,14 +18,29 @@ from dotenv import load_dotenv
 # HOME_DIR is where runtime state lives (data, captures, .env). The control panel sets
 # BRAWLFARM_HOME to the user data directory; a bare checkout defaults to the current
 # working directory so `uv run python -m brawlfarm.worker` behaves like the legacy layout.
-HOME_DIR = Path(os.environ.get("BRAWLFARM_HOME", "") or Path.cwd()).resolve()
+# set_home() re-points every derived path at runtime (the supervisor and the test suite
+# call it); modules must read these names at call time, never cache them at import.
 PACKAGE_DIR = Path(__file__).resolve().parent
 TEMPLATES_DIR = PACKAGE_DIR / "templates"
+
+HOME_DIR = Path(os.environ.get("BRAWLFARM_HOME", "") or Path.cwd()).resolve()
 CAPTURES_DIR = HOME_DIR / "captures"
+ONBOARD_SHOTS_DIR = CAPTURES_DIR / "onboard"  # step-by-step evidence screenshots
 # Data dir is env-overridable so concurrent workers on different instances write to
 # separate folders (one shared games.csv would race and corrupt). Pairs with
 # BRAWL_ADB_PORT and BRAWL_PLAYER_TAG for multi-instance runs.
 DATA_DIR = HOME_DIR / os.environ.get("BRAWL_DATA_DIR", "data")
+
+
+def set_home(home: Path) -> None:
+    """Point every home-derived path at ``home`` (resolved). DATA_DIR keeps honouring
+    BRAWL_DATA_DIR so a worker process still lands in its own instance folder."""
+    global HOME_DIR, CAPTURES_DIR, ONBOARD_SHOTS_DIR, DATA_DIR
+    HOME_DIR = Path(home).resolve()
+    CAPTURES_DIR = HOME_DIR / "captures"
+    ONBOARD_SHOTS_DIR = CAPTURES_DIR / "onboard"
+    DATA_DIR = HOME_DIR / os.environ.get("BRAWL_DATA_DIR", "data")
+
 
 # BlueStacks ships its own adb; use it directly. Overridable for non-default installs.
 ADB_PATH = os.environ.get("BRAWL_ADB_PATH", r"C:\Program Files\BlueStacks_nxt\HD-Adb.exe")
@@ -578,7 +593,6 @@ SCID_EMAIL_REGION = (1000, 510, 1600, 610)  # "Logged in with" + the email line
 SCID_SWITCH_ACCOUNT = (1224, 663)  # ⚠️ account-changing — onboarding only
 SCID_LOG_OUT = (1177, 797)  # ☠️ NEVER tapped — listed to keep taps away from it
 SETTINGS_SUPERCELL_ID_BTN = (327, 780)  # green ID button on the SETTINGS screen
-ONBOARD_SHOTS_DIR = CAPTURES_DIR / "onboard"  # step-by-step evidence screenshots
 
 
 # --- Season-rollover recalibration tripwire (ops-resilience.md §B) -------------
