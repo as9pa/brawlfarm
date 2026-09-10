@@ -4,6 +4,9 @@ boot grace and offline backoff, and exposes start / stop / stop-now / restart / 
 
 from __future__ import annotations
 
+import sys
+import threading
+import time
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -38,12 +41,16 @@ class World:
     kills: list[int] = field(default_factory=list)
     procs: list[FakeProc] = field(default_factory=list)
     refreshes: int = 0
+    pings: int = 0
     next_pid: int = 100
+    probe_delay_s: float = 0.0
 
     def clock(self):
         return self.now
 
     def probe(self, adb_path, port, timeout_s=15.0):
+        if self.probe_delay_s:  # widen the real probe's subprocess window for race tests
+            time.sleep(self.probe_delay_s)
         return self.online.get(port, True)
 
     def launcher(self, args, env, log_dir, name, module=None):
@@ -70,6 +77,10 @@ class World:
     def refresh(self, now=None):
         self.refreshes += 1
         return 0
+
+    def ping(self) -> bool:
+        self.pings += 1
+        return True
 
 
 _PORTS = {"Pie64": 5555, "Rome64": 5565}
@@ -99,6 +110,7 @@ def make_sup(tmp_path: Path, world: World, names=("Pie64", "Rome64")) -> Supervi
         killer=world.kill,
         sleep=lambda _s: None,
         events_refresh=world.refresh,
+        pinger=world.ping,
     )
     # Schedule off = legacy always-run, so tests control "desired" through overrides.
     scheduler.set_enabled(list(names), False)
@@ -371,3 +383,58 @@ async def test_run_forever_ticks_and_shuts_down(sup, world) -> None:
     sup.request_shutdown()
     await asyncio.wait_for(task, 2)
     assert world.launches  # at least one tick ran
+
+
+def test_every_completed_tick_pings_healthchecks(sup, world) -> None:
+    sup.tick()
+    sup.tick()
+    assert world.pings == 2
+
+
+def test_offline_alert_also_reaches_the_panel(tmp_path, world, monkeypatch) -> None:
+    sup = make_sup(tmp_path, world, ("Pie64",))
+    monkeypatch.setattr(L.notify, "maybe_alert", lambda kind, fields: None)
+    seen: list[tuple[str, str, dict]] = []
+    sup.subscribe_alerts(lambda name, kind, fields: seen.append((name, kind, fields)))
+    world.online[5555] = False
+    sup.tick()  # miss 1 -> retry in 2 min
+    world.now += timedelta(minutes=2)
+    sup.tick()  # miss 2 -> retry in 4 min
+    world.now += timedelta(minutes=4)
+    sup.tick()  # miss 3 -> alert
+    assert seen == [("Pie64", "offline", {"misses": 3})]
+
+
+def test_two_ticks_at_once_launch_only_one_worker(tmp_path: Path, world: World) -> None:
+    """The API's startup tick and the supervisor loop's first tick land in two worker
+    threads at the same instant (brawlfarm/api/app.py's lifespan and _serve's task). Two
+    ticks running together would each read "nothing is running" from status.json, both
+    pass the launch guard and start a second worker for the same instance, which is the
+    one-worker-per-instance rail. tick() serialises instead."""
+    world.probe_delay_s = 0.05  # the real probe shells out to adb; that is the window
+    sup = make_sup(tmp_path, world, ("Pie64",))
+    ready = threading.Barrier(2)
+    failures: list[Exception] = []
+
+    def ticker() -> None:
+        try:
+            ready.wait(timeout=5)
+            sup.tick()
+        except Exception as exc:  # a thread that dies would otherwise just print and pass
+            failures.append(exc)
+
+    previous_interval = sys.getswitchinterval()
+    sys.setswitchinterval(1e-6)
+    try:
+        threads = [threading.Thread(target=ticker) for _ in range(2)]
+        for thread in threads:
+            thread.start()
+        for thread in threads:
+            thread.join(timeout=30)
+    finally:
+        sys.setswitchinterval(previous_interval)
+
+    assert failures == []
+    assert all(not t.is_alive() for t in threads)  # both ticks finished
+    assert len(world.launches) == 1
+    assert len(world.alive) == 1

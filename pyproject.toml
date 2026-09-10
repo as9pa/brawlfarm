@@ -15,13 +15,15 @@ dependencies = [
   "pydantic>=2.9",
   "tomli-w>=1.1",
   "psutil>=6.1",
+  "fastapi>=0.115",
+  "uvicorn>=0.30",
 ]
 
 [project.scripts]
 brawlfarm = "brawlfarm.__main__:main"
 
 [dependency-groups]
-dev = ["pytest>=8.3", "pytest-asyncio>=0.24", "ruff>=0.12"]
+dev = ["pytest>=8.3", "pytest-asyncio>=0.24", "ruff>=0.12", "httpx>=0.27"]
 
 [build-system]
 requires = ["hatchling"]
@@ -45,3 +47,12 @@ cache_dir = ".pytest_cache"
 pythonpath = ["."]
 asyncio_mode = "strict"
 asyncio_default_fixture_loop_scope = "function"
+# Two import-time deprecations from the TestClient's own dependencies, scoped to their
+# exact message so any other deprecation still surfaces. Drop each one when its emitter
+# is upgraded past it.
+filterwarnings = [
+  # starlette 1.6.0 prefers httpx2 and warns on the httpx fallback; the plan pins httpx.
+  "ignore:Using `httpx` with `starlette.testclient` is deprecated:starlette.exceptions.StarletteDeprecationWarning",
+  # starlette 1.6.0's module body still uses the alias anyio 4.15 deprecated.
+  "ignore:The anyio.abc.BlockingPortal alias is deprecated:DeprecationWarning",
+]
