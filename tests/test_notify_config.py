@@ -39,6 +39,8 @@ def test_events_filter_from_env_and_configure(monkeypatch) -> None:
     assert notify.enabled_events() == frozenset(notify.ALERT_KINDS)
     monkeypatch.setenv("BRAWL_NOTIFY_EVENTS", "crash, offline")
     assert notify.enabled_events() == frozenset({"crash", "offline"})
+    monkeypatch.setenv("BRAWL_NOTIFY_EVENTS", "")
+    assert notify.enabled_events() == frozenset()
     notify.configure(events=["recover"])
     assert notify.enabled_events() == frozenset({"recover"})
 
