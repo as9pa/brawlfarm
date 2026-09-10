@@ -35,6 +35,7 @@ from brawlfarm.api import (
     screens,
     settings_routes,
     setup_routes,
+    stats,
 )
 from brawlfarm.api.alerts import AlertStore
 from brawlfarm.api.events import BusLogHandler, EventBus
@@ -163,6 +164,7 @@ def create_app(sup: Supervisor, home: Path) -> FastAPI:
     app.include_router(schedule.router)
     app.include_router(feed.router)
     app.include_router(alerts.router)
+    app.include_router(stats.router)
 
     # --- the web UI ------------------------------------------------------------------
     dist = dist_dir()
