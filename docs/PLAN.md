@@ -8,7 +8,7 @@ Living board. Finished work moves to the top with its proof.
 
 ## In flight
 
-- Phase 2: settings and supervisor. Plan: docs/superpowers/plans/2026-09-10-phase-2-settings-and-supervisor.md. PR: (link once opened).
+- Phase 2: settings and supervisor. Plan: docs/superpowers/plans/2026-09-10-phase-2-settings-and-supervisor.md. PR: https://github.com/as9pa/brawlfarm/pull/2.
 
 ## Queue (v1)
 
