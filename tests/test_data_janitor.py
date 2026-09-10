@@ -122,8 +122,7 @@ def test_idempotent_on_rerun(acct):
     second = J.rotate_account(acct, NOW)
     assert second["moved"] == 0
     contents_after = {
-        p.name: p.read_text(encoding="utf-8")
-        for p in sorted((acct / "archive").glob("*.jsonl"))
+        p.name: p.read_text(encoding="utf-8") for p in sorted((acct / "archive").glob("*.jsonl"))
     }
     assert contents_after == contents  # archives unchanged on the idempotent re-run
     assert first["moved"] >= 1
@@ -193,9 +192,7 @@ def test_big_log_over_threshold_and_quiet_rolls(tmp_path, monkeypatch):
     out = J.rotate_big_logs(NOW)
     assert out["audit.jsonl"]["rolled"] == 1
     arch = tmp_path / "data" / "archive" / f"audit-{NOW.strftime('%Y-%m')}.jsonl"
-    assert (
-        arch.is_file() and len(arch.read_text(encoding="utf-8")) >= J.BIG_LOG_MAX_BYTES
-    )
+    assert arch.is_file() and len(arch.read_text(encoding="utf-8")) >= J.BIG_LOG_MAX_BYTES
     assert p.read_text(encoding="utf-8") == ""  # live file truncated, writer reopens
 
 

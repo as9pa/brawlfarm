@@ -31,10 +31,36 @@ FORBIDDEN_SHA256: frozenset[str] = frozenset(
 )
 
 TEXT_SUFFIXES = {
-    ".py", ".md", ".toml", ".yml", ".yaml", ".txt", ".json", ".ps1", ".cfg", ".ini",
-    ".html", ".css", ".ts", ".tsx", ".js", ".jsx", ".csv", ".env", ".example",
+    ".py",
+    ".md",
+    ".toml",
+    ".yml",
+    ".yaml",
+    ".txt",
+    ".json",
+    ".ps1",
+    ".cfg",
+    ".ini",
+    ".html",
+    ".css",
+    ".ts",
+    ".tsx",
+    ".js",
+    ".jsx",
+    ".csv",
+    ".env",
+    ".example",
 }
-SKIP_DIRS = {".git", ".venv", "node_modules", ".pytest_cache", ".ruff_cache", "dist", "build", ".worktrees"}
+SKIP_DIRS = {
+    ".git",
+    ".venv",
+    "node_modules",
+    ".pytest_cache",
+    ".ruff_cache",
+    "dist",
+    "build",
+    ".worktrees",
+}
 TOKEN_RE = re.compile(r"#?[A-Za-z0-9]+")
 DISCORD_IMPORT_RE = re.compile(r"^\s*(?:import|from)\s+discord\b")
 
@@ -46,13 +72,26 @@ def _hash(token: str) -> str:
 def _tracked_files(root: Path) -> list[Path]:
     try:
         out = subprocess.run(
-            ["git", "-C", str(root), "ls-files", "-z", "--cached", "--others", "--exclude-standard"],
-            capture_output=True, text=True, check=True,
+            [
+                "git",
+                "-C",
+                str(root),
+                "ls-files",
+                "-z",
+                "--cached",
+                "--others",
+                "--exclude-standard",
+            ],
+            capture_output=True,
+            text=True,
+            check=True,
         ).stdout
         files = [root / p for p in out.split("\0") if p]
     except (subprocess.CalledProcessError, FileNotFoundError):
         files = [p for p in root.rglob("*") if p.is_file()]
-    return [p for p in files if p.is_file() and not (set(p.relative_to(root).parts[:-1]) & SKIP_DIRS)]
+    return [
+        p for p in files if p.is_file() and not (set(p.relative_to(root).parts[:-1]) & SKIP_DIRS)
+    ]
 
 
 def scan(root: Path, extra_hashes: frozenset[str] = frozenset()) -> list[str]:

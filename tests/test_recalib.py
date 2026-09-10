@@ -166,9 +166,7 @@ def _recal_events(c):
     return [f for k, f in c.dl.events if k == "recalibrate"]
 
 
-def test_note_recalib_emits_once_at_threshold_with_daily_cooldown(
-    tmp_path, monkeypatch
-):
+def test_note_recalib_emits_once_at_threshold_with_daily_cooldown(tmp_path, monkeypatch):
     c = _ctrl(tmp_path, monkeypatch)
     c._note_recalib("brawlers", "screen verified but 0 owned names", 2)
     assert _recal_events(c) == []  # streak 1 < threshold
@@ -181,9 +179,7 @@ def test_note_recalib_emits_once_at_threshold_with_daily_cooldown(
     assert len(_recal_events(c)) == 1  # cooled down: one alert per surface per day
 
 
-def test_note_recalib_healthy_resets_and_kill_switch_writes_nothing(
-    tmp_path, monkeypatch
-):
+def test_note_recalib_healthy_resets_and_kill_switch_writes_nothing(tmp_path, monkeypatch):
     c = _ctrl(tmp_path, monkeypatch)
     c._note_recalib("brawlers", "sus", 2)
     c._note_recalib("brawlers", None, 2)  # healthy → reset
@@ -216,8 +212,6 @@ def test_note_recalib_skip_neither_bumps_nor_resets(tmp_path, monkeypatch):
     c._note_recalib("brawlers", "sus", 3)
     c._note_recalib("brawlers", recalib.SKIP, 3)  # nav failed: untouched
     c._note_recalib("brawlers", "sus", 3)
-    assert (
-        recalib.load(tmp_path)["brawlers"]["streak"] == 2
-    )  # SKIP neither reset nor bumped
+    assert recalib.load(tmp_path)["brawlers"]["streak"] == 2  # SKIP neither reset nor bumped
     c._note_recalib("brawlers", None, 3)  # a real healthy observation DOES reset
     assert recalib.load(tmp_path)["brawlers"]["streak"] == 0

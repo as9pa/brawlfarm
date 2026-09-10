@@ -190,9 +190,7 @@ def bush_clusters(frame: np.ndarray) -> list[Bush]:
         return []
     f = config.BUSH_DOWNSCALE
     h, w = frame.shape[:2]
-    small = cv2.resize(
-        frame, (max(1, w // f), max(1, h // f)), interpolation=cv2.INTER_AREA
-    )
+    small = cv2.resize(frame, (max(1, w // f), max(1, h // f)), interpolation=cv2.INTER_AREA)
     hsv = cv2.cvtColor(small, cv2.COLOR_BGR2HSV)
     mask = cv2.inRange(
         hsv,

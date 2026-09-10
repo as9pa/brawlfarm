@@ -19,9 +19,7 @@ import sys
 def test_config_imports_with_no_env_file(tmp_path):
     # Strip every project env var; keep the rest (PATH/SYSTEMROOT etc. — Python
     # itself needs those on Windows).
-    env = {
-        k: v for k, v in os.environ.items() if not k.startswith(("BRAWL_", "DISCORD_"))
-    }
+    env = {k: v for k, v in os.environ.items() if not k.startswith(("BRAWL_", "DISCORD_"))}
     env["BRAWLFARM_HOME"] = str(tmp_path)
 
     proc = subprocess.run(

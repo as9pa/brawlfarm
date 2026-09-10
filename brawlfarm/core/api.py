@@ -94,9 +94,7 @@ def is_showdown(entry: dict) -> bool:
     present-but-null key skips dict.get's default), so every level falls back
     through `or` instead of trusting the defaults."""
     mode = (
-        (entry.get("event") or {}).get("mode")
-        or (entry.get("battle") or {}).get("mode")
-        or ""
+        (entry.get("event") or {}).get("mode") or (entry.get("battle") or {}).get("mode") or ""
     ).lower()
     return any(k in mode for k in config.SHOWDOWN_MODE_KEYS)
 

@@ -18,8 +18,7 @@ import json
 from datetime import datetime
 from pathlib import Path
 
-from brawlfarm.core import config
-from brawlfarm.core import notify
+from brawlfarm.core import config, notify
 from brawlfarm.core.api import is_showdown, my_brawler
 
 GAMES_CSV = config.DATA_DIR / "games.csv"
@@ -230,12 +229,6 @@ class DataLog:
                 }
             )
             return
-        if (
-            etype == "phase"
-            and fields.get("to") == "queuing"
-            and not self._farming_emitted
-        ):
+        if etype == "phase" and fields.get("to") == "queuing" and not self._farming_emitted:
             self._farming_emitted = True
-            self._append(
-                {"ts": _now_iso(), "kind": "farming", "brawler": self._last_brawler}
-            )
+            self._append({"ts": _now_iso(), "kind": "farming", "brawler": self._last_brawler})

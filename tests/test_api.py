@@ -86,10 +86,7 @@ def test_my_brawler_tag_match_is_case_insensitive():
 
 
 def test_my_brawler_absent_when_we_are_not_in_the_entry():
-    assert (
-        api.my_brawler({"battle": {"teams": [[_player("#AAA", "COLT")]]}}, MY_TAG)
-        is None
-    )
+    assert api.my_brawler({"battle": {"teams": [[_player("#AAA", "COLT")]]}}, MY_TAG) is None
 
 
 def test_my_brawler_missing_keys_degrade_to_none():

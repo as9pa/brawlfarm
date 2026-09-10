@@ -126,9 +126,7 @@ def main(argv: list[str] | None = None) -> int:
         sys.stdout.reconfigure(encoding="utf-8")  # console may be cp1252 (like run.py)
     except Exception:
         pass
-    ap = argparse.ArgumentParser(
-        description="Event-rotation snapshotter (see module docstring)"
-    )
+    ap = argparse.ArgumentParser(description="Event-rotation snapshotter (see module docstring)")
     sub = ap.add_subparsers(dest="cmd", required=True)
     sub.add_parser("refresh", help="fetch + cache the rotation (30-min self-throttle)")
     args = ap.parse_args(argv)

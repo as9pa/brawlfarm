@@ -63,9 +63,7 @@ def test_ladder_rotation_picks_next_lowest_by_name():
 
 def test_ladder_all_rotated_falls_back_to_plain_ladder():
     plan = {"mode": "ladder", "goal_trophies": 1000}
-    target, goal = farmplan.choose_target(
-        plan, _bs(("A", 36), ("B", 140)), exclude={"A", "B"}
-    )
+    target, goal = farmplan.choose_target(plan, _bs(("A", 36), ("B", 140)), exclude={"A", "B"})
     assert target is None
     assert goal == 100
 
@@ -87,9 +85,7 @@ def test_prestige_ignores_exclude():
 def _write_games(tmp_path, rows):
     p = tmp_path / "games.csv"
     with p.open("w", newline="", encoding="utf-8") as f:
-        w = csv.DictWriter(
-            f, fieldnames=["battleTime", "brawler", "trophyChange", "is_showdown"]
-        )
+        w = csv.DictWriter(f, fieldnames=["battleTime", "brawler", "trophyChange", "is_showdown"])
         w.writeheader()
         for i, (brawler, tc, sd) in enumerate(rows):
             w.writerow(
@@ -124,9 +120,7 @@ def test_winstreak_mixed_recent_is_false(tmp_path):
 
 def test_winstreak_zero_change_breaks_the_streak(tmp_path):
     # a draw (0) is not a WIN — strictly positive required
-    d = _write_games(
-        tmp_path, [("CROW", 2, "True"), ("CROW", 0, "True"), ("CROW", 3, "True")]
-    )
+    d = _write_games(tmp_path, [("CROW", 2, "True"), ("CROW", 0, "True"), ("CROW", 3, "True")])
     assert farmplan.recent_winstreak("CROW", data_dir=d) is False
 
 
@@ -182,12 +176,8 @@ def _player(*pairs):
 
 
 def test_cold_streak_triggers_rotation(monkeypatch):
-    monkeypatch.setattr(
-        farmplan, "load_plan", lambda: {"mode": "ladder", "goal_trophies": 1000}
-    )
-    monkeypatch.setattr(
-        farmplan, "rotation_decision", lambda name, pool: (True, "absolute_floor")
-    )
+    monkeypatch.setattr(farmplan, "load_plan", lambda: {"mode": "ladder", "goal_trophies": 1000})
+    monkeypatch.setattr(farmplan, "rotation_decision", lambda name, pool: (True, "absolute_floor"))
     monkeypatch.setattr(farmplan, "recent_winstreak", lambda name: False)
     c = _ctrl("CROW")
     c._check_farm_brawler_trophies(_player(("CROW", 36), ("NITA", 140)))
@@ -198,9 +188,7 @@ def test_cold_streak_triggers_rotation(monkeypatch):
 
 def test_winstreak_suppresses_rotation(monkeypatch):
     # the owner's rule: rotation triggered but on a winstreak -> KEEP it (verbatim)
-    monkeypatch.setattr(
-        farmplan, "load_plan", lambda: {"mode": "ladder", "goal_trophies": 1000}
-    )
+    monkeypatch.setattr(farmplan, "load_plan", lambda: {"mode": "ladder", "goal_trophies": 1000})
     monkeypatch.setattr(
         farmplan, "rotation_decision", lambda name, pool: (True, "opportunity_cost")
     )
@@ -215,9 +203,7 @@ def test_winstreak_suppresses_rotation(monkeypatch):
 def test_normal_variance_does_not_rotate(monkeypatch):
     # a healthy brawler never rotates — and the winstreak guard isn't even consulted
     # (the controller only consults it when rotation_decision says rotate)
-    monkeypatch.setattr(
-        farmplan, "load_plan", lambda: {"mode": "ladder", "goal_trophies": 1000}
-    )
+    monkeypatch.setattr(farmplan, "load_plan", lambda: {"mode": "ladder", "goal_trophies": 1000})
     monkeypatch.setattr(farmplan, "rotation_decision", lambda name, pool: (False, None))
 
     def boom(name):
@@ -231,9 +217,7 @@ def test_normal_variance_does_not_rotate(monkeypatch):
 
 
 def test_insufficient_evidence_does_not_rotate(monkeypatch):
-    monkeypatch.setattr(
-        farmplan, "load_plan", lambda: {"mode": "ladder", "goal_trophies": 1000}
-    )
+    monkeypatch.setattr(farmplan, "load_plan", lambda: {"mode": "ladder", "goal_trophies": 1000})
     # no evidence -> rotation_decision returns (False, None)
     monkeypatch.setattr(farmplan, "rotation_decision", lambda name, pool: (False, None))
     c = _ctrl("CROW")
@@ -265,9 +249,7 @@ def test_prestige_mode_never_evaluates_the_rate(monkeypatch):
 def test_rotation_goal_uses_the_excluded_pool(monkeypatch):
     # after CROW rotates out, later snapshots compute the goal over the remaining
     # pool — the new named target must NOT instantly re-trigger the goal switch
-    monkeypatch.setattr(
-        farmplan, "load_plan", lambda: {"mode": "ladder", "goal_trophies": 1000}
-    )
+    monkeypatch.setattr(farmplan, "load_plan", lambda: {"mode": "ladder", "goal_trophies": 1000})
     monkeypatch.setattr(farmplan, "rotation_decision", lambda name, pool: (False, None))
     c = _ctrl("NEXT")
     c._rotated = {"CROW"}
@@ -277,9 +259,7 @@ def test_rotation_goal_uses_the_excluded_pool(monkeypatch):
 
 
 def test_rate_check_failure_never_blocks_the_snapshot(monkeypatch):
-    monkeypatch.setattr(
-        farmplan, "load_plan", lambda: {"mode": "ladder", "goal_trophies": 1000}
-    )
+    monkeypatch.setattr(farmplan, "load_plan", lambda: {"mode": "ladder", "goal_trophies": 1000})
 
     def boom(name, pool):
         raise OSError("games.csv locked")
@@ -288,6 +268,4 @@ def test_rate_check_failure_never_blocks_the_snapshot(monkeypatch):
     c = _ctrl("CROW")
     c._check_farm_brawler_trophies(_player(("CROW", 36), ("NITA", 140)))
     assert c._reselect_pending is False
-    assert any(
-        e == "farmplan_error" and f.get("where") == "rate_check" for e, f in c.dl.events
-    )
+    assert any(e == "farmplan_error" and f.get("where") == "rate_check" for e, f in c.dl.events)

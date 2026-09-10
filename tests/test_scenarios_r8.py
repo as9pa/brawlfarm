@@ -170,9 +170,7 @@ def test_dismiss_ladder_prefers_the_ceremony_then_close_x(monkeypatch):
     monkeypatch.setattr(states, "is_choose_a_brawler", lambda s: False)
     monkeypatch.setattr(states, "green_cta", lambda s: (800, 822))
     called = {"find": 0}
-    monkeypatch.setattr(
-        ctrlmod.vision, "find", lambda *a, **k: called.__setitem__("find", 1)
-    )
+    monkeypatch.setattr(ctrlmod.vision, "find", lambda *a, **k: called.__setitem__("find", 1))
     assert c._try_dismiss_ladder(object()) is True
     assert called["find"] == 0  # short-circuited at the ceremony check
 
@@ -209,9 +207,7 @@ def _playing_ctrl(monkeypatch):
     )
     monkeypatch.setattr(c, "event_shot", lambda *a, **k: None, raising=False)
     c.set_phase_calls = []
-    monkeypatch.setattr(
-        c, "set_phase", lambda name: c.set_phase_calls.append(name), raising=False
-    )
+    monkeypatch.setattr(c, "set_phase", lambda name: c.set_phase_calls.append(name), raising=False)
     monkeypatch.setattr(ctrlmod.time, "sleep", lambda *_a: None)
     # huge MATCH_TIMEOUT headroom (phase_started=0, monotonic is large) would trip the
     # timeout; stub monotonic to a small value so we reach the modal scan.

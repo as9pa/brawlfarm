@@ -17,8 +17,7 @@ from enum import Enum
 import cv2
 import numpy as np
 
-from brawlfarm.core import config
-from brawlfarm.core import vision
+from brawlfarm.core import config, vision
 
 
 class State(Enum):
@@ -162,10 +161,7 @@ def is_daily_streak(screen: np.ndarray) -> bool:
     match_timeout loop). OCR its title banner for "STREAK" — NOT "DAILY", which also appears
     in the "DAILY WINS" banner on Star/Angel drops. Called only on UNKNOWN frames (the
     controller gates it) so this OCR stays off the hot path."""
-    return (
-        vision.find_text(screen, "STREAK", region=config.DAILY_STREAK_TITLE_REGION)
-        is not None
-    )
+    return vision.find_text(screen, "STREAK", region=config.DAILY_STREAK_TITLE_REGION) is not None
 
 
 def is_team_invite(screen: np.ndarray) -> bool:
@@ -174,8 +170,7 @@ def is_team_invite(screen: np.ndarray) -> bool:
     it (MUTE + REJECT). OCR'd in a tight title band; like is_daily_streak this is only
     called off the hot path (UNKNOWN frames, or a menu that stopped accepting PLAY)."""
     return (
-        vision.find_text(screen, "TEAM INVITE", region=config.TEAM_INVITE_TITLE_REGION)
-        is not None
+        vision.find_text(screen, "TEAM INVITE", region=config.TEAM_INVITE_TITLE_REGION) is not None
     )
 
 
@@ -224,9 +219,7 @@ def green_cta(screen: np.ndarray) -> tuple[int, int] | None:
     y1, y2 = _CTA_BAND_Y
     best_name, best_frac = None, 0.0
     for name, ((x1, x2), _tap) in _CTA_THIRDS.items():
-        frac = vision.color_fraction(
-            screen, (x1, y1, x2, y2), _CTA_GREEN_LO, _CTA_GREEN_HI
-        )
+        frac = vision.color_fraction(screen, (x1, y1, x2, y2), _CTA_GREEN_LO, _CTA_GREEN_HI)
         if frac > best_frac:
             best_name, best_frac = name, frac
     if best_name is None or best_frac < _CTA_MIN_FRACTION:

@@ -41,9 +41,7 @@ _TRANSIENT = (
 )
 
 
-def _run(
-    args: list[str], *, binary: bool = False, timeout: float = 20.0, retries: int = 2
-):
+def _run(args: list[str], *, binary: bool = False, timeout: float = 20.0, retries: int = 2):
     """Run `HD-Adb.exe <args>` and return its output.
 
     binary=True returns raw bytes (used for screenshots); otherwise decoded text.
@@ -63,11 +61,7 @@ def _run(
             time.sleep(0.5 * (attempt + 1))
             continue
         if result.returncode == 0:
-            return (
-                result.stdout
-                if binary
-                else result.stdout.decode("utf-8", errors="replace")
-            )
+            return result.stdout if binary else result.stdout.decode("utf-8", errors="replace")
         stderr = result.stderr.decode("utf-8", errors="replace").strip()
         last_err = AdbError(f"adb {' '.join(args)} failed: {stderr or 'unknown error'}")
         if any(s in stderr.lower() for s in _TRANSIENT):
@@ -241,9 +235,7 @@ def swipe(x1: int, y1: int, x2: int, y2: int, duration_ms: int = 200) -> None:
             _write_touch(_touch_frame(x1, y1))  # finger down
             for i in range(1, frames + 1):
                 t = i / frames
-                _write_touch(
-                    _touch_frame(round(x1 + (x2 - x1) * t), round(y1 + (y2 - y1) * t))
-                )
+                _write_touch(_touch_frame(round(x1 + (x2 - x1) * t), round(y1 + (y2 - y1) * t)))
                 time.sleep(duration_ms / 1000 / frames)
             _write_touch(_TOUCH_UP)  # finger up
             return

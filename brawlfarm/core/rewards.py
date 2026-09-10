@@ -89,9 +89,7 @@ def parse_drop_reward(lines: list[str]) -> dict | None:
                 rarity = candidate
         # Name = the reveal lines that aren't the header / a stray rarity word.
         name_parts = [
-            ln
-            for ln in norm
-            if ln is not skin_hdr and "SKIN" not in ln and ln not in _RARITIES
+            ln for ln in norm if ln is not skin_hdr and "SKIN" not in ln and ln not in _RARITIES
         ]
         name = " ".join(name_parts).strip()
         return {"kind": "skin", "name": name, "rarity": rarity}

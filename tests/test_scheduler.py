@@ -136,9 +136,9 @@ def test_day_fully_covered_no_monster_holes(sims):
                 hole = _mins(ss[i]["end"], ss[i + 1]["start"])
                 ceiling = OUTING_HI if _is_outing_after(ss, i) else BREAK_HI
                 assert hole <= ceiling + 1e-6, (p["plan_date"], hole)
-            assert S._parse(ss[-1]["end"]) <= S._parse(p["day_end"]) + timedelta(
-                seconds=1
-            ), p["plan_date"]
+            assert S._parse(ss[-1]["end"]) <= S._parse(p["day_end"]) + timedelta(seconds=1), p[
+                "plan_date"
+            ]
 
 
 def test_midnight_truncation(sims):
@@ -148,9 +148,7 @@ def test_midnight_truncation(sims):
         for p in plans:
             day_end = S._parse(p["day_end"])
             for s in p["sessions"]:
-                assert S._parse(s["end"]) <= day_end + timedelta(seconds=1), p[
-                    "plan_date"
-                ]
+                assert S._parse(s["end"]) <= day_end + timedelta(seconds=1), p["plan_date"]
 
 
 def test_day_to_day_continuity(sims):
@@ -158,9 +156,9 @@ def test_day_to_day_continuity(sims):
     # midnight) — the pattern continues across the seam, no overlap.
     for plans in sims.values():
         for cur, nxt in zip(plans, plans[1:]):
-            assert S._parse(nxt["sessions"][0]["start"]) >= S._parse(cur["day_end"]), (
-                cur["plan_date"]
-            )
+            assert S._parse(nxt["sessions"][0]["start"]) >= S._parse(cur["day_end"]), cur[
+                "plan_date"
+            ]
 
 
 def test_full_day_is_busy(sims):
@@ -546,9 +544,7 @@ def test_tick_writes_nonzero_games_played_today(tmp_path, monkeypatch):
     monkeypatch.setattr("os.urandom", lambda n: b"\x02" * n)
     t0 = datetime(2026, 6, 10, 9, 0, 0)
     assert S.tick(t0) == 0  # first tick draws the day (start floored at t0)
-    state = json.loads(
-        (tmp_path / "data" / "scheduler_state.json").read_text(encoding="utf-8")
-    )
+    state = json.loads((tmp_path / "data" / "scheduler_state.json").read_text(encoding="utf-8"))
     wake = S._parse(state["accounts"]["Pie64"]["wake"])
     # three battles well inside the play-day, after the realized start
     _write_games_csv(
@@ -625,9 +621,7 @@ def test_tick_sweep_multi_day(tmp_path, monkeypatch, start, days):
     # Crash-redraw probe: the day AFTER start, mid-afternoon — always inside the
     # 2-day window for every parametrized start (was a fixed day-3 date back when
     # the sweep ran 6 days).
-    del_at = start.replace(hour=14, minute=0, second=0, microsecond=0) + timedelta(
-        days=1
-    )
+    del_at = start.replace(hour=14, minute=0, second=0, microsecond=0) + timedelta(days=1)
     while now < end:
         now += step
         assert S.tick(now) == 0
@@ -708,9 +702,7 @@ def test_overrides(tmp_path, monkeypatch):
     assert not (tmp_path / "data" / "Pie64" / "override.json").exists()
 
     # /stop during a session -> stop override wins over the session window
-    mid = S._parse(sessions[0]["start"]) + timedelta(
-        seconds=int(sessions[0]["entry_delay_s"]) + 60
-    )
+    mid = S._parse(sessions[0]["start"]) + timedelta(seconds=int(sessions[0]["entry_delay_s"]) + 60)
     S.write_override("Pie64", "stop", S._parse(sessions[0]["end"]))
     assert S.tick(mid) == 0
     d = _desired(tmp_path, "Pie64")

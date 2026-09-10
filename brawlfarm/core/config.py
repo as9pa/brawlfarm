@@ -9,8 +9,8 @@ startup (see core/controller.py's run()) so a changed resolution can't silently
 misfire taps.
 """
 
-from pathlib import Path
 import os
+from pathlib import Path
 
 from dotenv import load_dotenv
 
@@ -119,15 +119,11 @@ SHOWDOWN_MODE_KEYS = ("showdown",)
 
 # --- Timings (seconds) -------------------------------------------------------
 
-ATTACK_INTERVAL = (
-    2.75  # BASE seconds between attack taps (also used by tools/harvest_match)
-)
+ATTACK_INTERVAL = 2.75  # BASE seconds between attack taps (also used by tools/harvest_match)
 # Anti-detection: a perfectly periodic tap is an obvious bot tell, so we jitter each attack
 # gap by +/- this many seconds (so the real gap is uniform in ATTACK_INTERVAL +/- jitter).
 ATTACK_JITTER = 0.9  # 2.75 +/- 0.9 => ~1.85-3.65 s between attacks
-TAP_JITTER_PX = (
-    7  # nudge in-match tap coords by +/- this many px (don't hit the same pixel)
-)
+TAP_JITTER_PX = 7  # nudge in-match tap coords by +/- this many px (don't hit the same pixel)
 LOOP_POLL_INTERVAL = 0.20  # base delay between capture->classify iterations
 TAP_SETTLE = 0.6  # small wait after a navigation tap before re-capturing
 # Drops/reward reveals open on RAPID taps; clear them fast so more time is spent in
@@ -191,9 +187,7 @@ PHASE_CLASSIFY = os.environ.get("BRAWL_PHASE_CLASSIFY", "1") != "0"
 
 MATCH_THRESHOLD = 0.85  # default template-match confidence (0..1)
 IN_MATCH_THRESHOLD = 0.70  # "Teams left:" HUD match (lower: text over varying maps)
-MATCHMAKING_THRESHOLD = (
-    0.90  # "Players found" match — tightened (it hit 0.86 on a reward screen)
-)
+MATCHMAKING_THRESHOLD = 0.90  # "Players found" match — tightened (it hit 0.86 on a reward screen)
 
 
 # --- Behavior flags ----------------------------------------------------------
@@ -307,9 +301,7 @@ WINRATE_MARGIN = 1.0  # promote only when top beats the roster-minimum by this
 WINRATE_PRIOR_K = float(
     os.environ.get("BRAWL_WINRATE_PRIOR_K", "10")
 )  # empirical-Bayes prior strength, in games
-WINRATE_HALFLIFE = float(
-    os.environ.get("BRAWL_WINRATE_HALFLIFE", "25")
-)  # EWMA half-life, in games
+WINRATE_HALFLIFE = float(os.environ.get("BRAWL_WINRATE_HALFLIFE", "25"))  # EWMA half-life, in games
 WINRATE_HISTORY_MAX = 200  # per-brawler games kept for the EWMA (older tail negligible)
 
 
@@ -381,9 +373,7 @@ SAFE_HOLD_POINT = (800, 450)  # screen center, for hold-to-open Star Drops
 # NEVER tap the blue TRY button beside CHOOSE (it enters a match preview).
 CHOOSE_BRAWLER_CENTER_CARD = (800, 480)  # center brawler card on the 3-card chooser
 CHOOSE_BRAWLER_CONFIRM = (984, 822)  # green CHOOSE button (left of the blue TRY)
-CEREMONY_MAX_SCREENS = (
-    4  # max ceremony screens cleared per recovery cycle, then fall through
-)
+CEREMONY_MAX_SCREENS = 4  # max ceremony screens cleared per recovery cycle, then fall through
 
 # In-match server-error modal (live incident on a farm account, 2026-06-11: a gray
 # "Server error: 43" box sat over the match — the PLAYING phase never scanned for modals).
@@ -700,9 +690,7 @@ BUSH_MIN_AREA = 60
 # Self anchors at ~(690, 440) on the 1600x900 frame (research §3 — it drifts with the
 # camera, so treat these distances as slack, not exact).
 BUSH_SELF_POS = (690, 440)
-BUSH_AT_TARGET_PX = (
-    90  # within this of the target bush center => already hidden -> hold
-)
+BUSH_AT_TARGET_PX = 90  # within this of the target bush center => already hidden -> hold
 # Gas "closing in" gate for relocation: relocate when gassed edges are present on
 # >= this many sides, OR any gassed edge's band fraction is this deep (gas deep in a
 # band ≈ gas near us). 0.5 means a band half-saturated by gas.

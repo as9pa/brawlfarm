@@ -140,9 +140,7 @@ def test_api_failure_with_no_existing_file(data_root, monkeypatch):
 
 def test_unexpected_exception_never_raises(data_root, monkeypatch):
     # Even a non-Api exception in the fetch path must come back as exit 0.
-    monkeypatch.setattr(
-        E, "_fetch_rotation", lambda: (_ for _ in ()).throw(RuntimeError("boom"))
-    )
+    monkeypatch.setattr(E, "_fetch_rotation", lambda: (_ for _ in ()).throw(RuntimeError("boom")))
     assert E.refresh(now=NOW) == 0
 
 

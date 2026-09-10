@@ -20,8 +20,7 @@ from __future__ import annotations
 
 import time
 
-from brawlfarm.core import config
-from brawlfarm.core import adb, states, vision
+from brawlfarm.core import adb, config, states, vision
 
 
 def quests_button_has_new(screen) -> bool:
@@ -39,10 +38,7 @@ def quests_button_has_new(screen) -> bool:
 
 def _on_quests_screen(screen) -> bool:
     """True if the QUESTS screen is open (its 'QUESTS' title sits top-left)."""
-    return (
-        vision.find_text(screen, "QUESTS", region=config.QUESTS_TITLE_REGION)
-        is not None
-    )
+    return vision.find_text(screen, "QUESTS", region=config.QUESTS_TITLE_REGION) is not None
 
 
 def _has_new_mega_card(screen) -> bool:

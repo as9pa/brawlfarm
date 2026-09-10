@@ -106,9 +106,7 @@ def test_two_edges_combined_repulsion():
     # gas top + left, equal depth -> push toward down-right (+x, +y quadrant);
     # start heading INTO the corner so only the repulsion can save us.
     fr = _clear() | {"top": 0.6, "left": 0.6}
-    out = match_vision.gas_bias_heading(
-        math.atan2(-1, -1), fr, {"top", "left"}, gain=2.5
-    )
+    out = match_vision.gas_bias_heading(math.atan2(-1, -1), fr, {"top", "left"}, gain=2.5)
     assert math.cos(out) > 0 and math.sin(out) > 0
 
 
@@ -122,9 +120,7 @@ def test_three_edges_head_for_least_gassed():
 
 def test_four_edges_head_for_least_gassed():
     fr = {"top": 0.2, "left": 0.9, "right": 0.8, "bottom": 0.9}
-    out = match_vision.gas_bias_heading(
-        0.0, fr, {"top", "left", "right", "bottom"}, gain=2.5
-    )
+    out = match_vision.gas_bias_heading(0.0, fr, {"top", "left", "right", "bottom"}, gain=2.5)
     assert _angle_close(out, -math.pi / 2)  # -y = up = toward the least-gassed top
 
 
@@ -141,9 +137,7 @@ def _band_fraction(path: pathlib.Path) -> float:
     return color_fraction(img, (0, 0, w, h), config.GAS_HSV_LO, config.GAS_HSV_HI)
 
 
-@pytest.mark.parametrize(
-    "name", sorted(p.name for p in FIXTURES.glob("gas_*.png")) or ["MISSING"]
-)
+@pytest.mark.parametrize("name", sorted(p.name for p in FIXTURES.glob("gas_*.png")) or ["MISSING"])
 def test_gas_band_crops_detect(name):
     if name == "MISSING":
         pytest.skip("no gas fixtures present")
@@ -189,4 +183,3 @@ def test_gadget_gas_overlap_reads_not_ready():
     spec = config.ABILITY_BUTTONS["gadget"]
     frac = _gadget_fraction(FIXTURES / "ability_gadget_gasoverlap.png")
     assert frac < spec["min_fraction"]
-

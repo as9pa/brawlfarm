@@ -31,7 +31,9 @@ def test_detects_forbidden_token_in_filename(tmp_path: Path) -> None:
 
 
 def test_detects_discord_import(tmp_path: Path) -> None:
-    (tmp_path / "x.py").write_text("import os\nfrom discord import app_commands\n", encoding="utf-8")
+    (tmp_path / "x.py").write_text(
+        "import os\nfrom discord import app_commands\n", encoding="utf-8"
+    )
     assert scrub_check.scan(tmp_path) == ["x.py:2: discord import"]
 
 
