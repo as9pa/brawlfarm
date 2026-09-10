@@ -2,7 +2,7 @@
 
 An open-source Brawl Stars trophy farmer for BlueStacks on Windows, with a local control panel in your browser.
 
-Status: under construction. Phase 1 of 8 (repo and core). The control panel, setup wizard and stats screens arrive in later phases; see `docs/PLAN.md`.
+Status: under construction. Phase 2 of 8 (settings and supervisor). The control panel, setup wizard and stats screens arrive in later phases; see `docs/PLAN.md`.
 
 ## What it does
 
@@ -33,6 +33,15 @@ uv run pytest
 uv run ruff check . && uv run ruff format --check .
 uv run python tools/scrub_check.py
 ```
+
+## Running (headless, until the panel lands in phase 3)
+
+```
+uv run brawlfarm --once        # one supervisor tick; writes config.toml on first run
+uv run brawlfarm               # supervise every configured instance, one tick a minute
+```
+
+Settings live in `%LOCALAPPDATA%\brawlfarm\config.toml` (override the folder with `BRAWLFARM_HOME`). Add one `[[instances]]` table per BlueStacks instance with its `name` and `adb_port`; each instance's files live under `instances/<name>/`. Stopping the supervisor leaves workers running; the next start reattaches to them through their status files.
 
 ## Legal
 
