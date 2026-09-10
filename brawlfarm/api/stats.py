@@ -59,12 +59,21 @@ def range_start(range_: str, now: datetime) -> datetime | None:
 def load_games_for(home: Path, names: Sequence[str], range_: str, now: datetime) -> pd.DataFrame:
     """Every selected instance's games.csv in one frame with an `instance` column, times
     converted to the local zone and filtered to the range, oldest first. An instance with no
-    file contributes nothing; nothing at all gives an empty frame with the right columns so
-    every caller below can assume the columns exist."""
+    file contributes nothing, and neither does one whose file cannot be read; nothing at all
+    gives an empty frame with the right columns so every caller below can assume the columns
+    exist."""
     start = range_start(range_, now)
     frames: list[pd.DataFrame] = []
     for name in names:
-        df = core_stats.load_games(S.instance_dir(home, name) / "games.csv")
+        try:
+            df = core_stats.load_games(S.instance_dir(home, name) / "games.csv")
+        except (OSError, ValueError) as exc:
+            # A worker killed mid-append leaves a ragged line and pandas raises ParserError;
+            # a file written in another encoding raises UnicodeDecodeError. Both are
+            # ValueErrors. One broken instance must not empty the whole screen, so it is
+            # skipped like a missing file.
+            log.warning("%s: cannot read games.csv: %s", name, exc)
+            continue
         if df.empty:
             continue
         df = df.copy()
@@ -165,10 +174,13 @@ def _series(games: pd.DataFrame, names: Sequence[str]) -> list[dict]:
         if not games.empty and "instance" in games:
             running = 0
             for row in games[games["instance"] == name].to_dict("records"):
+                moment = row.get("battleTime")
+                if pd.isna(moment):  # no column at all, or a time core/stats.py could not read
+                    continue
                 change = _num(row.get("trophyChange"), 0)
                 running += int(change) if change is not None else 0
-                moment = row["battleTime"].to_pydatetime()
-                points.append({"t": moment.isoformat(timespec="seconds"), "cum": running})
+                point = moment.to_pydatetime()
+                points.append({"t": point.isoformat(timespec="seconds"), "cum": running})
         out.append({"instance": name, "points": points})
     return out
 
@@ -208,12 +220,15 @@ def _recent(games: pd.DataFrame) -> list[dict]:
         return []
     out: list[dict] = []
     for row in games.tail(RECENT_LIMIT).iloc[::-1].to_dict("records"):
+        moment = row.get("battleTime")
+        if pd.isna(moment):  # no column at all, or a time core/stats.py could not read
+            continue
         rank = _num(row.get("rank"), 0)
         change = _num(row.get("trophyChange"), 0)
         out.append(
             {
                 "instance": _text(row.get("instance")),
-                "t": row["battleTime"].to_pydatetime().isoformat(timespec="seconds"),
+                "t": moment.to_pydatetime().isoformat(timespec="seconds"),
                 "brawler": _text(row.get("brawler")),
                 "rank": int(rank) if rank is not None else None,
                 "trophy_change": int(change) if change is not None else None,
@@ -252,7 +267,11 @@ def export_csv(home: Path, names: Sequence[str], range_: str, now: datetime) -> 
                         continue
                     fields = {k: row.get(k, "") for k in datalog.GAME_FIELDS}
                     rows.append((moment, {"instance": name, **fields}))
-        except OSError as exc:
+        except (OSError, ValueError, csv.Error) as exc:
+            # csv.Error for a line the reader chokes on (a NUL from a half-written append),
+            # UnicodeDecodeError -- a ValueError -- for bytes that are not UTF-8. Whatever
+            # was read before the break is kept: one broken file must not empty the download
+            # for the instances beside it.
             log.warning("%s: cannot read games.csv: %s", name, exc)
     rows.sort(key=lambda pair: pair[0])
     buf = io.StringIO(newline="")
@@ -265,11 +284,12 @@ def export_csv(home: Path, names: Sequence[str], range_: str, now: datetime) -> 
 
 def _selected(request: Request, instances: str | None) -> list[str]:
     """The instance filter: a comma-separated list, or every configured instance. An unknown
-    name is a 404 like every other instance route, not a silently empty chart."""
+    name is a 404 like every other instance route, not a silently empty chart. A name
+    repeated in the query is counted once, in the order it was first asked for."""
     configured = [i.name for i in request.app.state.sup.settings.instances]
     if not instances:
         return configured
-    names = [n.strip() for n in instances.split(",") if n.strip()]
+    names = list(dict.fromkeys(n.strip() for n in instances.split(",") if n.strip()))
     for name in names:
         if name not in configured:
             raise HTTPException(status_code=404, detail="unknown instance")
