@@ -4,15 +4,14 @@ Living board. Finished work moves to the top with its proof.
 
 ## Done
 
-(nothing yet)
+- Phase 1: repo and core. PR https://github.com/as9pa/brawlfarm/pull/1 (merged 2026-09-10). Proof: CI run https://github.com/as9pa/brawlfarm/actions/runs/34446450332 green on the merged head (336 tests, ruff clean, scrub check 0 hits); farm core ported from the legacy bot package with identity removed; final whole-branch review MERGE with no blockers. Deferred: conftest isolation does not reach module-level cached paths in core/config, core/datalog and core/stats (fix in phase 2 with the settings model); ported test docstrings still cite legacy doc paths; CI actions warn about Node 20 deprecation.
 
 ## In flight
 
-- Phase 1: repo and core. Plan: `docs/superpowers/plans/2026-09-10-phase-1-repo-and-core.md`. PR: https://github.com/as9pa/brawlfarm/pull/1.
+- Phase 2: settings and supervisor. Plan: not yet written; spec sections 5 and 6.
 
 ## Queue (v1)
 
-2. Settings and supervisor
 3. API and events
 4. UI shell, Fleet and Instance screens
 5. Setup wizard and Settings screens
