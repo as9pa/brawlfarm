@@ -516,7 +516,7 @@ QUESTS_CLOSE_BUTTON = (55, 52)  # top-left back arrow -> menu (NO BACK key)
 # there — so a stale coordinate degrades to a logged no-op, never a misfire.
 
 # The translucent "+" team slot beside the menu brawler (left slot). Calibrated from a
-# menu capture (zoomed crop of captures/bear_menu.png): the slot card spans ~(357-445,
+# menu capture (zoomed crop of a saved menu screenshot): the slot card spans ~(357-445,
 # 443-515), plus icon centred at (402,482). (685,380) is the brawler body — never tap it.
 # The verify-bail above still makes any drift harmless.
 DND_TEAM_SLOT = (402, 482)

@@ -197,7 +197,7 @@ def is_skin_popup(screen: np.ndarray) -> bool:
 # results screens, or in-match frames. OCR is the SECONDARY confirm only (the
 # CHOOSE-a-brawler subtitle "Switch your choice anytime!" reads cleanly).
 #
-# Calibrated on tonight's real 1600x900 frames (captures/lox_*_check*.png):
+# Calibrated on tonight's real 1600x900 frames (saved ceremony screenshots):
 #   green CTA HSV (50,120,120)-(70,255,255); bottom band y 780-870 split into thirds.
 #   KAZE unlock -> right third 0.70 (LET'S GO); ULTRA TRAIT -> center 0.77 (GOT IT);
 #   CHOOSE-selected -> center 0.57 (CHOOSE); CHOOSE-unselected/menu/results/match 0.00.
