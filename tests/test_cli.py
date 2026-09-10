@@ -72,3 +72,11 @@ def test_help_lists_the_serve_flags_and_the_fixed_no_launch_text() -> None:
     helped = " ".join(r.stdout.split())  # argparse wraps at the terminal width
     assert "never start a worker (dry run)" in helped
     assert "--no-browser" in helped and "--port" in helped
+
+
+def test_port_must_be_a_real_port(tmp_path: Path) -> None:
+    # --once so a missing check cannot leave a server running instead of failing.
+    for bad in ("0", "65536", "-1"):
+        r = _run(["--once", "--port", bad], tmp_path)
+        assert r.returncode == 2, bad
+        assert "between 1 and 65535" in r.stderr

@@ -36,6 +36,18 @@ def _positive(value: str) -> float:
     return seconds
 
 
+def _port(value: str) -> int:
+    """argparse type for --port: port 0 tells the OS to pick an ephemeral one, which the
+    URL we print and open a browser on would then be lying about."""
+    try:
+        port = int(value)
+    except ValueError:
+        raise argparse.ArgumentTypeError("must be a port number") from None
+    if not 1 <= port <= 65535:
+        raise argparse.ArgumentTypeError("must be between 1 and 65535")
+    return port
+
+
 def _parser() -> argparse.ArgumentParser:
     ap = argparse.ArgumentParser(prog="brawlfarm", description="Brawl Stars trophy farmer")
     ap.add_argument("-V", "--version", action="store_true", help="print the version and exit")
@@ -52,7 +64,7 @@ def _parser() -> argparse.ArgumentParser:
         "--interval", type=_positive, default=None, help="seconds between ticks (default 60)"
     )
     ap.add_argument("--no-launch", action="store_true", help="never start a worker (dry run)")
-    ap.add_argument("--port", type=int, default=None, help="panel port (default: app.port, 8765)")
+    ap.add_argument("--port", type=_port, default=None, help="panel port (default: app.port, 8765)")
     ap.add_argument(
         "--no-browser", action="store_true", help="serve the panel without opening a browser"
     )
