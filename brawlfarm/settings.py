@@ -16,9 +16,9 @@ from typing import Literal
 import tomli_w
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator, model_validator
 
-INSTANCE_NAME_RE = re.compile(r"^[A-Za-z0-9_-]{1,32}$")
+INSTANCE_NAME_RE = re.compile(r"^[A-Za-z0-9_-]{1,32}\Z")
 # The game's tag alphabet: no vowels, no 1/3/4/5/6/7, so tags never spell words.
-PLAYER_TAG_RE = re.compile(r"^#[0289PYLQGRJCUV]{3,}$")
+PLAYER_TAG_RE = re.compile(r"^#[0289PYLQGRJCUV]{3,}\Z")
 DEFAULT_ADB_PATH = r"C:\Program Files\BlueStacks_nxt\HD-Adb.exe"
 CONFIG_NAME = "config.toml"
 
