@@ -13,6 +13,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
+import threading
 import time
 from collections.abc import Callable
 from datetime import datetime, timedelta
@@ -54,6 +55,7 @@ class Supervisor:
         killer: Callable[..., bool] = process.kill_worker,
         sleep: Callable[[float], None] = time.sleep,
         events_refresh: Callable[..., int] = events.refresh,
+        pinger: Callable[[], bool] = notify.ping_healthchecks,
         interval_s: float = TICK_S,
     ) -> None:
         self.settings = settings
@@ -61,12 +63,15 @@ class Supervisor:
         self.interval_s = interval_s
         self._clock, self._probe, self._launch = clock, probe, launcher
         self._alive, self._kill, self._sleep, self._refresh = alive, killer, sleep, events_refresh
+        self._ping = pinger
         self._backoff = OfflineBackoff()
         self._stop_asked: dict[str, datetime] = {}
         self._launched_at: dict[str, datetime] = {}
         self._procs: dict[str, object] = {}
         self._views: dict[str, InstanceView] = {}
         self._listeners: list[Callable[[InstanceView], None]] = []
+        self._alert_listeners: list[Callable[[str, str, dict], None]] = []
+        self._tick_lock = threading.Lock()
         self._poke: asyncio.Event | None = None
         self._shutdown = False
         self.apply_settings(settings)
@@ -87,6 +92,7 @@ class Supervisor:
             ntfy_server=n.ntfy_server or None,
             ntfy_topic=n.ntfy_topic or None,
             events=list(n.events),
+            healthchecks_url=n.healthchecks_url or None,
         )
 
     def views(self) -> list[InstanceView]:
@@ -94,6 +100,19 @@ class Supervisor:
 
     def subscribe(self, cb: Callable[[InstanceView], None]) -> None:
         self._listeners.append(cb)
+
+    def subscribe_alerts(self, cb: Callable[[str, str, dict], None]) -> None:
+        """Called with (instance name, alert kind, fields) for alerts the supervisor raises
+        itself. The panel's alert store registers here; the push notifier is separate and
+        keeps its own cooldown."""
+        self._alert_listeners.append(cb)
+
+    def _fire_alert(self, name: str, kind: str, fields: dict) -> None:
+        for cb in self._alert_listeners:
+            try:
+                cb(name, kind, fields)
+            except Exception as exc:
+                log.debug("alert listener failed: %s", exc)
 
     def _dir(self, name: str) -> Path:
         return S.instance_dir(self.home, name)
@@ -104,35 +123,48 @@ class Supervisor:
     # --- the tick ---------------------------------------------------------------------
 
     def tick(self) -> list[InstanceView]:
-        now = self._clock()
-        rc = scheduler.tick(now)
-        if rc != 0:
-            log.warning("scheduler tick failed (rc=%s); fail open to always-run", rc)
-        if self.settings.connection.brawl_api_token:  # the rotation fetch needs the API
+        """One tick at a time. The API's startup tick and the supervisor loop's first
+        tick both land here from worker threads at process start, and two of them running
+        together would each read "nothing is running" from status.json, both pass the launch
+        guard and start a second worker for the same instance. Blocking, not try-acquire:
+        the second tick then simply runs after the first and sees the booting state.
+        """
+        with self._tick_lock:
+            now = self._clock()
+            rc = scheduler.tick(now)
+            if rc != 0:
+                log.warning("scheduler tick failed (rc=%s); fail open to always-run", rc)
+            if self.settings.connection.brawl_api_token:  # the rotation fetch needs the API
+                try:
+                    self._refresh(now)
+                except Exception as exc:  # best effort, never blocks the tick
+                    log.debug("events refresh failed: %s", exc)
+            launched_this_tick = False
+            out: list[InstanceView] = []
+            for inst in self.settings.instances:
+                try:
+                    view, launched = self._tick_instance(inst, now, launched_this_tick)
+                except Exception:  # one broken instance must never strand the others
+                    log.exception("%s: tick failed", inst.name)
+                    view, launched = self._views.get(inst.name) or _error_view(inst), False
+                launched_this_tick = launched_this_tick or launched
+                out.append(view)
+                previous = self._views.get(inst.name)
+                self._views[inst.name] = view
+                if previous is None or previous.state != view.state:
+                    for cb in self._listeners:
+                        try:
+                            cb(view)
+                        except Exception as exc:
+                            log.debug("listener failed: %s", exc)
+            log.info("tick: %s", ", ".join(f"{v.name}={v.state}" for v in out) or "no instances")
+            # Only a tick that got this far pings: a wedged supervisor stops pinging, which is
+            # exactly what the healthchecks alarm is for. Never allowed to raise.
             try:
-                self._refresh(now)
-            except Exception as exc:  # best effort, never blocks the tick
-                log.debug("events refresh failed: %s", exc)
-        launched_this_tick = False
-        out: list[InstanceView] = []
-        for inst in self.settings.instances:
-            try:
-                view, launched = self._tick_instance(inst, now, launched_this_tick)
-            except Exception:  # one broken instance must never strand the others
-                log.exception("%s: tick failed", inst.name)
-                view, launched = self._views.get(inst.name) or _error_view(inst), False
-            launched_this_tick = launched_this_tick or launched
-            out.append(view)
-            previous = self._views.get(inst.name)
-            self._views[inst.name] = view
-            if previous is None or previous.state != view.state:
-                for cb in self._listeners:
-                    try:
-                        cb(view)
-                    except Exception as exc:
-                        log.debug("listener failed: %s", exc)
-        log.info("tick: %s", ", ".join(f"{v.name}={v.state}" for v in out) or "no instances")
-        return out
+                self._ping()
+            except Exception as exc:
+                log.debug("healthchecks ping failed: %s", exc)
+            return out
 
     def _tick_instance(
         self, inst: S.InstanceSettings, now: datetime, launched_this_tick: bool
@@ -174,6 +206,7 @@ class Supervisor:
                 log.warning("%s: adb probe failed (miss %d); retry at %s", name, misses, retry)
                 if misses == ALERT_AFTER_MISSES:
                     notify.maybe_alert("offline", {"instance": name, "misses": misses})
+                    self._fire_alert(name, "offline", {"misses": misses})
                 note = _offline_note(retry, now)
             else:
                 self._backoff.clear(name)
