@@ -62,6 +62,14 @@ def _write_games(home: Path, name: str, rows: list[dict]) -> None:
             writer.writerow(row)
 
 
+def _write_corrupt_games(home: Path, name: str) -> None:
+    """A games.csv no reader can decode: non-UTF-8 bytes, the way a worker killed mid-append
+    or a file edited in another tool can leave it."""
+    inst_dir = S.instance_dir(home, name)
+    inst_dir.mkdir(parents=True, exist_ok=True)
+    (inst_dir / "games.csv").write_bytes(b"\xff\xfebattleTime,rank\n\xff\x00garbage\n")
+
+
 def _fixture(home: Path) -> None:
     """alpha: one game yesterday, a three-game block, then one game after a 90 min gap.
     bravo: a single game. Numbers are chosen so every summary field is checkable by hand."""
@@ -201,3 +209,26 @@ def test_stats_routes(api) -> None:
     assert export.headers["content-disposition"] == 'attachment; filename="brawlfarm-games-all.csv"'
     assert export.text.splitlines()[0] == ",".join(["instance", *datalog.GAME_FIELDS])
     assert len(export.text.splitlines()) == 7  # header + 6 games
+
+
+def test_one_unreadable_games_csv_still_answers_for_the_others(api) -> None:
+    client, _sup, home = api
+    _write_games(home, "alpha", [_game(60, "NITA", 3, 5)])
+    _write_corrupt_games(home, "bravo")
+    body = client.get("/api/stats?range=all").json()
+    assert body["summary"]["games"] == 1
+    assert body["summary"]["trophies"] == 5
+    # bravo keeps its chip in the legend, it just has nothing to draw
+    assert [s["instance"] for s in body["series"]] == ["alpha", "bravo"]
+    assert body["series"][1]["points"] == []
+
+
+def test_one_unreadable_games_csv_still_exports_the_others(api) -> None:
+    client, _sup, home = api
+    _write_games(home, "alpha", [_game(60, "NITA", 3, 5)])
+    _write_corrupt_games(home, "bravo")
+    export = client.get("/api/stats/export.csv?range=all")
+    assert export.status_code == 200
+    rows = list(csv.DictReader(export.text.splitlines()))
+    assert [r["instance"] for r in rows] == ["alpha"]
+    assert [r["brawler"] for r in rows] == ["NITA"]
