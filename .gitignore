@@ -1,0 +1,21 @@
+# python
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
+dist/
+build/
+*.egg-info/
+# local runtime state (never commit account data)
+data/
+captures/
+logs/
+.env
+*.log
+# agent worktrees live inside the repo
+.worktrees/
+.superpowers/
+# web (phase 4)
+node_modules/
+brawlfarm/web/dist/
