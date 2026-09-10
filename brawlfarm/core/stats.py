@@ -17,8 +17,15 @@ import pandas as pd
 
 from brawlfarm.core import config
 
-GAMES_CSV = config.DATA_DIR / "games.csv"
-TROPHIES_CSV = config.DATA_DIR / "menu_trophies.csv"
+
+def games_csv() -> Path:
+    """Per-instance games log; resolved at call time so config.set_home() is honoured."""
+    return config.DATA_DIR / "games.csv"
+
+
+def trophies_csv() -> Path:
+    return config.DATA_DIR / "menu_trophies.csv"
+
 
 # battleTime from the API looks like "20260607T170728.000Z".
 _BATTLETIME_FMT = "%Y%m%dT%H%M%S.%fZ"
@@ -27,7 +34,7 @@ _BATTLETIME_FMT = "%Y%m%dT%H%M%S.%fZ"
 def load_games(path: str | Path | None = None) -> pd.DataFrame:
     """Load games.csv with times parsed and numeric columns coerced, sorted oldest
     first. Returns an empty frame if the file doesn't exist yet."""
-    path = Path(path) if path else GAMES_CSV
+    path = Path(path) if path else games_csv()
     if not path.exists():
         return pd.DataFrame()
     df = pd.read_csv(path)
@@ -48,7 +55,7 @@ def load_games(path: str | Path | None = None) -> pd.DataFrame:
 def load_trophies(path: str | Path | None = None) -> pd.DataFrame:
     """Load menu_trophies.csv with time parsed and counts coerced, sorted oldest
     first. Returns an empty frame if the file doesn't exist yet."""
-    path = Path(path) if path else TROPHIES_CSV
+    path = Path(path) if path else trophies_csv()
     if not path.exists():
         return pd.DataFrame()
     df = pd.read_csv(path)
