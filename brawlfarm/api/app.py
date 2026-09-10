@@ -25,7 +25,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 
 import brawlfarm
 from brawlfarm import __version__
-from brawlfarm.api import instances, settings_routes
+from brawlfarm.api import instances, screens, settings_routes, setup_routes
 from brawlfarm.supervisor import Supervisor
 
 log = logging.getLogger("brawlfarm.api")
@@ -87,6 +87,9 @@ def create_app(sup: Supervisor, home: Path) -> FastAPI:
     app.state.sup = sup
     app.state.home = Path(home).resolve()
     app.state.started_at = time.monotonic()
+    # One asyncio.Lock per instance, filled lazily by the screenshot route: two
+    # concurrent screencaps against one BlueStacks window fight each other.
+    app.state.screenshot_locks = {}
 
     @app.middleware("http")
     async def _loopback_only(request: Request, call_next):
@@ -114,6 +117,8 @@ def create_app(sup: Supervisor, home: Path) -> FastAPI:
     # Included before the static mount below, so /api/* always wins over the SPA.
     app.include_router(instances.router)
     app.include_router(settings_routes.router)
+    app.include_router(setup_routes.router)
+    app.include_router(screens.router)
 
     # --- the web UI ------------------------------------------------------------------
     dist = dist_dir()
