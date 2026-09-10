@@ -32,6 +32,8 @@ class World:
     now: datetime = T0
     online: dict[int, bool] = field(default_factory=dict)
     alive: set[int] = field(default_factory=set)
+    refuse: set[int] = field(default_factory=set)
+    kill_attempts: list[int] = field(default_factory=list)
     launches: list[tuple[list[str], dict[str, str], str]] = field(default_factory=list)
     kills: list[int] = field(default_factory=list)
     procs: list[FakeProc] = field(default_factory=list)
@@ -56,6 +58,9 @@ class World:
         return pid in self.alive
 
     def kill(self, pid, log=print):
+        self.kill_attempts.append(pid)
+        if pid in self.refuse:  # e.g. AccessDenied: the process stays alive
+            return False
         if pid in self.alive:
             self.alive.discard(pid)
             self.kills.append(pid)
@@ -187,6 +192,28 @@ def test_stale_worker_is_killed_then_relaunched(sup, world, tmp_path) -> None:
     sup.tick()
     assert world.kills == [4242]
     assert [n for _, _, n in world.launches] == ["Pie64"]
+
+
+def test_failed_kill_never_double_launches(sup, world, tmp_path) -> None:
+    world.alive.add(4242)
+    world.refuse.add(4242)  # the killer reports failure and the process stays alive
+    _heartbeat(tmp_path, "Pie64", 4242, world.now, age_s=500)
+    views = sup.tick()
+    assert world.kill_attempts == [4242]
+    assert [n for _, _, n in world.launches] == ["Rome64"]  # Pie64 was NOT relaunched
+    v = _view(views, "Pie64")
+    assert v.pid == 4242
+    assert "could not be stopped" in v.note
+
+
+def test_malformed_pid_does_not_strand_the_fleet(sup, world, tmp_path) -> None:
+    d = S.instance_dir(tmp_path, "Pie64")
+    d.mkdir(parents=True, exist_ok=True)
+    (d / "status.json").write_text('{"ts": "2026-09-10T11:59:55", "pid": "n/a"}', encoding="utf-8")
+    views = sup.tick()
+    assert _view(views, "Pie64").pid is None
+    assert [n for _, _, n in world.launches] == ["Pie64"]  # treated as dead and launched
+    assert _view(views, "Rome64").state == InstanceState.STARTING  # Rome64 still processed
 
 
 def test_hung_worker_is_killed_before_relaunch(tmp_path, world) -> None:

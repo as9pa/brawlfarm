@@ -116,7 +116,11 @@ class Supervisor:
         launched_this_tick = False
         out: list[InstanceView] = []
         for inst in self.settings.instances:
-            view, launched = self._tick_instance(inst, now, launched_this_tick)
+            try:
+                view, launched = self._tick_instance(inst, now, launched_this_tick)
+            except Exception:  # one broken instance must never strand the others
+                log.exception("%s: tick failed", inst.name)
+                view, launched = self._views.get(inst.name) or _error_view(inst), False
             launched_this_tick = launched_this_tick or launched
             out.append(view)
             previous = self._views.get(inst.name)
@@ -135,7 +139,7 @@ class Supervisor:
     ) -> tuple[InstanceView, bool]:
         name = inst.name
         st = status.read_status(self._dir(name))
-        pid = int(st["pid"]) if st and st.get("pid") else None
+        pid = _pid_of(st)
         alive = pid is not None and self._alive(pid)
         health = classify(st, alive, now)
         desired = scheduler.sched_desired(name, now)
@@ -173,15 +177,19 @@ class Supervisor:
                 note = _offline_note(retry, now)
             else:
                 self._backoff.clear(name)
+                stopped = True
                 if alive and pid is not None:
                     log.warning("%s: stale heartbeat, killing pid %s before relaunch", name, pid)
-                    self._kill(pid, log=log.warning)
+                    stopped = self._ensure_gone(name, pid)
                     self._sleep(0.5)
-                    alive, health = False, Health.DEAD
-                self._kill_hung_launch(name)
-                self._launch_worker(inst, desired, now)
-                launched = True
-                note = "Starting"
+                    if stopped:
+                        alive, health = False, Health.DEAD
+                if stopped and self._kill_hung_launch(name):
+                    self._launch_worker(inst, desired, now)
+                    launched = True
+                    note = "Starting"
+                else:  # a worker that would not die is never relaunched over
+                    note = "Worker could not be stopped; will retry next tick"
 
         stop_deadline = (
             self._stop_asked[name] + timedelta(seconds=STOP_ESCALATE_S)
@@ -229,19 +237,32 @@ class Supervisor:
         poll = getattr(proc, "poll", None)
         return poll is None or poll() is None
 
-    def _kill_hung_launch(self, name: str) -> None:
+    def _ensure_gone(self, name: str, pid: int) -> bool:
+        """Kill and confirm. True when the killer succeeded or the PID is gone anyway; False
+        (logged) when the worker is still there, which blocks every relaunch that would put a
+        second worker on the instance."""
+        if self._kill(pid, log=log.warning) or not self._alive(pid):
+            return True
+        log.error("%s: pid %s could not be stopped; not relaunching", name, pid)
+        return False
+
+    def _kill_hung_launch(self, name: str) -> bool:
         """One worker per instance: a worker we launched that never wrote status.json has no
         PID in the file to kill, so kill it by the PID of our own launch record before the
-        relaunch (still kill-by-PID, still guarded by kill_worker's command-line check)."""
+        relaunch (still kill-by-PID, still guarded by kill_worker's command-line check).
+        False when it would not die, so the caller does not launch a second one."""
         proc = self._procs.get(name)
         poll = getattr(proc, "poll", None)
         pid = getattr(proc, "pid", None)
-        if pid and (poll is None or poll() is None):
-            log.warning(
-                "%s: launched pid %s never wrote status.json, killing before relaunch", name, pid
-            )
-            self._kill(pid, log=log.warning)
-            self._sleep(0.5)
+        if not pid or (poll is not None and poll() is not None):
+            return True  # nothing of ours is still running
+        log.warning(
+            "%s: launched pid %s never wrote status.json, killing before relaunch", name, pid
+        )
+        if not self._ensure_gone(name, pid):
+            return False
+        self._sleep(0.5)
+        return True
 
     def _request_stop(self, name: str, now: datetime) -> None:
         if name in self._stop_asked:
@@ -260,7 +281,8 @@ class Supervisor:
         if (now - asked).total_seconds() < STOP_ESCALATE_S:
             return False
         log.warning("%s: stop not honoured in %ds, killing pid %s", name, STOP_ESCALATE_S, pid)
-        self._kill(pid, log=log.warning)
+        if not self._ensure_gone(name, pid):
+            return False  # the deadline stays set, so the next tick escalates again
         self._stop_asked.pop(name, None)
         return True
 
@@ -305,7 +327,7 @@ class Supervisor:
         if name not in self._stop_asked:
             return False
         st = status.read_status(self._dir(name))
-        pid = int(st["pid"]) if st and st.get("pid") else None
+        pid = _pid_of(st)
         if pid is None:
             return False
         ok = bool(self._kill(pid, log=log.warning))
@@ -318,7 +340,7 @@ class Supervisor:
         now = self._clock()
         self.settings.instance(name)
         st = status.read_status(self._dir(name))
-        pid = int(st["pid"]) if st and st.get("pid") else None
+        pid = _pid_of(st)
         if pid is not None and self._alive(pid):
             self._request_stop(name, now)
         self.poke()
@@ -369,6 +391,33 @@ def _int_or_none(value) -> int | None:
         return int(value) if value is not None else None
     except (TypeError, ValueError):
         return None
+
+
+def _pid_of(st: dict | None) -> int | None:
+    """The worker PID from status.json. A missing, junk or non-positive value is None: a
+    hand-edited or half-written file must never abort the tick."""
+    pid = _int_or_none((st or {}).get("pid"))
+    return pid if pid and pid > 0 else None
+
+
+def _error_view(inst: S.InstanceSettings) -> InstanceView:
+    """The card for an instance whose tick raised before it produced one, and which has no
+    previous view to fall back on."""
+    return InstanceView(
+        name=inst.name,
+        adb_port=inst.adb_port,
+        state=InstanceState.STOPPED,
+        health=Health.DEAD,
+        pid=None,
+        heartbeat_age_s=None,
+        phase=None,
+        desired="run",
+        desired_reason=None,
+        until=None,
+        games_played=None,
+        farm_brawler=None,
+        note="Supervisor error; see supervisor.log",
+    )
 
 
 def _offline_note(retry: datetime, now: datetime) -> str:
