@@ -16,8 +16,6 @@ from brawlfarm.core import config, datalog
 @pytest.fixture()
 def dl(tmp_path, monkeypatch):
     monkeypatch.setattr(config, "DATA_DIR", tmp_path)
-    monkeypatch.setattr(datalog, "GAMES_CSV", tmp_path / "games.csv")
-    monkeypatch.setattr(datalog, "TROPHIES_CSV", tmp_path / "menu_trophies.csv")
     return datalog.DataLog()
 
 
