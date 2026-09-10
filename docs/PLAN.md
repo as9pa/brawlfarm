@@ -8,7 +8,7 @@ Living board. Finished work moves to the top with its proof.
 
 ## In flight
 
-- Phase 1: repo and core. Plan: `docs/superpowers/plans/2026-09-10-phase-1-repo-and-core.md`.
+- Phase 1: repo and core. Plan: `docs/superpowers/plans/2026-09-10-phase-1-repo-and-core.md`. PR: https://github.com/as9pa/brawlfarm/pull/1.
 
 ## Queue (v1)
 
