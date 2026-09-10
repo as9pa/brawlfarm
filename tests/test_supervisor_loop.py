@@ -38,6 +38,7 @@ class World:
     kills: list[int] = field(default_factory=list)
     procs: list[FakeProc] = field(default_factory=list)
     refreshes: int = 0
+    pings: int = 0
     next_pid: int = 100
 
     def clock(self):
@@ -71,6 +72,10 @@ class World:
         self.refreshes += 1
         return 0
 
+    def ping(self) -> bool:
+        self.pings += 1
+        return True
+
 
 _PORTS = {"Pie64": 5555, "Rome64": 5565}
 _TAGS = {"Pie64": "#2P0YLQ9", "Rome64": ""}
@@ -99,6 +104,7 @@ def make_sup(tmp_path: Path, world: World, names=("Pie64", "Rome64")) -> Supervi
         killer=world.kill,
         sleep=lambda _s: None,
         events_refresh=world.refresh,
+        pinger=world.ping,
     )
     # Schedule off = legacy always-run, so tests control "desired" through overrides.
     scheduler.set_enabled(list(names), False)
@@ -371,3 +377,23 @@ async def test_run_forever_ticks_and_shuts_down(sup, world) -> None:
     sup.request_shutdown()
     await asyncio.wait_for(task, 2)
     assert world.launches  # at least one tick ran
+
+
+def test_every_completed_tick_pings_healthchecks(sup, world) -> None:
+    sup.tick()
+    sup.tick()
+    assert world.pings == 2
+
+
+def test_offline_alert_also_reaches_the_panel(tmp_path, world, monkeypatch) -> None:
+    sup = make_sup(tmp_path, world, ("Pie64",))
+    monkeypatch.setattr(L.notify, "maybe_alert", lambda kind, fields: None)
+    seen: list[tuple[str, str, dict]] = []
+    sup.subscribe_alerts(lambda name, kind, fields: seen.append((name, kind, fields)))
+    world.online[5555] = False
+    sup.tick()  # miss 1 -> retry in 2 min
+    world.now += timedelta(minutes=2)
+    sup.tick()  # miss 2 -> retry in 4 min
+    world.now += timedelta(minutes=4)
+    sup.tick()  # miss 3 -> alert
+    assert seen == [("Pie64", "offline", {"misses": 3})]

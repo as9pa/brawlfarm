@@ -54,6 +54,7 @@ class Supervisor:
         killer: Callable[..., bool] = process.kill_worker,
         sleep: Callable[[float], None] = time.sleep,
         events_refresh: Callable[..., int] = events.refresh,
+        pinger: Callable[[], bool] = notify.ping_healthchecks,
         interval_s: float = TICK_S,
     ) -> None:
         self.settings = settings
@@ -61,12 +62,14 @@ class Supervisor:
         self.interval_s = interval_s
         self._clock, self._probe, self._launch = clock, probe, launcher
         self._alive, self._kill, self._sleep, self._refresh = alive, killer, sleep, events_refresh
+        self._ping = pinger
         self._backoff = OfflineBackoff()
         self._stop_asked: dict[str, datetime] = {}
         self._launched_at: dict[str, datetime] = {}
         self._procs: dict[str, object] = {}
         self._views: dict[str, InstanceView] = {}
         self._listeners: list[Callable[[InstanceView], None]] = []
+        self._alert_listeners: list[Callable[[str, str, dict], None]] = []
         self._poke: asyncio.Event | None = None
         self._shutdown = False
         self.apply_settings(settings)
@@ -87,6 +90,7 @@ class Supervisor:
             ntfy_server=n.ntfy_server or None,
             ntfy_topic=n.ntfy_topic or None,
             events=list(n.events),
+            healthchecks_url=n.healthchecks_url or None,
         )
 
     def views(self) -> list[InstanceView]:
@@ -94,6 +98,19 @@ class Supervisor:
 
     def subscribe(self, cb: Callable[[InstanceView], None]) -> None:
         self._listeners.append(cb)
+
+    def subscribe_alerts(self, cb: Callable[[str, str, dict], None]) -> None:
+        """Called with (instance name, alert kind, fields) for alerts the supervisor raises
+        itself. The panel's alert store registers here; the push notifier is separate and
+        keeps its own cooldown."""
+        self._alert_listeners.append(cb)
+
+    def _fire_alert(self, name: str, kind: str, fields: dict) -> None:
+        for cb in self._alert_listeners:
+            try:
+                cb(name, kind, fields)
+            except Exception as exc:
+                log.debug("alert listener failed: %s", exc)
 
     def _dir(self, name: str) -> Path:
         return S.instance_dir(self.home, name)
@@ -132,6 +149,12 @@ class Supervisor:
                     except Exception as exc:
                         log.debug("listener failed: %s", exc)
         log.info("tick: %s", ", ".join(f"{v.name}={v.state}" for v in out) or "no instances")
+        # Only a tick that got this far pings: a wedged supervisor stops pinging, which is
+        # exactly what the healthchecks alarm is for. Never allowed to raise.
+        try:
+            self._ping()
+        except Exception as exc:
+            log.debug("healthchecks ping failed: %s", exc)
         return out
 
     def _tick_instance(
@@ -174,6 +197,7 @@ class Supervisor:
                 log.warning("%s: adb probe failed (miss %d); retry at %s", name, misses, retry)
                 if misses == ALERT_AFTER_MISSES:
                     notify.maybe_alert("offline", {"instance": name, "misses": misses})
+                    self._fire_alert(name, "offline", {"misses": misses})
                 note = _offline_note(retry, now)
             else:
                 self._backoff.clear(name)

@@ -70,6 +70,12 @@ def _ascii(s: str) -> str:
     return s.encode("ascii", "replace").decode("ascii")
 
 
+def alert_title(kind: str) -> str:
+    """The human title for an alert kind. Shared with the control panel's alert list so a
+    phone notification and the Fleet drawer name the same event the same way."""
+    return _TITLES.get(kind, f"Bot: {kind}")
+
+
 # Explicit settings from the control panel; None means "use the environment".
 _overrides: dict[str, object] = {}
 
@@ -80,6 +86,7 @@ def configure(
     ntfy_server: str | None = None,
     ntfy_topic: str | None = None,
     events: list[str] | None = None,
+    healthchecks_url: str | None = None,
 ) -> None:
     """Set the backends from settings. Workers keep reading the environment the
     supervisor hands them; the supervisor process itself calls this once."""
@@ -88,6 +95,7 @@ def configure(
         ("ntfy_server", ntfy_server),
         ("ntfy_topic", ntfy_topic),
         ("events", events),
+        ("healthchecks_url", healthchecks_url),
     ):
         if value is None:
             _overrides.pop(key, None)
@@ -124,6 +132,32 @@ def enabled_events() -> frozenset[str]:
 def configured() -> bool:
     """True if at least one notification backend is set up."""
     return bool(_webhook_url()) or bool(_ntfy()[1])
+
+
+def healthchecks_url() -> str:
+    """The healthchecks.io (or compatible) ping URL: settings first, then HEALTHCHECKS_URL."""
+    if "healthchecks_url" in _overrides:
+        return str(_overrides["healthchecks_url"]).strip()
+    return os.environ.get("HEALTHCHECKS_URL", "").strip()
+
+
+def ping_healthchecks(*, getter=None) -> bool:
+    """GET the ping URL so a supervisor that stops ticking raises an alarm somewhere the
+    owner will see. No-op (False) when no URL is set. Never raises and never retries: a
+    dead monitor must not stall the tick. `getter` is injected by tests; the default is
+    imported lazily so the module keeps working without requests installed."""
+    url = healthchecks_url()
+    if not url:
+        return False
+    try:
+        if getter is None:
+            import requests
+
+            getter = requests.get
+        response = getter(url, timeout=5)
+        return int(getattr(response, "status_code", 0)) < 300
+    except Exception:
+        return False
 
 
 def _encode_png(screenshot) -> bytes | None:
@@ -209,7 +243,7 @@ def maybe_alert(kind: str, fields: dict) -> None:
         return  # throttle repeats of the same kind (esp. recover loops)
     _last_alert[kind] = now
     detail = ", ".join(f"{k}={v}" for k, v in fields.items() if v is not None)
-    title = _TITLES.get(kind, f"Bot: {kind}")
+    title = alert_title(kind)
     ok = notify(title, detail or kind)
     if not ok and not _warned_send_failed:
         # A configured-but-failing backend (typo'd webhook / wrong topic) would
