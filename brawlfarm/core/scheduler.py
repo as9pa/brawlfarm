@@ -76,15 +76,20 @@ import argparse
 import csv
 import hashlib
 import json
+import logging
 import math
 import os
 import sys
-import traceback
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from brawlfarm.core import config
 from brawlfarm.core.jsonio import atomic_write_json
+
+# The tick runs headless under the supervisor and its output is the panel's log stream
+# (phase 3), so it logs. The read-only dev tools below (preview, simulate) keep printing:
+# they are run by hand from a console.
+log = logging.getLogger("brawlfarm.scheduler")
 
 # --- Randomization model (docs/research/ban-mechanics.md §5; all per-day draws) ---
 
@@ -658,7 +663,7 @@ def tick(now: datetime | None = None) -> int:
     except Exception:
         # FAIL-OPEN: a scheduler bug must never strand farms stopped. Write
         # desired=run for everything, scream, exit nonzero (watchdog logs it).
-        traceback.print_exc()
+        log.exception("scheduler tick failed; failing open to desired=run for every account")
         for name, _ in _instance_items():
             try:
                 sched = _read_json(_schedule_path(name)) or {"account": name}
@@ -727,7 +732,7 @@ def _tick_inner(now: datetime) -> int:
             sched["desired"] = evaluate(now, None, 0, override, enabled=False)
             _write_json(_schedule_path(name), sched)
             parts.append(f"{name}={sched['desired']['state']}({sched['desired']['reason']})")
-        print(f"tick {_iso(now)}  " + "  ".join(parts))
+        log.info("tick %s  %s", _iso(now), "  ".join(parts))
         return 0
 
     state = _read_json(_state_path()) or {}
@@ -764,10 +769,13 @@ def _tick_inner(now: datetime) -> int:
         plan = _draw_account_day(salt, name, inst["tag"], st, date_str, nonce, wake)
         plan["account"] = name
         plans[name] = plan
-        print(
-            f"drew {name} {date_str}: {len(plan['sessions'])} session(s), "
-            f"{plan['total_minutes']:.0f} min, "
-            f"day_end {_hhmm(plan['day_end'])}"
+        log.info(
+            "drew %s %s: %d session(s), %.0f min, day_end %s",
+            name,
+            date_str,
+            len(plan["sessions"]),
+            plan["total_minutes"],
+            _hhmm(plan["day_end"]),
         )
 
     # pass 2: evaluate every account -> desired block in schedule.json
@@ -817,7 +825,7 @@ def _tick_inner(now: datetime) -> int:
         parts.append(f"{name}={desired['state']}({desired['reason']}{until}{extra})")
 
     _write_json(_state_path(), state)
-    print(f"tick {_iso(now)}  " + "  ".join(parts))
+    log.info("tick %s  %s", _iso(now), "  ".join(parts))
     return 0
 
 
