@@ -62,7 +62,7 @@ def scan(root: Path, extra_hashes: frozenset[str] = frozenset()) -> list[str]:
         rel = path.relative_to(root).as_posix()
         if any(_hash(t) in forbidden for t in TOKEN_RE.findall(path.name)):
             hits.append(f"{rel}:0: forbidden identifier in filename")
-        if path.suffix.lower() not in TEXT_SUFFIXES:
+        if (path.suffix.lower() or path.name.lower()) not in TEXT_SUFFIXES:
             continue
         try:
             lines = path.read_text(encoding="utf-8", errors="ignore").splitlines()
