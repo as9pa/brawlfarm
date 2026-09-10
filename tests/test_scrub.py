@@ -38,3 +38,9 @@ def test_detects_discord_import(tmp_path: Path) -> None:
 def test_ignores_token_with_hash_prefix_only(tmp_path: Path) -> None:
     (tmp_path / "ok.md").write_text("forbiddenwords are longer tokens\n", encoding="utf-8")
     assert scrub_check.scan(tmp_path, extra_hashes=frozenset({_h("forbiddenword")})) == []
+
+
+def test_scans_bare_dotfile_contents(tmp_path: Path) -> None:
+    (tmp_path / ".env").write_text("TOKEN=forbiddenword\n", encoding="utf-8")
+    hits = scrub_check.scan(tmp_path, extra_hashes=frozenset({_h("forbiddenword")}))
+    assert hits == [".env:1: forbidden identifier"]
