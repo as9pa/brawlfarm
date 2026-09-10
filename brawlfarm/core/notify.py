@@ -19,6 +19,13 @@ Entry points:
   maybe_alert(kind, fields) -> None
       Convenience used by the data logger: turns a session event (kind + fields)
       into a text alert. Safe to call very often; only ALERT_KINDS actually fire.
+  alert_title(kind) -> str
+      The human title for an alert kind, shared with the control panel's alert list
+      so a phone notification and the panel name the same event the same way.
+  ping_healthchecks() -> bool
+      GET the configured healthchecks.io (or compatible) ping URL. The supervisor
+      calls it at the end of every tick, so a supervisor that stops ticking raises
+      an alarm. Never raises.
 """
 
 from __future__ import annotations

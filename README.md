@@ -2,7 +2,7 @@
 
 An open-source Brawl Stars trophy farmer for BlueStacks on Windows, with a local control panel in your browser.
 
-Status: under construction. Phase 2 of 8 (settings and supervisor). The control panel, setup wizard and stats screens arrive in later phases; see `docs/PLAN.md`.
+Status: under construction. Phase 3 of 8 (API and events). The React control panel, setup wizard and stats screens arrive in later phases; see `docs/PLAN.md`.
 
 ## What it does
 
@@ -34,14 +34,53 @@ uv run ruff check . && uv run ruff format --check .
 uv run python tools/scrub_check.py
 ```
 
-## Running (headless, until the panel lands in phase 3)
+## Running
 
 ```
-uv run brawlfarm --once        # one supervisor tick; writes config.toml on first run
-uv run brawlfarm               # supervise every configured instance, one tick a minute
+uv run brawlfarm                 # supervise every instance and open the panel
+uv run brawlfarm --no-browser    # same, without opening a browser
+uv run brawlfarm --port 9000     # serve the panel somewhere else
+uv run brawlfarm --once          # one supervisor tick, print the instances, exit
 ```
 
-Settings live in `%LOCALAPPDATA%\brawlfarm\config.toml` (override the folder with `BRAWLFARM_HOME`). Add one `[[instances]]` table per BlueStacks instance with its `name` and `adb_port`; each instance's files live under `instances/<name>/`. Stopping the supervisor leaves workers running; the next start reattaches to them through their status files.
+Settings live in `%LOCALAPPDATA%\brawlfarm\config.toml` (override the folder with `BRAWLFARM_HOME`). Add one `[[instances]]` table per BlueStacks instance with its `name` and `adb_port`; each instance's files live under `instances/<name>/`. Stopping the process leaves workers running; the next start reattaches to them through their status files.
+
+## The panel and its API
+
+The panel lives at `http://127.0.0.1:8765/`. Change the port in Settings (it takes effect on the next start) or for one run with `--port`. Until the React UI lands in phase 4 the page is a placeholder, and the interesting surface is the API itself, browsable at `http://127.0.0.1:8765/docs`.
+
+The API binds 127.0.0.1 only and has no authentication: anything that can reach it can drive your instances, so do not port-forward it or put it behind a reverse proxy.
+
+| Method | Path | What it does |
+| --- | --- | --- |
+| GET | `/api/health` | version, data directory, instance count, uptime |
+| GET | `/api/instances` | one payload per instance: state, phase, session, today's games and trophies |
+| POST | `/api/instances/{name}/start` | start, or run for `{"hours": N}` |
+| POST | `/api/instances/{name}/stop` | stop after the current match |
+| POST | `/api/instances/{name}/stop-now` | kill the worker by its PID, only while a stop is pending |
+| POST | `/api/instances/{name}/restart` | stop now, relaunch on the next tick |
+| POST | `/api/instances/{name}/retry` | clear the offline backoff and probe again |
+| GET | `/api/instances/{name}/screenshot.png` | a live adb screencap |
+| GET, PUT | `/api/instances/{name}/plan` | the farm plan: mode, goal, maxed fallback |
+| GET, PUT | `/api/instances/{name}/schedule` | today's sessions, the override, on/off, redraw |
+| GET | `/api/instances/{name}/feed` | session narration, `kind=all\|matches\|interrupts\|errors` |
+| GET | `/api/stats` | `range=today\|7d\|30d\|all`, `instances=a,b` |
+| GET | `/api/stats/export.csv` | the same selection as a CSV download |
+| GET, PUT | `/api/settings` | the whole `config.toml` document |
+| POST | `/api/setup/scan` | find adb and the BlueStacks instances |
+| POST | `/api/setup/test` | can adb reach this port |
+| POST | `/api/setup/display-check` | is this instance 1600 x 900 at DPI 240 |
+| GET | `/api/alerts` | the alert list and its unread count |
+| POST | `/api/alerts/{id}/dismiss` | mark one alert read |
+| GET | `/api/events` | server-sent events |
+
+### Live events
+
+`GET /api/events` is a server-sent event stream with four kinds: `instance` (a state change), `feed` (a new session narration line), `alert`, and `log` (the supervisor's own log lines). It replays from `Last-Event-ID` on a reconnect and sends a keepalive comment every 15 seconds. Alerts are kept in memory only, so a restart clears them; the session files under `instances/<name>/` keep the history.
+
+### Notifications and health monitoring
+
+`[notifications]` in `config.toml` takes a webhook URL, an ntfy topic and server, the list of event kinds worth sending, and `healthchecks_url`. Every completed supervisor tick GETs that URL, so a supervisor that stops ticking raises an alarm on healthchecks.io — or anything else that speaks the same one-URL protocol — without you watching the window.
 
 ## Legal
 

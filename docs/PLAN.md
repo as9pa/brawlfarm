@@ -9,7 +9,7 @@ Living board. Finished work moves to the top with its proof.
 
 ## In flight
 
-- Phase 3: API and events. Plan: not yet written; spec section 7.
+- Phase 3: API and events. Plan: `docs/superpowers/plans/2026-09-10-phase-3-api-and-events.md`. PR: (link once opened).
 
 ## Queue (v1)
 
