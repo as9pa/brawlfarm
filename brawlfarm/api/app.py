@@ -25,7 +25,9 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 
 import brawlfarm
 from brawlfarm import __version__
-from brawlfarm.api import instances, plans, schedule, screens, settings_routes, setup_routes
+from brawlfarm.api import events, instances, plans, schedule, screens, settings_routes, setup_routes
+from brawlfarm.api.events import BusLogHandler, EventBus
+from brawlfarm.api.instances import view_to_dict
 from brawlfarm.supervisor import Supervisor
 
 log = logging.getLogger("brawlfarm.api")
@@ -73,15 +75,30 @@ def create_app(sup: Supervisor, home: Path) -> FastAPI:
 
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
-        # One tick before the first request, so GET /api/instances is never empty on a
-        # cold start. It runs in a thread because a tick shells out to adb and writes
-        # files. Later tasks attach the event bus, the feed tailer and the alert store
-        # here; a failed startup tick must not stop the app from serving.
+        """Startup: attach the bus to this loop, mirror the brawlfarm logger onto it,
+        publish every supervisor state change, and run one tick so the first
+        GET /api/instances already has views. Shutdown: detach the log handler so a second
+        app in the same process (the test suite makes many) does not publish into a dead
+        bus."""
+        bus = EventBus()
+        bus.attach(asyncio.get_running_loop())
+        app.state.bus = bus
+        # tick() runs in a worker thread, so this callback fires OFF the loop thread;
+        # EventBus.publish hops back with call_soon_threadsafe.
+        app.state.sup.subscribe(lambda view: bus.publish("instance", view_to_dict(view)))
+        handler = BusLogHandler(bus)
+        logging.getLogger("brawlfarm").addHandler(handler)
         try:
-            await asyncio.to_thread(app.state.sup.tick)
-        except Exception:
-            log.exception("startup tick failed")
-        yield
+            # One tick before the first request, so GET /api/instances is never empty on
+            # a cold start. It runs in a thread because a tick shells out to adb and
+            # writes files. Later tasks attach the feed tailer and the alert store here.
+            try:
+                await asyncio.to_thread(app.state.sup.tick)
+            except Exception:  # a failed startup tick must not stop the app from serving
+                log.exception("startup tick failed")
+            yield
+        finally:
+            logging.getLogger("brawlfarm").removeHandler(handler)
 
     app = FastAPI(title="brawlfarm", version=__version__, lifespan=lifespan)
     app.state.sup = sup
@@ -115,6 +132,7 @@ def create_app(sup: Supervisor, home: Path) -> FastAPI:
 
     # --- routers ---------------------------------------------------------------------
     # Included before the static mount below, so /api/* always wins over the SPA.
+    app.include_router(events.router)
     app.include_router(instances.router)
     app.include_router(settings_routes.router)
     app.include_router(setup_routes.router)
