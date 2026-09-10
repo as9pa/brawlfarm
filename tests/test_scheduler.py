@@ -864,3 +864,18 @@ def test_test_plan_hook(tmp_path, monkeypatch):
     t_gap = S._parse(s0["end"]) + timedelta(minutes=1)
     assert S.tick(t_gap) == 0
     assert _desired(tmp_path, "Pie64")["state"] == "stop"
+
+
+def test_default_enabled_flag_wires_into_control_and_schedule_defaults() -> None:
+    from brawlfarm.core import scheduler as sch
+
+    try:
+        sch.set_default_enabled(False)
+        assert sch._ctl_enabled({}) is False
+        assert sch._ctl_enabled({"enabled": True}) is True
+        assert sch.enabled_from(None) is False
+        sch.set_default_enabled(True)
+        assert sch._ctl_enabled({}) is True
+        assert sch.enabled_from(None) is True
+    finally:
+        sch.set_default_enabled(True)
