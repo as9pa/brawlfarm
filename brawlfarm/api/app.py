@@ -25,7 +25,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 
 import brawlfarm
 from brawlfarm import __version__
-from brawlfarm.api import instances, screens, settings_routes, setup_routes
+from brawlfarm.api import instances, plans, schedule, screens, settings_routes, setup_routes
 from brawlfarm.supervisor import Supervisor
 
 log = logging.getLogger("brawlfarm.api")
@@ -119,6 +119,8 @@ def create_app(sup: Supervisor, home: Path) -> FastAPI:
     app.include_router(settings_routes.router)
     app.include_router(setup_routes.router)
     app.include_router(screens.router)
+    app.include_router(plans.router)
+    app.include_router(schedule.router)
 
     # --- the web UI ------------------------------------------------------------------
     dist = dist_dir()
