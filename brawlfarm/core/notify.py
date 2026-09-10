@@ -110,11 +110,13 @@ def _ntfy() -> tuple[str, str]:
 
 
 def enabled_events() -> frozenset[str]:
-    """Alert kinds that may be sent: configure(events=...), else BRAWL_NOTIFY_EVENTS, else all."""
+    """Alert kinds that may be sent: configure(events=...), else BRAWL_NOTIFY_EVENTS — an
+    UNSET variable means every kind, a SET one means exactly the kinds it lists, so an
+    empty value means none (the same thing an empty [notifications] events list means)."""
     if "events" in _overrides:
         return frozenset(str(e).strip() for e in _overrides["events"] if str(e).strip())
-    raw = os.environ.get("BRAWL_NOTIFY_EVENTS", "").strip()
-    if not raw:
+    raw = os.environ.get("BRAWL_NOTIFY_EVENTS")
+    if raw is None:
         return frozenset(ALERT_KINDS)
     return frozenset(e.strip() for e in raw.split(",") if e.strip())
 
