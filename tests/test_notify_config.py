@@ -54,3 +54,43 @@ def test_offline_is_an_alert_kind_and_filter_applies(monkeypatch) -> None:
     notify.maybe_alert("crash", {"x": 1})
     notify.maybe_alert("offline", {"instance": "Pie64", "misses": 3})
     assert sent == [("Instance offline", "instance=Pie64, misses=3")]
+
+
+def test_healthchecks_url_from_settings_then_env(monkeypatch) -> None:
+    assert notify.healthchecks_url() == ""
+    monkeypatch.setenv("HEALTHCHECKS_URL", "https://hc.invalid/from-env")
+    assert notify.healthchecks_url() == "https://hc.invalid/from-env"
+    notify.configure(healthchecks_url="https://hc.invalid/from-settings")
+    assert notify.healthchecks_url() == "https://hc.invalid/from-settings"
+
+
+def test_ping_healthchecks_is_a_no_op_without_a_url() -> None:
+    calls: list[str] = []
+    assert notify.ping_healthchecks(getter=lambda url, timeout: calls.append(url)) is False
+    assert calls == []
+
+
+def test_ping_healthchecks_gets_the_url_and_never_raises() -> None:
+    seen: list[tuple[str, int]] = []
+
+    class _Ok:
+        status_code = 200
+
+    def _get(url, timeout):
+        seen.append((url, timeout))
+        return _Ok()
+
+    notify.configure(healthchecks_url="https://hc.invalid/uuid")
+    assert notify.ping_healthchecks(getter=_get) is True
+    assert seen == [("https://hc.invalid/uuid", 5)]
+
+    def _boom(url, timeout):
+        raise OSError("network down")
+
+    assert notify.ping_healthchecks(getter=_boom) is False
+
+
+def test_alert_title_is_shared_with_the_panel() -> None:
+    assert notify.alert_title("crash") == "Bot crashed"
+    assert notify.alert_title("offline") == "Instance offline"
+    assert notify.alert_title("mystery") == "Bot: mystery"
