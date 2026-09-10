@@ -12,6 +12,9 @@ dependencies = [
   "python-dotenv>=1.0",
   "rapidocr-onnxruntime>=1.3",
   "pandas>=2.2",
+  "pydantic>=2.9",
+  "tomli-w>=1.1",
+  "psutil>=6.1",
 ]
 
 [project.scripts]
