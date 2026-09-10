@@ -8,7 +8,7 @@ Living board. Finished work moves to the top with its proof.
 
 ## In flight
 
-- Phase 2: settings and supervisor. Plan: not yet written; spec sections 5 and 6.
+- Phase 2: settings and supervisor. Plan: docs/superpowers/plans/2026-09-10-phase-2-settings-and-supervisor.md. PR: (link once opened).
 
 ## Queue (v1)
 
