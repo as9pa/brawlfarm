@@ -3,13 +3,13 @@ distribution sanity, anti-self-similarity, determinism, the round-6 per-account 
 stagger — plus compressed-time multi-day tick sweeps (parametrized start times, pinned
 salt — fully deterministic) against a tmp data root.
 
-Round 6 redesign (docs/more instructions.md, "remove the sleep thing. … random hourly
-breaks in between"): the day is NO LONGER sleep/rest/budget-shaped. A plan covers the
-full local day 00:00->24:00 by alternating session -> break -> session -> … until the
-next-midnight boundary. The invariants below pin THAT model: sessions ordered and
-non-overlapping, every break in [45,125] min, the day fully covered by the alternation
-(no idle holes beyond what a break allows), midnight truncation, determinism, the phase
-stagger, and old-plan tolerance in evaluate().
+Round 6 redesign (legacy owner-instructions note, not ported — "remove the sleep thing.
+… random hourly breaks in between"): the day is NO LONGER sleep/rest/budget-shaped. A
+plan covers the full local day 00:00->24:00 by alternating session -> break -> session
+-> … until the next-midnight boundary. The invariants below pin THAT model: sessions
+ordered and non-overlapping, every break in [45,125] min, the day fully covered by the
+alternation (no idle holes beyond what a break allows), midnight truncation,
+determinism, the phase stagger, and old-plan tolerance in evaluate().
 
 Run:  uv run pytest tests/test_scheduler.py -q
 """

@@ -80,7 +80,8 @@ def find(screen: np.ndarray, name: str, threshold: float | None = None) -> Match
     correlates per channel). Decision-equivalence to color was validated per template
     on the full capture corpus; the two templates where grayscale has NO valid
     threshold (config.COLOR_ONLY_TEMPLATES) keep matching in color. See config.py
-    "Vision tuning" and docs/research/performance-optimization.md #1."""
+    "Vision tuning" and the legacy research note "performance optimization", item 1
+    (not ported)."""
     if threshold is None:
         threshold = config.MATCH_THRESHOLD
 

@@ -1,5 +1,6 @@
-"""Self-heal scenarios (r8, docs/future-plans/scenarios.md): the brawler-unlock
-CEREMONY screens, the CHOOSE-A-BRAWLER chooser, and the in-match server-error modal.
+"""Self-heal scenarios (r8, legacy planning note "scenarios", not ported): the
+brawler-unlock CEREMONY screens, the CHOOSE-A-BRAWLER chooser, and the in-match
+server-error modal.
 
 Two layers:
   * DETECTION (states.green_cta / is_choose_a_brawler / in_match_modal)

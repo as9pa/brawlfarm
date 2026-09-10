@@ -125,9 +125,9 @@ def test_four_edges_head_for_least_gassed():
 
 
 # --- gas detector on real corpus crops --------------------------------------------
-# Band crops cut from the harvested corpus (see tools/validate_gas_detector.py and
-# docs/research/in-match-vision.md): gas_* crops are visually-confirmed gas inside
-# an edge band; clean_* crops are the same bands from gas-free in-match frames.
+# Band crops cut from the harvested corpus (see tools/validate_gas_detector.py and the
+# legacy research note "in-match vision", not ported): gas_* crops are visually-confirmed
+# gas inside an edge band; clean_* crops are the same bands from gas-free in-match frames.
 
 
 def _band_fraction(path: pathlib.Path) -> float:

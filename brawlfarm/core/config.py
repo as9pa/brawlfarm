@@ -110,11 +110,11 @@ TOUCH_MAX_Y = 32767  # ABS_MT_POSITION_Y max
 # `exec-out screencap -p` makes the DEVICE encode a PNG (~790 KB) that the HOST then
 # cv2.imdecode's (~290 ms of pure CPU). Dropping `-p` streams the raw RGBA framebuffer
 # (16-byte header + w*h*4 bytes) — a bigger transfer but NO encode and NO decode, ~200 ms
-# faster per capture (569 -> 370 ms median, measured on this machine; see
-# docs/research/performance-optimization.md #4). core/adb.py uses this when RAW_CAP is on
-# and silently falls back to the PNG path on any failure (and PERMANENTLY for the session
-# if the device reports a non-RGBA_8888 raw format we can't parse). Set BRAWL_RAW_CAP=0
-# to force the old PNG path.
+# faster per capture (569 -> 370 ms median, measured on this machine; see the legacy
+# research note "performance optimization", item 4, not ported). core/adb.py uses this
+# when RAW_CAP is on and silently falls back to the PNG path on any failure (and
+# PERMANENTLY for the session if the device reports a non-RGBA_8888 raw format we can't
+# parse). Set BRAWL_RAW_CAP=0 to force the old PNG path.
 RAW_CAP = os.environ.get("BRAWL_RAW_CAP", "1") != "0"
 
 
@@ -167,7 +167,8 @@ FREEZE_TIMEOUT = 45.0
 # Grayscale template matching: TM_CCOEFF_NORMED on 3-channel BGR does the correlation
 # per channel — ~3x the work for no benefit on high-luminance-contrast UI anchors.
 # Matching template + screen in grayscale is ~4.7x faster per find (99 -> 21 ms measured;
-# docs/research/performance-optimization.md #1). Set BRAWL_GRAY_MATCH=0 to force color.
+# the legacy research note "performance optimization", item 1, not ported). Set
+# BRAWL_GRAY_MATCH=0 to force color.
 #
 # Decision-equivalence was validated on the full capture corpus (562 real 1600x900
 # frames, tools/validate_gray_thresholds.py): with the COLOR_ONLY_TEMPLATES carve-out
@@ -263,7 +264,7 @@ OPTIMAL_RATE_MIN = 0.0  # mean trophyChange/game below this => rotate it out
 # re-enable with BRAWL_WINRATE_OPPORTUNITY_COST=1 (no deploy needed).
 WINRATE_OPPORTUNITY_COST = os.environ.get("BRAWL_WINRATE_OPPORTUNITY_COST", "0") != "0"
 
-# --- Win-rate-aware selection (Q2, docs/future-plans/winrate-aware-farming.md) ---
+# --- Win-rate-aware selection (Q2, legacy planning note "winrate-aware farming", not ported) ---
 # PROACTIVE companion to the reactive rotation above: at ladder selection
 # points, farmplan re-orders the LEGAL candidates (owned brawlers below the current
 # step goal — so the ladder floor invariant is untouched by construction) by their
@@ -289,7 +290,7 @@ WINRATE_WINDOW = 20  # v1 trailing window (kept for the v1-vs-v2 replay/back-com
 WINRATE_MIN_GAMES = 10  # v1 min-sample (kept for the replay); v2 uses shrinkage
 WINRATE_MARGIN = 1.0  # promote only when top beats the roster-minimum by this
 
-# --- Win-rate model v2 (r8, docs/research/winrate-model.md) --------------------
+# --- Win-rate model v2 (r8, legacy research note "winrate model", not ported) --
 # v2 keeps the surface (WINRATE_AWARE kill-switch, WINRATE_MARGIN gate, the
 # ladder-only by-name promotion) but upgrades the STATISTICS the score is built on:
 #
@@ -329,10 +330,10 @@ PLAY_BUTTON = (1434, 830)  # verified, confidence 1.0
 # The mode banner (left of PLAY) opens the event/mode selector when tapped. Used to
 # self-correct the mode (navigate to Trio Showdown) instead of just stopping.
 MODE_BANNER = (950, 818)
-# Round 6 (docs/more instructions.md): a first "Trio not selected" miss is re-checked
-# after this wait + a fresh capture — the banner is often just mid-animation, so a
-# single transient miss must NOT raise a wrong_mode alarm. Only BOTH frames missing is
-# a confirmed wrong-mode.
+# Round 6 (legacy owner-instructions note, not ported): a first "Trio not selected"
+# miss is re-checked after this wait + a fresh capture — the banner is often just
+# mid-animation, so a single transient miss must NOT raise a wrong_mode alarm. Only
+# BOTH frames missing is a confirmed wrong-mode.
 MODE_VERIFY_RECHECK_S = 1.7
 
 # In-match. This account has NO gadget/hypercharge unlocked on the farm brawler,
@@ -515,8 +516,9 @@ QUESTS_CLOSE_BUTTON = (55, 52)  # top-left back arrow -> menu (NO BACK key)
 # live on a farm account (1600x900, 2026-06-09):
 #   team-invite mutes:  menu -> translucent "+" team slot -> TEAM UP panel -> gear ->
 #      SOCIAL SETTINGS. Set MUTE FRIENDS = 24h and MUTE RECENT TEAMMATES = 30 days.
-# (Round 6, docs/more instructions.md: the separate "block online push notifications"
-# leg was removed — unnecessary; its coordinates/HSV constants are deleted below.)
+# (Round 6, legacy owner-instructions note, not ported: the separate "block online push
+# notifications" leg was removed — unnecessary; its coordinates/HSV constants are
+# deleted below.)
 # Every hop VERIFIES the expected screen via OCR and bails back to the menu if it isn't
 # there — so a stale coordinate degrades to a logged no-op, never a misfire.
 
@@ -612,10 +614,10 @@ RECALIB_BRAWLERS_STREAK = 2  # SESSIONS in a row the grid OCR reads 0 owned name
 
 
 # --- In-match intelligence (P1: gas-aware heading + ability buttons) -----------
-# See docs/future-plans/in-match-intelligence.md (Phases A/D) and the measured
-# calibration in docs/research/in-match-vision.md. Both features are pure color CV
-# on frames the loop already captures (a handful of small-ROI color_fraction calls,
-# negligible against the ~370 ms capture cost).
+# See the legacy planning note "in-match intelligence", not ported (Phases A/D), and the
+# measured calibration in the legacy research note "in-match vision" (not ported). Both
+# features are pure color CV on frames the loop already captures (a handful of small-ROI
+# color_fraction calls, negligible against the ~370 ms capture cost).
 
 # Phase A — gas-aware heading. Kill-switch: BRAWL_GAS_AWARE=0 reverts the wander
 # to today's pure random drift without a deploy (same convention as FAST_INPUT etc.).
@@ -646,8 +648,8 @@ GAS_REPULSION_GAIN = 2.5
 # Phase D — tap ability buttons when they light their ready color (gadget=green,
 # super=yellow, hypercharge=purple). Kill-switch: BRAWL_ABILITY_BUTTONS=0.
 # Calibrated live on a near-maxed account playing a maxed TARA (gadget + hypercharge unlocked),
-# 704 read-only frames over 6 matches, 2026-06-09/10 — see
-# docs/research/in-match-vision.md "Phase D". Each entry:
+# 704 read-only frames over 6 matches, 2026-06-09/10 — see the legacy research note
+# "in-match vision", section "Phase D" (not ported). Each entry:
 #   region       (x1, y1, x2, y2) ROI inside the button face (small = cheap + specific)
 #   hsv_lo/hi    the button's READY color window
 #   min_fraction ready-color fraction in the ROI at/above which the button reads lit

@@ -1,5 +1,5 @@
 """Tests for ladder's rate-based rotation (r6: folded in from the old "optimal"
-mode — docs/more instructions.md).
+mode — legacy owner-instructions note, not ported).
 
 Selection = ladder's lowest-first within the rising floor, PLUS rate-based
 rotation: the controller asks farmplan.rotation_decision (win-rate model v2 —
