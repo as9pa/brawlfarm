@@ -89,7 +89,7 @@ def test_unknown_key_is_rejected(tmp_path: Path) -> None:
     assert "prot" in str(exc.value)
 
 
-@pytest.mark.parametrize("bad", ["", "a" * 33, "bad name", "../x", "dot.name"])
+@pytest.mark.parametrize("bad", ["", "a" * 33, "bad name", "../x", "dot.name", "ok\n"])
 def test_instance_name_is_validated(bad: str) -> None:
     with pytest.raises(ValueError):
         S.InstanceSettings(name=bad, adb_port=5555)
@@ -106,6 +106,9 @@ def test_player_tag_is_normalised_or_rejected() -> None:
     assert S.InstanceSettings(name="a", adb_port=1, player_tag="  ").player_tag == ""
     with pytest.raises(ValueError):
         S.InstanceSettings(name="a", adb_port=1, player_tag="#ABC")  # A and B are not tag letters
+    # The validator strips whitespace before matching, so a trailing newline never reaches
+    # the pattern through the model; assert on the pattern itself, which must reject one.
+    assert not S.PLAYER_TAG_RE.match("#2P0YLQ9\n")
 
 
 def test_duplicate_names_and_ports_are_rejected() -> None:
