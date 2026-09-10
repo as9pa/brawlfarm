@@ -65,7 +65,7 @@ def test_ladder_survives_save_load(tmp_path):
 
 
 def test_stored_least_aliases_to_ladder(tmp_path):
-    # v5 (docs/owner-feedback/dc slop 5.md): "least" is removed from the surface — ladder subsumes
+    # v5 (legacy owner note, not ported): "least" is removed from the surface — ladder subsumes
     # it — and stored least plans alias to ladder at load (no data migration).
     farmplan.save_plan({"mode": "least", "goal_trophies": 1000}, data_dir=tmp_path)
     plan = farmplan.load_plan(data_dir=tmp_path)

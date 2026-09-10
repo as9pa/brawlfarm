@@ -46,7 +46,7 @@ many more. So instead each account gets a deterministic per-account PHASE OFFSET
 (drawn from its seed) applied to the first session start — different phases mean
 the whole session/break rhythm is shifted relative to the other accounts, so they
 never line up at 00:00. Simpler than re-nudging dozens of transitions and good
-enough for 3 instances (documented choice, docs/bot/scheduler.md).
+enough for 3 instances (documented choice, legacy scheduler design note, not ported).
 
 FAIL-OPEN CONTRACT: any tick exception writes desired=run reason=scheduler_error
 for ALL accounts and exits nonzero — a scheduler bug must NEVER strand farms
@@ -62,7 +62,7 @@ IMPORT BUDGET: this runs every 60 s — stdlib + config only (config imports
 dotenv, ~40 ms). It must NOT import cv2/RapidOCR/core.adb/core.vision, directly or
 transitively. ``python -c "import brawlfarm.core.scheduler"`` must stay < 0.5 s.
 
-FILE FORMATS — see docs/bot/scheduler.md (the ops runbook).
+FILE FORMATS — see the legacy scheduler design note (the ops runbook, not ported).
 
 CLI:
   python -m brawlfarm.core.scheduler tick [--now ISO]        # the watchdog's call

@@ -28,11 +28,11 @@ from the highest- or lowest-trophy one still under 1000.
 toward the next tier above the current minimum, so no brawler races ahead into
 high-trophy diminishing returns while the rest lag behind.
 
-v5 (round 5 owner feedback, docs/owner-feedback/dc slop 5.md): the "manual" mode (what /farm set —
-target + queue) and "least" (always-the-lowest, no plan smarts) are REMOVED —
-ladder subsumes least, and /mode overrides made /farm pointless. Stored plans
-with either mode alias to ladder at load time (:func:`load_plan`), so no data
-migration is needed in either direction.
+v5 (round 5 owner feedback, legacy owner note, not ported): the "manual" mode
+(what /farm set — target + queue) and "least" (always-the-lowest, no plan smarts)
+are REMOVED — ladder subsumes least, and /mode overrides made /farm pointless.
+Stored plans with either mode alias to ladder at load time (:func:`load_plan`), so
+no data migration is needed in either direction.
 
 r6 (round 6 owner feedback, legacy owner-instructions note, not ported): "optimal" is
 FOLDED INTO ladder — there was one obvious pick between the two, so the rate-based

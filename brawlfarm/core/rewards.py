@@ -11,10 +11,10 @@ of everything gained.
   format_recap(session, ...)     -> multi-line text summary (games / trophies / skins)
 
 Currency gain-tracking (coins/PP/credits/bling/gems) was removed in round 7
-(trophy-only minimalism, docs/note6.md): the recap is now trophies + skins +
-games only. parse_drop_reward still recognizes coin/power-point DROP frames so
-the tap-through never mistakes one for an unknown popup, but the amounts are no
-longer summed or surfaced anywhere.
+(trophy-only minimalism, legacy owner note, not ported): the recap is now
+trophies + skins + games only. parse_drop_reward still recognizes coin/power-point
+DROP frames so the tap-through never mistakes one for an unknown popup, but the
+amounts are no longer summed or surfaced anywhere.
 """
 
 from __future__ import annotations
