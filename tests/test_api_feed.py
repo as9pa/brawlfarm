@@ -1,11 +1,12 @@
 """The activity feed: which session event kinds land in which chip, reading the newest
 session file for GET .../feed, and the tailer that publishes new lines onto the bus —
-starting at the end of a session already in progress, following a session roll, and
-waiting for a half-written line to finish."""
+starting at the end of a session already in progress, following a session roll, waiting for
+a half-written line to finish, and trying again after a read that failed."""
 
 from __future__ import annotations
 
 import json
+import logging
 from pathlib import Path
 
 import pytest
@@ -61,6 +62,29 @@ class RacingPath:
         self.opened += 1
         if self.opened == 1:
             self._inject()
+        return self._real.open(*args, **kwargs)
+
+    def stat(self):
+        return self._real.stat()
+
+
+class LockedPath:
+    """A session path whose first open() fails the way a locked or half-replaced file
+    does on Windows. Same delegation as RacingPath, so the tailer cannot tell it from the
+    real thing until it tries to read."""
+
+    def __init__(self, real: Path) -> None:
+        self._real = real
+        self.opened = 0
+
+    @property
+    def name(self) -> str:
+        return self._real.name
+
+    def open(self, *args, **kwargs):
+        self.opened += 1
+        if self.opened == 1:
+            raise PermissionError(13, "the file is locked")
         return self._real.open(*args, **kwargs)
 
     def stat(self):
@@ -135,6 +159,19 @@ def test_scan_lines_stops_at_a_half_written_tail(tmp_path: Path) -> None:
     # the bytes already on disk.
     assert scan_lines(session) == (2, whole)
     assert scan_lines(tmp_path / "nothing.jsonl") == (0, 0)
+
+
+def test_scan_lines_tells_a_missing_file_from_an_unreadable_one(tmp_path: Path, caplog) -> None:
+    """A file that is not there yet really is (0, 0) lines; a file that cannot be read is
+    None. The tailer joins a session at the count it is given, so reading a failure as a
+    zero would make every line already on disk look new."""
+    session = tmp_path / "session-20260911-100000.jsonl"
+    assert scan_lines(session) == (0, 0)
+    _append(session, "start", max_minutes=90)
+    with caplog.at_level(logging.WARNING, logger="brawlfarm.api"):
+        assert scan_lines(LockedPath(session)) is None
+    assert len(caplog.records) == 1
+    assert "PermissionError" in caplog.records[0].getMessage()
 
 
 def test_feed_route_returns_the_session_name_and_records(api) -> None:
@@ -285,6 +322,39 @@ async def test_a_line_written_during_the_first_look_is_not_renumbered(
     assert streamed["event"] == "crash"
     assert streamed["seq"] == 4
     assert read_feed(inst_dir)[-1] == streamed
+
+
+@pytest.mark.asyncio
+async def test_a_read_that_fails_on_the_first_look_replays_nothing(tmp_path: Path) -> None:
+    """A locked or half-replaced file on the very first poll is not an empty one. The
+    tailer commits no position and stays a first look, so the lines already on disk are
+    still history on the next pass rather than a backlog published onto the panel -- and
+    ingested a second time by the alert store, which does not de-duplicate."""
+    inst_dir = S.instance_dir(tmp_path, "alpha")
+    session = inst_dir / "session-20260911-100000.jsonl"
+    _append(session, "start", max_minutes=90)  # line 1
+    _append(session, "crash", err="adb gone")  # line 2
+    locked = LockedPath(session)
+    bus, alerts = EventBus(), StubAlerts()
+    tailer = FeedTailer(tmp_path, StubSup(build_settings(("alpha",))), bus, alerts=alerts)
+
+    with pytest.MonkeyPatch.context() as patch:
+        patch.setattr(feed, "latest_session", lambda _dir: locked)
+        assert await tailer.poll_once() == 0  # the read failed; nothing is known yet
+        assert bus.recent() == []
+        assert alerts.seen == []
+
+        assert await tailer.poll_once() == 0  # the retry joins the session at its end
+        assert bus.recent() == []
+        assert alerts.seen == []
+
+        _append(session, "recover", reason="stuck", attempt=1)  # line 3
+        assert await tailer.poll_once() == 1
+
+    record = bus.recent()[-1].data["record"]
+    assert (record["event"], record["seq"]) == ("recover", 3)
+    assert alerts.seen == [("alpha", "recover")]
+    assert read_feed(inst_dir)[-1] == record
 
 
 @pytest.mark.asyncio
