@@ -105,15 +105,20 @@ def latest_session(inst_dir: Path) -> Path | None:
     return files[-1] if files else None
 
 
-def scan_lines(path: Path) -> tuple[int, int]:
+def scan_lines(path: Path) -> tuple[int, int] | None:
     """How many complete lines the file already holds, and the byte offset just past the
-    last of them. The tailer needs both the first time it meets a session already in
-    progress: it joins that session at the end, so its numbering has to continue from the
-    file's real length rather than restarting at 1. Both come from one read -- taking the
-    size and the count separately leaves a window the worker can append into, and a line
-    that lands inside it is counted and then read again, which shifts every number the
-    stream hands out past the one GET gives the same line. A half-written tail is neither
-    counted nor skipped past: it becomes the next line once its newline arrives."""
+    last of them, or None when the file could not be read at all. The tailer needs both the
+    first time it meets a session already in progress: it joins that session at the end, so
+    its numbering has to continue from the file's real length rather than restarting at 1.
+    Both come from one read -- taking the size and the count separately leaves a window the
+    worker can append into, and a line that lands inside it is counted and then read again,
+    which shifts every number the stream hands out past the one GET gives the same line. A
+    half-written tail is neither counted nor skipped past: it becomes the next line once
+    its newline arrives.
+
+    A file that is not there yet is a real (0, 0). A file that is there but locked, or
+    half-replaced, is None instead: reading that failure as a zero would tell the tailer
+    the session is empty, and every line already on disk would be published as new."""
     total = 0
     offset = 0
     try:
@@ -123,8 +128,13 @@ def scan_lines(path: Path) -> tuple[int, int]:
                     break
                 total += 1
                 offset += len(raw)
-    except OSError:
-        return 0, 0
+    except FileNotFoundError:
+        return 0, 0  # not written yet: a real zero, not a failure
+    except OSError as exc:
+        # The class alone: the message repeats the path and says nothing a reader of this
+        # line does not already have.
+        log.warning("cannot scan %s: %s", path, type(exc).__name__)
+        return None
     return total, offset
 
 
@@ -227,8 +237,8 @@ class FeedTailer:
         inst_dir = S.instance_dir(self.home, name)
         path = latest_session(inst_dir)
         first_look = name not in self._seen
-        self._seen.add(name)
         if path is None:
+            self._seen.add(name)
             self._positions.pop(name, None)
             return None, []
         known, offset, seq = self._positions.get(name, (None, 0, 0))
@@ -237,7 +247,10 @@ class FeedTailer:
             # numbering continues from the lines already on disk -- from one read, so the
             # count and the offset cannot describe different moments. A file that rolled
             # under us is a new session and starts again at 1.
-            seq, offset = scan_lines(path) if first_look else (0, 0)
+            scanned = scan_lines(path) if first_look else (0, 0)
+            if scanned is None:
+                return path.name, []  # unreadable: try again on the next poll
+            seq, offset = scanned
         lines: list[tuple[int, dict]] = []
         try:
             with path.open("rb") as f:
@@ -260,7 +273,11 @@ class FeedTailer:
         except OSError as exc:
             log.debug("%s: cannot read %s: %s", name, path.name, exc)
             return path.name, []
+        # Both are committed only once a read has succeeded end to end: an instance that
+        # is still unseen gets another first look, and a first look joins the session at
+        # its end instead of replaying it.
         self._positions[name] = (path, offset, seq)
+        self._seen.add(name)
         return path.name, lines
 
 
