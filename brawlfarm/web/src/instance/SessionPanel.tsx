@@ -42,7 +42,7 @@ function figuresOf(inst: InstancePayload, avgRank: number | null, interrupts: nu
  * block and every figure would snap to zero, which reads as "the session did nothing".
  * The panel keeps the last figures it saw live and captions when the session ended,
  * preferring the timestamp of the feed's own `stop` line over the moment the browser
- * happened to notice.
+ * happened to notice -- including when that line only arrives on a later poll.
  */
 export function SessionPanel({
   inst,
@@ -66,7 +66,10 @@ export function SessionPanel({
       setEndedAt(null);
       return;
     }
-    setEndedAt((previous) => previous ?? stopAt ?? new Date().toISOString());
+    // The feed's own stop line is the better answer whenever it exists, and it usually
+    // arrives a poll after the state does. The browser's clock is only a stand-in until
+    // then, so it is replaced rather than kept.
+    setEndedAt((previous) => stopAt ?? previous ?? new Date().toISOString());
   });
 
   return (
