@@ -86,6 +86,36 @@ describe("AlertsDrawer", () => {
     expect(toastMessages()).toContain("Alerts dismissed");
   });
 
+  it("says why a dismiss was refused and leaves the row where it is", async () => {
+    stubFetch((url) =>
+      url === "/api/alerts"
+        ? jsonResponse({ alerts: ALERTS, unread: 2 })
+        : jsonResponse({ detail: "the alert store is gone" }, 500),
+    );
+    renderWithProviders(<AlertsDrawer />);
+    const rows = await screen.findAllByRole("listitem");
+    await userEvent.click(within(rows[0]).getByRole("button", { name: "Dismiss" }));
+    await vi.waitFor(() => {
+      expect(toastMessages()).toEqual(["the alert store is gone"]);
+    });
+    // The row is only removed by a refetch, so a refused dismiss leaves it readable.
+    expect(screen.getAllByRole("listitem")).toHaveLength(2);
+  });
+
+  it("says why Dismiss all was refused", async () => {
+    stubFetch((url) =>
+      url === "/api/alerts"
+        ? jsonResponse({ alerts: ALERTS, unread: 2 })
+        : jsonResponse({ detail: "the alert store is gone" }, 500),
+    );
+    renderWithProviders(<AlertsDrawer />);
+    await userEvent.click(await screen.findByRole("button", { name: "Dismiss all" }));
+    await vi.waitFor(() => {
+      expect(toastMessages()).toEqual(["the alert store is gone"]);
+    });
+    expect(screen.getAllByRole("listitem")).toHaveLength(2);
+  });
+
   it("says what the drawer is for when it is empty", async () => {
     stubFetch(() => jsonResponse({ alerts: [], unread: 0 }));
     renderWithProviders(<AlertsDrawer />);

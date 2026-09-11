@@ -15,7 +15,6 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { AlertStrip } from "./AlertStrip";
 import { InstanceCard } from "./InstanceCard";
 import { listAlerts } from "../api/alerts";
-import { ApiError } from "../api/client";
 import { startInstance, stopInstance } from "../api/instances";
 import { queryKeys } from "../api/queries";
 import { getStatsToday } from "../api/stats";
@@ -25,7 +24,7 @@ import { ErrorBlock } from "../components/ui/ErrorBlock";
 import { openAlertsDrawer } from "../lib/alertsDrawer";
 import { plural, signed } from "../lib/format";
 import { hoursText } from "../lib/time";
-import { toast } from "../lib/toast";
+import { failureMessage, toast } from "../lib/toast";
 
 const GRID_COLUMNS = "repeat(auto-fill, minmax(340px, 1fr))";
 
@@ -56,7 +55,7 @@ export function Fleet() {
    * request has settled, and the rejection speaks the ApiError's own detail so a partial
    * failure is not mistaken for a fleet that started. */
   const failed = (failure: unknown) => {
-    toast(failure instanceof ApiError ? failure.detail : "Request failed");
+    toast(failureMessage(failure));
   };
 
   const onStartAll = () => {

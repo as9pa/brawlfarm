@@ -1,5 +1,5 @@
-/** The toast queue: one at a time, a longer life when an Undo is offered, and a store
- * that a component can subscribe to. */
+/** The toast queue: one at a time, a longer life when an Undo is offered, a store that a
+ * component can subscribe to, and the one sentence every rejected request speaks. */
 import { act, renderHook } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -7,15 +7,26 @@ import {
   TOAST_MS,
   TOAST_UNDO_MS,
   dismissToast,
+  failureMessage,
   resetToasts,
   subscribeToasts,
   toast,
   useToasts,
 } from "./toast";
+import { ApiError } from "../api/client";
 
 afterEach(() => {
   resetToasts();
   vi.restoreAllMocks();
+});
+
+describe("failureMessage", () => {
+    it("speaks the API's own sentence, and its own only when there is none", () => {
+      expect(failureMessage(new ApiError(503, "adb did not answer"))).toBe("adb did not answer");
+      expect(failureMessage(new Error("boom"))).toBe("Request failed");
+      expect(failureMessage("boom")).toBe("Request failed");
+      expect(failureMessage(undefined)).toBe("Request failed");
+    });
 });
 
 describe("toast", () => {

@@ -25,7 +25,7 @@ import { Button } from "../components/ui/Button";
 import { ErrorBlock } from "../components/ui/ErrorBlock";
 import { StateChip } from "../components/ui/StateChip";
 import { phaseLabel } from "../lib/states";
-import { toast } from "../lib/toast";
+import { failureMessage, toast } from "../lib/toast";
 import { FarmPlan } from "./FarmPlan";
 import { Feed } from "./Feed";
 import { LiveScreen } from "./LiveScreen";
@@ -59,7 +59,7 @@ function Header({ inst, onDone }: { inst: InstancePayload; onDone: () => void })
     try {
       await call;
     } catch (error) {
-      toast(error instanceof ApiError ? error.detail : "Request failed");
+      toast(failureMessage(error));
       return;
     }
     onDone();

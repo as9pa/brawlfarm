@@ -16,7 +16,7 @@ import { Drawer } from "../components/ui/Drawer";
 import { closeAlertsDrawer, useAlertsDrawerOpen } from "../lib/alertsDrawer";
 import { alertKindLabel, alertKindTone } from "../lib/states";
 import { hhmm } from "../lib/time";
-import { toast } from "../lib/toast";
+import { failureMessage, toast } from "../lib/toast";
 
 export function AlertsDrawer() {
   const open = useAlertsDrawerOpen();
@@ -28,15 +28,24 @@ export function AlertsDrawer() {
     void client.invalidateQueries({ queryKey: queryKeys.alerts() });
   };
 
+  /** A refusal speaks the API's own sentence rather than disappearing into an unhandled
+   * promise. The rows are left alone either way: the list is only ever redrawn by a
+   * refetch, so an alert that is still live stays readable. */
+  const failed = (failure: unknown) => {
+    toast(failureMessage(failure));
+  };
+
   const onDismiss = (id: number) => {
-    void dismissAlert(id).then(refresh);
+    void dismissAlert(id).then(refresh).catch(failed);
   };
 
   const onDismissAll = () => {
-    void dismissAllAlerts().then(() => {
-      refresh();
-      toast("Alerts dismissed");
-    });
+    void dismissAllAlerts()
+      .then(() => {
+        refresh();
+        toast("Alerts dismissed");
+      })
+      .catch(failed);
   };
 
   return (

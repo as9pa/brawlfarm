@@ -10,7 +10,6 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 
 import { dismissAlert } from "../api/alerts";
-import { ApiError } from "../api/client";
 import { retryInstance } from "../api/instances";
 import { queryKeys } from "../api/queries";
 import type { Alert } from "../api/types";
@@ -18,7 +17,7 @@ import { Button } from "../components/ui/Button";
 import { Chip } from "../components/ui/Chip";
 import { alertKindLabel, alertKindTone } from "../lib/states";
 import { since } from "../lib/time";
-import { toast } from "../lib/toast";
+import { failureMessage, toast } from "../lib/toast";
 
 export interface AlertStripProps {
   alert: Alert;
@@ -43,7 +42,7 @@ export function AlertStrip({ alert, unread, onOpen }: AlertStripProps) {
   /** Nothing is announced until the request has settled, and a rejection speaks the
    * ApiError's own detail rather than disappearing into an unhandled promise. */
   const failed = (failure: unknown) => {
-    toast(failure instanceof ApiError ? failure.detail : "Request failed");
+    toast(failureMessage(failure));
   };
 
   const onDismiss = () => {
