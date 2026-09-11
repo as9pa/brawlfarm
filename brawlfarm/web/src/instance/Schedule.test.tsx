@@ -71,6 +71,27 @@ describe("Schedule", () => {
     expect(toastMessages()).toEqual(["Running Pie64 for 3 h"]);
   });
 
+  it("keeps Start out of reach below the half hour the field asks for", async () => {
+    const calls = mount();
+    renderWithProviders(<Schedule name="Pie64" />);
+    const hours = await screen.findByLabelText("Run for");
+    expect(hours).toHaveAttribute("min", "0.5");
+
+    // fireEvent rather than userEvent: typing "0.3" a character at a time goes through
+    // "0." , which a number input does not hold, so the box would never see the value
+    // this case is about.
+    fireEvent.change(hours, { target: { value: "0.3" } });
+    expect(screen.getByRole("button", { name: "Start" })).toBeDisabled();
+
+    fireEvent.change(hours, { target: { value: "0.5" } });
+    expect(screen.getByRole("button", { name: "Start" })).toBeEnabled();
+    await userEvent.click(screen.getByRole("button", { name: "Start" }));
+    await waitFor(() => {
+      expect(countOf(calls, "POST", START)).toBe(1);
+    });
+    expect(lastBody(calls, "POST", START)).toEqual({ hours: 0.5 });
+  });
+
   it("speaks the API's own sentence when Start fails, and says nothing else", async () => {
     stubFetch((url) => {
       if (url === SCHEDULE) return jsonResponse(makeSchedule());
