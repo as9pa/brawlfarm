@@ -105,20 +105,27 @@ def latest_session(inst_dir: Path) -> Path | None:
     return files[-1] if files else None
 
 
-def count_lines(path: Path) -> int:
-    """How many complete lines the file already holds. The tailer needs it the first time
-    it meets a session that is already in progress: it seeks to the end, so its numbering
-    has to continue from the file's real length rather than restarting at 1. A half-written
-    tail is not counted -- it becomes the next line once the worker finishes writing it."""
+def scan_lines(path: Path) -> tuple[int, int]:
+    """How many complete lines the file already holds, and the byte offset just past the
+    last of them. The tailer needs both the first time it meets a session already in
+    progress: it joins that session at the end, so its numbering has to continue from the
+    file's real length rather than restarting at 1. Both come from one read -- taking the
+    size and the count separately leaves a window the worker can append into, and a line
+    that lands inside it is counted and then read again, which shifts every number the
+    stream hands out past the one GET gives the same line. A half-written tail is neither
+    counted nor skipped past: it becomes the next line once its newline arrives."""
     total = 0
+    offset = 0
     try:
         with path.open("rb") as f:
             for raw in f:
-                if raw.endswith(b"\n"):
-                    total += 1
+                if not raw.endswith(b"\n"):
+                    break
+                total += 1
+                offset += len(raw)
     except OSError:
-        return 0
-    return total
+        return 0, 0
+    return total, offset
 
 
 def read_session(path: Path, *, kind: str = "all", limit: int = 100) -> list[dict]:
@@ -227,10 +234,10 @@ class FeedTailer:
         known, offset, seq = self._positions.get(name, (None, 0, 0))
         if known != path:
             # A session already in progress is joined at its end (ruling 4), so the
-            # numbering continues from the lines already on disk. A file that rolled
+            # numbering continues from the lines already on disk -- from one read, so the
+            # count and the offset cannot describe different moments. A file that rolled
             # under us is a new session and starts again at 1.
-            offset = path.stat().st_size if first_look else 0
-            seq = count_lines(path) if first_look else 0
+            seq, offset = scan_lines(path) if first_look else (0, 0)
         lines: list[tuple[int, dict]] = []
         try:
             with path.open("rb") as f:

@@ -11,8 +11,9 @@ from pathlib import Path
 import pytest
 
 from brawlfarm import settings as S
+from brawlfarm.api import feed
 from brawlfarm.api.events import EventBus
-from brawlfarm.api.feed import FeedTailer, classify, count_lines, latest_session, read_feed
+from brawlfarm.api.feed import FeedTailer, classify, latest_session, read_feed, scan_lines
 from tests.apihelpers import build_settings, make_client
 
 
@@ -40,6 +41,30 @@ class StubAlerts:
     def ingest(self, instance: str, record: dict):
         self.seen.append((instance, record.get("kind", "")))
         return None
+
+
+class RacingPath:
+    """A session path that lets the worker win a byte race: the first time anything opens
+    it, one more complete line lands on disk first. Only the handful of attributes the
+    tailer uses are delegated; identity equality is what `known != path` wants anyway."""
+
+    def __init__(self, real: Path, inject) -> None:
+        self._real = real
+        self._inject = inject
+        self.opened = 0
+
+    @property
+    def name(self) -> str:
+        return self._real.name
+
+    def open(self, *args, **kwargs):
+        self.opened += 1
+        if self.opened == 1:
+            self._inject()
+        return self._real.open(*args, **kwargs)
+
+    def stat(self):
+        return self._real.stat()
 
 
 def _append(path: Path, kind: str, **fields) -> None:
@@ -97,16 +122,19 @@ def test_read_feed_is_empty_without_a_session(tmp_path: Path) -> None:
     assert read_feed(tmp_path) == []
 
 
-def test_count_lines_ignores_a_half_written_tail(tmp_path: Path) -> None:
+def test_scan_lines_stops_at_a_half_written_tail(tmp_path: Path) -> None:
     session = tmp_path / "session-20260911-100000.jsonl"
     _append(session, "start", max_minutes=90)
     _append(session, "phase", to="queuing", frm="menu", games=0)
-    assert count_lines(session) == 2
+    whole = session.stat().st_size
+    assert scan_lines(session) == (2, whole)
     with session.open("a", encoding="utf-8") as f:
         f.write('{"ts": "2026-09-11T18:05:00", "kind": "rec')
-    # The torn line is not a line yet; it becomes line 3 once the worker finishes it.
-    assert count_lines(session) == 2
-    assert count_lines(tmp_path / "nothing.jsonl") == 0
+    # The torn line is not a line yet; it becomes line 3 once the worker finishes it. The
+    # offset stops just before it, so the next read picks it up whole rather than skipping
+    # the bytes already on disk.
+    assert scan_lines(session) == (2, whole)
+    assert scan_lines(tmp_path / "nothing.jsonl") == (0, 0)
 
 
 def test_feed_route_returns_the_session_name_and_records(api) -> None:
@@ -225,3 +253,58 @@ async def test_get_and_the_stream_agree_on_a_line_number(tmp_path: Path) -> None
     polled = read_feed(inst_dir)
     assert [(r["event"], r["seq"]) for r in polled] == [("start", 1), ("crash", 3)]
     assert polled[-1] == streamed["record"]
+
+
+@pytest.mark.asyncio
+async def test_a_line_written_during_the_first_look_is_not_renumbered(
+    tmp_path: Path, monkeypatch
+) -> None:
+    """The first look has to take the file's length and its line count from one read.
+    Taking them separately leaves a window: a line the worker appends inside it is counted
+    but still sits past the recorded offset, so the tailer reads it a second time and every
+    number it hands out for that session is one ahead of the number GET gives the same
+    line -- which breaks the panel's de-duplication on (session, seq)."""
+    inst_dir = S.instance_dir(tmp_path, "alpha")
+    session = inst_dir / "session-20260911-100000.jsonl"
+    _append(session, "start", max_minutes=90)  # line 1
+    _append(session, "phase", to="queuing", frm="menu", games=0)  # line 2
+    racing = RacingPath(session, lambda: _append(session, "recover", reason="stuck", attempt=1))
+    monkeypatch.setattr(feed, "latest_session", lambda _dir: racing)
+    bus = EventBus()
+    tailer = FeedTailer(tmp_path, StubSup(build_settings(("alpha",))), bus)
+
+    # Line 3 lands while the tailer is looking; it is history like the two before it.
+    assert await tailer.poll_once() == 0
+    assert racing.opened >= 1
+    assert bus.recent() == []
+
+    _append(session, "crash", err="adb gone")  # line 4
+    assert await tailer.poll_once() == 1
+    monkeypatch.undo()  # the GET path reads the real file, not the racing stand-in
+    streamed = bus.recent()[-1].data["record"]
+    assert streamed["event"] == "crash"
+    assert streamed["seq"] == 4
+    assert read_feed(inst_dir)[-1] == streamed
+
+
+@pytest.mark.asyncio
+async def test_a_torn_tail_at_first_look_is_published_once_and_whole(tmp_path: Path) -> None:
+    """The offset stops before a half-written tail rather than past it, so when its newline
+    lands the line is read whole -- once, with the number GET gives it."""
+    inst_dir = S.instance_dir(tmp_path, "alpha")
+    session = inst_dir / "session-20260911-100000.jsonl"
+    _append(session, "start", max_minutes=90)  # line 1
+    with session.open("a", encoding="utf-8") as f:
+        f.write('{"ts": "2026-09-11T18:05:00", "kind": "cra')  # line 2, mid-write
+    bus = EventBus()
+    tailer = FeedTailer(tmp_path, StubSup(build_settings(("alpha",))), bus)
+    assert await tailer.poll_once() == 0  # a torn tail is not a line yet
+
+    with session.open("a", encoding="utf-8") as f:
+        f.write('sh", "err": "adb gone"}\n')
+    assert await tailer.poll_once() == 1
+    assert await tailer.poll_once() == 0  # numbered once, not again on the next pass
+    streamed = bus.recent()[-1].data["record"]
+    assert (streamed["event"], streamed["seq"]) == ("crash", 2)
+    assert streamed["fields"] == {"err": "adb gone"}
+    assert read_feed(inst_dir)[-1] == streamed
