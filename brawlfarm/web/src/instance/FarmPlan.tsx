@@ -83,9 +83,13 @@ export function FarmPlan({ name }: { name: string }) {
     } catch (error) {
       client.setQueryData<PlanResponse>(queryKeys.plan(name), before);
       // Only the box whose save failed goes back to the stored value; text the reader is
-      // still typing in the other one stays where it is.
+      // still typing in the other one stays where it is. The switch follows the cache
+      // too, so a failed clear leaves the fallback the worker still has on screen.
       if ("goal_trophies" in patch) setGoalText(null);
-      if ("maxed_fallback" in patch) setFallbackText(null);
+      if ("maxed_fallback" in patch) {
+        setFallbackText(null);
+        setFallbackOn(null);
+      }
       setFailure(error);
     }
   };
