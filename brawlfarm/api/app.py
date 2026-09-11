@@ -131,6 +131,9 @@ def create_app(sup: Supervisor, home: Path) -> FastAPI:
     # One asyncio.Lock per instance, filled lazily by the screenshot route: two
     # concurrent screencaps against one BlueStacks window fight each other.
     app.state.screenshot_locks = {}
+    # The preview route's fallback frames, one per instance: an instance with no worker
+    # writing preview.jpg is captured live at most once every LIVE_MIN_INTERVAL_S.
+    app.state.preview_cache = {}
     # One roster cache for the process: per instance, five-minute TTL, stale on failure.
     # Not built in the lifespan because it holds nothing loop-bound until its first use.
     app.state.roster = roster.RosterCache()
