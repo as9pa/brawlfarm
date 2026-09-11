@@ -8,8 +8,6 @@
  * subscriber for each. `feed` is not one of them: a feed record only matters to the
  * screen that is showing that instance's feed, so the Feed component subscribes itself
  * (task 9) and this file stays out of it.
- *
- * The Instance route is a placeholder until task 8 lands.
  */
 import { QueryClientProvider, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
@@ -21,6 +19,7 @@ import { createQueryClient, queryKeys } from "./api/queries";
 import { getSettings } from "./api/settings";
 import { Toaster } from "./components/ui/Toast";
 import { Fleet } from "./fleet/Fleet";
+import { Instance } from "./instance/Instance";
 import { onReconnect, subscribe } from "./live/useEvents";
 
 /** A burst of state changes (a tick touching five instances) is one refetch, not five. */
@@ -83,12 +82,7 @@ function Panel() {
     <Shell>
       <Routes>
         <Route path="/" element={<Fleet />} />
-        <Route
-          path="/instances/:name"
-          element={
-            <Placeholder title="Instance" body="The instance screen arrives in a later commit." />
-          }
-        />
+        <Route path="/instances/:name" element={<Instance />} />
         <Route path="/stats" element={<Placeholder title="Stats" body="Stats arrive in phase 6." />} />
         <Route
           path="/settings"
