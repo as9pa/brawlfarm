@@ -19,3 +19,6 @@ logs/
 # web (phase 4)
 node_modules/
 brawlfarm/web/dist/
+
+# Worktrees created by isolated Claude Code agents
+.claude/worktrees/
