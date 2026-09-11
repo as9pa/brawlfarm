@@ -100,7 +100,7 @@ class Controller:
 
         # Session-recap bookkeeping (printed on stop). Trophies come from API snapshots;
         # skins from skin-reward events. (Currency gain-tracking was removed in round 7
-        # — trophy-only minimalism, docs/note6.md.)
+        # — trophy-only minimalism, legacy owner note, not ported.)
         self.rewards = rewards.SessionRewards()
         self._start_trophies = None
         self._last_trophies = None
@@ -321,7 +321,8 @@ class Controller:
         except Exception as e:  # keep the last-known goal on a plan hiccup
             self.dl.event("farmplan_error", where="goal_refresh", err=repr(e))
         # Ladder rotation (r6: folded in from the old "optimal" mode; r8: the
-        # statistics upgraded to the win-rate model v2 — docs/research/winrate-model.md).
+        # statistics upgraded to the win-rate model v2 — legacy research note
+        # "winrate model", not ported).
         # farmplan.rotation_decision rotates the farmed brawler out for the session
         # when (primary) a clearly-better in-band alternative exists AND we're below
         # the account mean on this one [opportunity_cost], or (secondary) its
@@ -570,11 +571,11 @@ class Controller:
             self._do_mega_quest()
             return  # re-evaluate the menu next loop
 
-        # Mode verify (round 6, docs/more instructions.md): the two live "wrong_mode"
-        # firings today both RECOVERED — almost certainly the mode banner caught
-        # mid-animation, NOT a real mode switch (the owner has never seen the farm
-        # change modes). So DOUBLE-CONFIRM: a first miss waits ~1.7s and re-captures;
-        # a transient miss (re-check hits) is just a debug line, nothing fires. Only a
+        # Mode verify (round 6, legacy owner-instructions note, not ported): the two live
+        # "wrong_mode" firings today both RECOVERED — almost certainly the mode banner
+        # caught mid-animation, NOT a real mode switch (the owner has never seen the farm
+        # change modes). So DOUBLE-CONFIRM: a first miss waits ~1.7s and re-captures; a
+        # transient miss (re-check hits) is just a debug line, nothing fires. Only a
         # confirmed miss (both fail) logs the event + a diagnostic shot WITH the match
         # score, attempts recovery, and — if nav fails — stops with the HONEST reason
         # "mode_verify_failed" (not "wrong_mode", which falsely implies a real switch).

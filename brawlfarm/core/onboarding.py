@@ -126,8 +126,8 @@ def start_login(port: int | str, email: str, log=print) -> tuple[str, object]:
     OCR-driven, screenshot at every step, bail on anything unexpected."""
     # Validate BEFORE any navigation: the email is user-supplied (via the panel) and is
     # eventually typed through `adb shell input text`, which re-evaluates through the
-    # device-side shell — this whitelist also guarantees shell-safety (see
-    # docs/future-plans/multi-user-security.md and adb.input_text's gate).
+    # device-side shell — this whitelist also guarantees shell-safety (see the legacy
+    # planning note "multi-user security", not ported, and adb.input_text's gate).
     email = str(email).strip()
     if not re.fullmatch(r"[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}", email):
         raise OnboardError(f"not a valid email address: {email!r}")

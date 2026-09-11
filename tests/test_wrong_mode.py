@@ -1,4 +1,4 @@
-"""Mode-verify hardening (round 6, docs/more instructions.md).
+"""Mode-verify hardening (round 6, legacy owner-instructions note, not ported).
 
 The two live "wrong_mode" firings today both RECOVERED — the mode banner was caught
 mid-animation, not a real switch. So the at-menu mode check now:

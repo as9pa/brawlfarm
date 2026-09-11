@@ -11,8 +11,9 @@ The flow mirrors core/brawlers.py (open from menu -> act -> exit to menu via tap
      (top-right, LEFT of the red ✕) -> SOCIAL SETTINGS. Confirm MUTE FRIENDS = 24h and
      MUTE RECENT TEAMMATES = 30 days (selected radio = bright ORANGE fill).
 
-(Round 6, docs/more instructions.md: the separate "block online push notifications"
-leg was removed — it was unnecessary. Team-invite mutes are the whole DND now.)
+(Round 6, legacy owner-instructions note, not ported: the separate "block online push
+notifications" leg was removed — it was unnecessary. Team-invite mutes are the whole
+DND now.)
 
 Safety: every hop VERIFIES the expected screen via OCR before tapping anything inside
 it, and bails back to the menu when the verify fails — so a stale/uncalibrated

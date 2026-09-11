@@ -1,5 +1,6 @@
-"""Tests for the win-rate model v2 (r8, docs/research/winrate-model.md):
-empirical-Bayes shrinkage, recency-weighted EWMA, and opportunity-cost rotation.
+"""Tests for the win-rate model v2 (r8, legacy research note "winrate model", not
+ported): empirical-Bayes shrinkage, recency-weighted EWMA, and opportunity-cost
+rotation.
 
 The SURFACE is unchanged (choose_target signature, WINRATE_AWARE kill-switch,
 WINRATE_MARGIN gate, prestige untouched) — those invariants are covered by
