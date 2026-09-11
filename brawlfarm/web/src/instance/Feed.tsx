@@ -9,6 +9,7 @@ import type { FeedEvent, FeedKind, FeedRecord, FeedResponse } from "../api/types
 import { ErrorBlock } from "../components/ui/ErrorBlock";
 import { Segmented } from "../components/ui/Segmented";
 import { Switch } from "../components/ui/Switch";
+import { collapseMirrors } from "../lib/feedMirrors";
 import { feedText } from "../lib/feedText";
 import { TONE_DOT } from "../lib/states";
 import { hhmmss } from "../lib/time";
@@ -62,6 +63,9 @@ export function appendRecord(
  * record's own chip, so switching chips never loses a line and the session panel's
  * interrupt count (task 11) stays live off the All entry without a second subscription.
  * Only a chip that has already loaded is written to, though: see the stream handler.
+ *
+ * What is drawn is the list minus the narration mirrors (lib/feedMirrors.ts). Those
+ * records stay in the cache, so every count that reads them is unchanged.
  */
 export function Feed({ name, session }: { name: string; session: string | null }) {
   const client = useQueryClient();
@@ -97,12 +101,13 @@ export function Feed({ name, session }: { name: string; session: string | null }
   );
 
   const records = query.data?.records ?? [];
+  const shown = collapseMirrors(records);
   const active = query.data?.session ?? session;
 
   useEffect(() => {
     const el = listRef.current;
     if (el !== null && follow) el.scrollTop = el.scrollHeight;
-  }, [records.length, follow, kind]);
+  }, [shown.length, follow, kind]);
 
   const onScroll = () => {
     const el = listRef.current;
@@ -126,7 +131,7 @@ export function Feed({ name, session }: { name: string; session: string | null }
       </div>
       {query.isError ? (
         <ErrorBlock error={query.error} onRetry={() => void query.refetch()} />
-      ) : query.isPending ? null : records.length === 0 ? (
+      ) : query.isPending ? null : shown.length === 0 ? (
         <p className="p-2 text-[13px] text-muted">{EMPTY[kind]}</p>
       ) : (
         <div
@@ -136,7 +141,7 @@ export function Feed({ name, session }: { name: string; session: string | null }
           className="max-h-[420px] overflow-y-auto"
         >
           <ul>
-            {records.map((record) => {
+            {shown.map((record) => {
               const line = feedText(record);
               return (
                 <li key={feedKey(active, record)} className="flex items-baseline gap-2 py-[3px]">

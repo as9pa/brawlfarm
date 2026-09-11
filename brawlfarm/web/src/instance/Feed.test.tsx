@@ -101,6 +101,28 @@ describe("Feed", () => {
     expect(await screen.findAllByText("Session ended, 1 game, +8 trophies")).toHaveLength(1);
   });
 
+  // The pair is two real records with two seqs; only the drawing of them collapses.
+  it("draws the step mirror of an event once", async () => {
+    stubFeed(() => [
+      makeFeedRecord({
+        ts: "2026-09-11T19:05:40",
+        seq: 1,
+        event: "launch_game",
+        category: "other",
+        fields: { method: "monkey" },
+      }),
+      makeFeedRecord({
+        ts: "2026-09-11T19:05:40",
+        seq: 2,
+        event: "step",
+        category: "other",
+        fields: { step: "launch", label: "Brawl Stars opened", status: "ok" },
+      }),
+    ]);
+    renderWithProviders(<Feed name="Pie64" session={SESSION} />);
+    expect(await screen.findAllByText("Brawl Stars opened")).toHaveLength(1);
+  });
+
   it("ignores a line from another instance", async () => {
     stubFeed(() => [makeFeedRecord({ seq: 1 })]);
     renderWithProviders(<Feed name="Pie64" session={SESSION} />);
