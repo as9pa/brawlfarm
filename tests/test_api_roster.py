@@ -66,14 +66,15 @@ class FakeClock:
 
 
 class FakeFetch:
-    """One GET /players/{tag}: counts its calls and can be made to raise."""
+    """One GET /players/{tag}: counts its calls, hands back a body of whatever shape the
+    test gives it, and can be made to raise."""
 
-    def __init__(self, player: dict) -> None:
+    def __init__(self, player: object) -> None:
         self.player = player
         self.calls: list[tuple[str, str]] = []
         self.boom: Exception | None = None
 
-    def __call__(self, tag: str, token: str) -> dict:
+    def __call__(self, tag: str, token: str) -> object:
         self.calls.append((tag, token))
         if self.boom is not None:
             raise self.boom
@@ -122,6 +123,36 @@ async def test_a_first_fetch_that_fails_has_nothing_to_show() -> None:
     fetch.boom = RuntimeError("upstream said no")
     cache = RosterCache(now=FakeClock(), fetch=fetch)
     assert await cache.get("alpha", TAG, TOKEN) == (None, "unavailable")
+
+
+@pytest.mark.asyncio
+async def test_a_body_that_is_not_a_player_keeps_the_last_good_roster() -> None:
+    """ApiClient._get returns whatever the endpoint sent, and its type is `dict | list`:
+    a 200 carrying a JSON array must cost this refresh, not the whole request."""
+    clock, fetch = FakeClock(), FakeFetch(PLAYER)
+    cache = RosterCache(now=clock, fetch=fetch)
+    good, _ = await cache.get("alpha", TAG, TOKEN)
+    fetch.player = [{"name": "SHELLY", "trophies": 615}]  # an array where an object belongs
+    clock.t += 400.0
+    stale, status = await cache.get("alpha", TAG, TOKEN)
+    assert status == "unavailable" and stale == good
+
+
+@pytest.mark.asyncio
+async def test_an_entry_the_editor_could_not_draw_is_skipped_not_raised() -> None:
+    fetch = FakeFetch(
+        {
+            "brawlers": [
+                {"id": 16000003, "name": "COLT"},  # no trophies: nothing to place or draw
+                {"id": 16000004, "trophies": 300},  # no name: plan_queue could not list it
+                "SHELLY",  # not an object at all
+                PLAYER["brawlers"][1],
+            ]
+        }
+    )
+    cache = RosterCache(now=FakeClock(), fetch=fetch)
+    brawlers, status = await cache.get("alpha", TAG, TOKEN)
+    assert status == "ok" and brawlers == [NORI]
 
 
 @pytest.mark.asyncio
