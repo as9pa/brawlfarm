@@ -1,17 +1,17 @@
 /** The instance's own screen: the frame it draws, the link to the raw PNG, and the
- * Refresh button that asks for a new frame now rather than in 15 s. */
-import { screen, waitFor } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
+ * Refresh button that asks for a new frame now rather than at the next poll. */
+import { act, fireEvent, screen } from "@testing-library/react";
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { LiveScreen } from "./LiveScreen";
-import { type FetchCall, pngResponse, stubFetch } from "../test/http";
+import { type FetchCall, jpegResponse, stubFetch } from "../test/http";
 import { renderWithProviders } from "../test/renderWithProviders";
 
 const SHOT = "/api/instances/Pie64/screenshot.png";
+const PREVIEW = "/api/instances/Pie64/preview.jpg";
 
 beforeAll(() => {
-  // jsdom has no object URLs, and Thumb turns every screenshot blob into one.
+  // jsdom has no object URLs, and Thumb turns every preview blob into one.
   Object.defineProperty(URL, "createObjectURL", { value: vi.fn(() => "blob:shot"), writable: true });
   Object.defineProperty(URL, "revokeObjectURL", { value: vi.fn(), writable: true });
 });
@@ -20,15 +20,16 @@ describe("LiveScreen", () => {
   let calls: FetchCall[];
 
   beforeEach(() => {
-    calls = stubFetch(() => pngResponse()).calls;
+    calls = stubFetch(() => jpegResponse()).calls;
   });
 
   afterEach(() => {
     vi.unstubAllGlobals();
+    vi.useRealTimers();
   });
 
-  function shots(): number {
-    return calls.filter((call) => call.url === SHOT).length;
+  function frames(): number {
+    return calls.filter((call) => call.url === PREVIEW).length;
   }
 
   it("shows the live frame and a full size link", async () => {
@@ -42,13 +43,31 @@ describe("LiveScreen", () => {
   });
 
   it("Refresh forces one extra fetch", async () => {
+    // Fake timers, because the page polls every second on its own: with real ones a slow
+    // click would leave the count ambiguous.
+    vi.useFakeTimers();
     renderWithProviders(<LiveScreen name="Pie64" />);
-    await waitFor(() => {
-      expect(shots()).toBe(1);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0);
     });
-    await userEvent.click(screen.getByRole("button", { name: "Refresh" }));
-    await waitFor(() => {
-      expect(shots()).toBe(2);
+    expect(frames()).toBe(1);
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Refresh" }));
+      await vi.advanceTimersByTimeAsync(0);
     });
+    expect(frames()).toBe(2);
+  });
+
+  it("polls once a second while the tab is visible", async () => {
+    vi.useFakeTimers();
+    renderWithProviders(<LiveScreen name="Pie64" />);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    expect(frames()).toBe(1);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(3000);
+    });
+    expect(frames()).toBe(4);
   });
 });

@@ -8,7 +8,7 @@ import { renderHook } from "@testing-library/react";
 import { Fleet } from "./Fleet";
 import { resetToasts, useToasts } from "../lib/toast";
 import { makeAlert, makeInstance } from "../test/fixtures";
-import { jsonResponse, pngResponse, stubFetch } from "../test/http";
+import { jpegResponse, jsonResponse, stubFetch } from "../test/http";
 import { renderWithProviders } from "../test/renderWithProviders";
 
 function toastMessages(): string[] {
@@ -39,7 +39,7 @@ function stubFleet(instances = FLEET, alerts: ReturnType<typeof makeAlert>[] = [
         },
       });
     }
-    if (url.endsWith("screenshot.png")) return pngResponse();
+    if (url.endsWith("preview.jpg")) return jpegResponse();
     return jsonResponse({ ok: true });
   });
 }
@@ -105,7 +105,7 @@ describe("Fleet", () => {
       if (url.endsWith("/start")) return jsonResponse({ detail: "Pie64_3 is offline" }, 409);
       if (url === "/api/instances") return jsonResponse({ instances: FLEET });
       if (url === "/api/alerts") return jsonResponse({ alerts: [], unread: 0 });
-      if (url.endsWith("screenshot.png")) return pngResponse();
+      if (url.endsWith("preview.jpg")) return jpegResponse();
       return jsonResponse({
         range: "today",
         instances: [],

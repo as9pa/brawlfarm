@@ -7,11 +7,11 @@ import { ApiError } from "./client";
 import { getFeed } from "./feed";
 import { listInstances, restartInstance, retryInstance, startInstance, stopInstance } from "./instances";
 import { getPlan, putPlan } from "./plans";
-import { fetchScreenshot, screenshotUrl } from "./screens";
+import { fetchPreview, screenshotUrl } from "./screens";
 import { getSchedule, patchSchedule } from "./schedule";
 import { getSettings } from "./settings";
 import { getStatsToday } from "./stats";
-import { jsonResponse, pngResponse, stubFetch } from "../test/http";
+import { jpegResponse, jsonResponse, stubFetch } from "../test/http";
 import { makeAlert, makeInstance } from "../test/fixtures";
 
 afterEach(() => {
@@ -152,15 +152,44 @@ describe("screenshots", () => {
   it("builds the url the Full size link opens", () => {
     expect(screenshotUrl("Pie64")).toBe("/api/instances/Pie64/screenshot.png");
   });
+});
 
-  it("fetches the png uncached and turns a 503 into its detail", async () => {
-    const { calls } = stubFetch(() => pngResponse());
-    const blob = await fetchScreenshot("Pie64");
-    expect(blob.size).toBe(4);
+describe("preview", () => {
+  const LAST_MODIFIED = "Thu, 10 Sep 2026 12:00:00 GMT";
+
+  it("fetches the frame uncached and dates it by Last-Modified", async () => {
+    const { calls } = stubFetch(() =>
+      jpegResponse({ etag: '"1-2"', "last-modified": LAST_MODIFIED }),
+    );
+    const frame = await fetchPreview("Pie64", null);
+    expect(calls[0].url).toBe("/api/instances/Pie64/preview.jpg");
     expect(calls[0].init).toEqual({ cache: "no-store" });
+    expect(frame?.blob.size).toBe(4);
+    expect(frame?.etag).toBe('"1-2"');
+    expect(frame?.takenAt).toBe(Date.parse(LAST_MODIFIED));
+  });
 
+  it("dates a frame the server did not stamp by the moment it arrived", async () => {
+    stubFetch(() => jpegResponse({ etag: '"1-2"' }));
+    const before = Date.now();
+    const frame = await fetchPreview("Pie64", null);
+    expect(frame?.takenAt).toBeGreaterThanOrEqual(before);
+  });
+
+  it("asks for the frame it already holds and reads the 304 as no change", async () => {
+    const { calls } = stubFetch(() => new Response(null, { status: 304 }));
+    expect(await fetchPreview("Pie64", '"1-2"')).toBeNull();
+    expect(calls[0].init?.headers).toEqual({ "if-none-match": '"1-2"' });
+  });
+
+  it("reads an unchanged etag as no change even when the body came anyway", async () => {
+    stubFetch(() => jpegResponse({ etag: '"1-2"' }));
+    expect(await fetchPreview("Pie64", '"1-2"')).toBeNull();
+  });
+
+  it("turns a 503 into its detail", async () => {
     stubFetch(() => jsonResponse({ detail: "adb did not answer" }, 503));
-    const error = await fetchScreenshot("Pie64").catch((failure: unknown) => failure);
+    const error = await fetchPreview("Pie64", null).catch((failure: unknown) => failure);
     expect(error).toBeInstanceOf(ApiError);
     expect(error).toMatchObject({ status: 503, detail: "adb did not answer" });
   });

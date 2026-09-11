@@ -9,7 +9,7 @@ import { Instance } from "./Instance";
 import { resetToasts, useToasts } from "../lib/toast";
 import { closeEvents, setEventSourceFactory } from "../live/useEvents";
 import { makeInstance, makePlan, makeSchedule } from "../test/fixtures";
-import { type FetchCall, jsonResponse, pngResponse, stubFetch } from "../test/http";
+import { type FetchCall, jpegResponse, jsonResponse, stubFetch } from "../test/http";
 import { renderWithProviders } from "../test/renderWithProviders";
 
 beforeAll(() => {
@@ -57,7 +57,7 @@ const PLAN = () => jsonResponse(makePlan());
 function stubPage(instances: ReturnType<typeof makeInstance>[]): FetchCall[] {
   return stubFetch((url) => {
     if (url === "/api/instances") return jsonResponse({ instances });
-    if (url.endsWith("screenshot.png")) return pngResponse();
+    if (url.endsWith("preview.jpg")) return jpegResponse();
     // Only summary.avg_rank is read, so the rest of the stats body is left out.
     if (url.startsWith("/api/stats")) {
       return jsonResponse({ range: "today", instances: ["Pie64"], summary: { avg_rank: 3.4 } });
@@ -75,7 +75,7 @@ function stubFailingPage(detail: string): FetchCall[] {
     if (url === "/api/instances") {
       return jsonResponse({ instances: [makeInstance({ name: "Pie64", state: "farming" })] });
     }
-    if (url.endsWith("screenshot.png")) return pngResponse();
+    if (url.endsWith("preview.jpg")) return jpegResponse();
     if (url.startsWith("/api/stats")) {
       return jsonResponse({ range: "today", instances: ["Pie64"], summary: { avg_rank: 3.4 } });
     }
