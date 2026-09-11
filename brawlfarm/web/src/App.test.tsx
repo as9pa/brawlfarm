@@ -1,6 +1,6 @@
 /** The whole tree: the four routes, the theme bootstrap, and the live handlers that turn
  * server-sent events into cache updates. */
-import { act, render, screen, waitFor } from "@testing-library/react";
+import { act, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { App } from "./App";
@@ -82,7 +82,13 @@ describe("App", () => {
     stubApi();
     render(<App />);
     expect(screen.getByText("brawlfarm")).toBeInTheDocument();
-    expect(await screen.findByRole("link", { name: /Pie64/ })).toBeInTheDocument();
+    // The rail and the Fleet card both link to the same instance, so each is asked for
+    // where it lives: the rail entry inside the navigation landmark, the card by the
+    // name its stretched link carries.
+    expect(
+      await within(screen.getByRole("navigation")).findByRole("link", { name: "Pie64" }),
+    ).toBeInTheDocument();
+    expect(await screen.findByRole("link", { name: "Open Pie64" })).toBeInTheDocument();
   });
 
   it("renders the two placeholder pages with their copy", async () => {
