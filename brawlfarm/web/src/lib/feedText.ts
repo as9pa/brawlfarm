@@ -30,9 +30,14 @@ const PLAIN: Record<string, string> = {
   mega_quest: "Mega quest activated",
 };
 
-function str(fields: Fields, key: string): string {
-  const value = fields[key];
+/** The one coercion every printed value goes through: a field the worker did not write
+ * leaves a gap in the sentence rather than the word "undefined". */
+function show(value: unknown): string {
   return value === null || value === undefined ? "" : String(value);
+}
+
+function str(fields: Fields, key: string): string {
+  return show(fields[key]);
 }
 
 function num(fields: Fields, key: string): number {
@@ -109,9 +114,11 @@ export function feedText(record: FeedRecord): { text: string; tone: Tone } {
         tone,
       };
     case "bad_resolution": {
-      const got = Array.isArray(f.got) ? f.got : [];
+      // Array.isArray widens an unknown to any[], so the pair is annotated back to
+      // unknown and printed through show() like every other field in the table.
+      const got: readonly unknown[] = Array.isArray(f.got) ? f.got : [];
       return {
-        text: `Wrong resolution: ${String(got[0])} x ${String(got[1])}, need 1600 x 900`,
+        text: `Wrong resolution: ${show(got[0])} x ${show(got[1])}, need 1600 x 900`,
         tone,
       };
     }

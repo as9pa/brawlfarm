@@ -4,7 +4,9 @@ import { act, fireEvent, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { Feed } from "./Feed";
+import { Feed, appendRecord } from "./Feed";
+import { createQueryClient, queryKeys } from "../api/queries";
+import type { FeedResponse } from "../api/types";
 import { makeFeedRecord } from "../test/fixtures";
 import { type FetchCall, jsonResponse, stubFetch } from "../test/http";
 import { renderWithProviders } from "../test/renderWithProviders";
@@ -115,6 +117,47 @@ describe("Feed", () => {
     await waitFor(() => {
       expect(screen.queryByText("Farming TARA")).not.toBeInTheDocument();
     });
+  });
+
+  // The app's own client, not the test one: this is the case staleTime and gcTime decide,
+  // and testQueryClient's gcTime of 0 would collect a wrongly seeded entry before the
+  // assertion could see it.
+  it("leaves a chip nobody has opened to fetch its own history", async () => {
+    const calls = stubFeed((kind) =>
+      kind === "interrupts"
+        ? [makeFeedRecord({ seq: 2, event: "popup_close", category: "interrupts", fields: {} })]
+        : [makeFeedRecord({ seq: 1 })],
+    );
+    const client = createQueryClient();
+    renderWithProviders(<Feed name="Pie64" session={SESSION} />, { client });
+    await screen.findByText("Playing");
+    emit(makeFeedRecord({ seq: 2, event: "popup_close", category: "interrupts", fields: {} }));
+    // All has loaded, so it takes the line; Interrupts has not, so it is not seeded.
+    expect(await screen.findByText("Popup closed")).toBeInTheDocument();
+    expect(client.getQueryData(queryKeys.feed("Pie64", "interrupts"))).toBeUndefined();
+
+    await userEvent.click(screen.getByRole("radio", { name: "Interrupts" }));
+    // What fills the chip is its own history, in one request. A seeded entry would have
+    // counted as fresh and never asked, leaving the matches line on screen.
+    await waitFor(() => {
+      expect(screen.queryByText("Playing")).not.toBeInTheDocument();
+    });
+    expect(screen.getByText("Popup closed")).toBeInTheDocument();
+    const asked = calls.filter(
+      (call) => call.url.startsWith(FEED) && query(call.url).get("kind") === "interrupts",
+    );
+    expect(asked).toHaveLength(1);
+    client.clear(); // the app's gcTime would leave this client's timers behind
+  });
+
+  it("keeps the newest 500 lines and drops the oldest", () => {
+    let feed: FeedResponse = { session: SESSION, records: [makeFeedRecord({ seq: 1 })] };
+    for (let seq = 2; seq <= 520; seq += 1) {
+      feed = appendRecord(feed, SESSION, makeFeedRecord({ seq }));
+    }
+    expect(feed.records).toHaveLength(500);
+    expect(feed.records[0].seq).toBe(21);
+    expect(feed.records.at(-1)?.seq).toBe(520);
   });
 
   it("turns Follow off when the reader scrolls up, and back on scrolls to the bottom", async () => {
