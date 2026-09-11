@@ -5,10 +5,11 @@
  * key, so the header, the session figures and today's numbers all follow a state change
  * without this page holding any state of its own.
  */
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useParams } from "react-router";
 
 import { ApiError } from "../api/client";
+import { getFeed } from "../api/feed";
 import {
   restartInstance,
   retryInstance,
@@ -17,6 +18,7 @@ import {
 } from "../api/instances";
 import { queryKeys } from "../api/queries";
 import { screenshotUrl } from "../api/screens";
+import { getStatsToday } from "../api/stats";
 import type { InstancePayload, InstanceState } from "../api/types";
 import { useInstances } from "../api/useInstances";
 import { Button } from "../components/ui/Button";
@@ -27,6 +29,8 @@ import { toast } from "../lib/toast";
 import { FarmPlan } from "./FarmPlan";
 import { Feed } from "./Feed";
 import { LiveScreen } from "./LiveScreen";
+import { Schedule } from "./Schedule";
+import { SessionPanel } from "./SessionPanel";
 
 /** Stop, Restart and Retry only mean something in some states (brief section 9). */
 const NOT_RUNNING: ReadonlySet<InstanceState> = new Set<InstanceState>([
@@ -122,6 +126,15 @@ export function Instance() {
   const { name = "" } = useParams();
   const client = useQueryClient();
   const fleet = useInstances();
+  const stats = useQuery({
+    queryKey: queryKeys.statsToday(name),
+    queryFn: () => getStatsToday(name),
+  });
+  // The same key the Feed component fills, so its SSE appends keep these two counts live.
+  const feed = useQuery({
+    queryKey: queryKeys.feed(name, "all"),
+    queryFn: () => getFeed(name, "all", 200),
+  });
   const refresh = () => {
     void client.invalidateQueries({ queryKey: queryKeys.instances() });
   };
@@ -133,6 +146,10 @@ export function Instance() {
   const inst = fleet.data.find((row) => row.name === name);
   if (inst === undefined) return <ErrorBlock error={new ApiError(404, "unknown instance")} />;
 
+  const records = feed.data?.records ?? [];
+  const interrupts = records.filter((r) => r.category === "interrupts").length;
+  const stopAt = [...records].reverse().find((r) => r.event === "stop")?.ts ?? null;
+
   return (
     <div className="flex flex-col gap-4">
       <Header inst={inst} onDone={refresh} />
@@ -143,6 +160,13 @@ export function Instance() {
         </div>
         <div className="flex flex-col gap-4">
           <FarmPlan name={inst.name} />
+          <Schedule name={inst.name} />
+          <SessionPanel
+            inst={inst}
+            avgRank={stats.data?.summary.avg_rank ?? null}
+            interrupts={interrupts}
+            stopAt={stopAt}
+          />
         </div>
       </div>
     </div>
