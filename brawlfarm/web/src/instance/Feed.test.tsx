@@ -97,8 +97,8 @@ describe("Feed", () => {
       fields: { trophies: 8, games: 1, skins: 0 },
     });
     emit(line);
-    emit(line); // the same seq again: a reconnect replay, not a second match
-    expect(await screen.findAllByText("Match ended, +8 trophies")).toHaveLength(1);
+    emit(line); // the same seq again: a reconnect replay, not a second line
+    expect(await screen.findAllByText("Session ended, 1 game, +8 trophies")).toHaveLength(1);
   });
 
   it("ignores a line from another instance", async () => {

@@ -21,10 +21,12 @@ const ROWS: Row[] = [
   ["phase unknown", { event: "phase", category: M, fields: { to: "results" } }, "Phase results", "ok"],
   ["games_logged one", { event: "games_logged", category: M, fields: { count: 1 } }, "Logged 1 game", "ok"],
   ["games_logged many", { event: "games_logged", category: M, fields: { count: 3 } }, "Logged 3 games", "ok"],
-  ["recap plain", { event: "recap", category: M, fields: { trophies: 86, games: 12, skins: 0 } }, "Match ended, +86 trophies", "ok"],
-  ["recap negative", { event: "recap", category: M, fields: { trophies: -12, games: 4, skins: 0 } }, "Match ended, -12 trophies", "ok"],
-  ["recap with skins", { event: "recap", category: M, fields: { trophies: 20, games: 4, skins: 1 } }, "Match ended, +20 trophies, 1 skin", "ok"],
-  ["recap with skins plural", { event: "recap", category: M, fields: { trophies: 20, games: 4, skins: 2 } }, "Match ended, +20 trophies, 2 skins", "ok"],
+  ["recap plain", { event: "recap", category: M, fields: { trophies: 86, games: 12, skins: 0 } }, "Session ended, 12 games, +86 trophies", "ok"],
+  ["recap one game", { event: "recap", category: M, fields: { trophies: 8, games: 1, skins: 0 } }, "Session ended, 1 game, +8 trophies", "ok"],
+  ["recap negative", { event: "recap", category: M, fields: { trophies: -12, games: 4, skins: 0 } }, "Session ended, 4 games, -12 trophies", "ok"],
+  ["recap without a delta", { event: "recap", category: M, fields: { trophies: null, games: 4, skins: 0 } }, "Session ended, 4 games", "ok"],
+  ["recap with skins", { event: "recap", category: M, fields: { trophies: 20, games: 4, skins: 1 } }, "Session ended, 4 games, +20 trophies, 1 skin", "ok"],
+  ["recap with skins plural", { event: "recap", category: M, fields: { trophies: 20, games: 4, skins: 2 } }, "Session ended, 4 games, +20 trophies, 2 skins", "ok"],
   ["trophies", { event: "trophies", category: M, fields: { total: 41120 } }, "Trophies: 41120", "ok"],
   ["farming", { event: "farming", category: M, fields: { brawler: "NORI" } }, "Farming NORI", "ok"],
   ["select_brawler", { event: "select_brawler", category: M, fields: { brawler: "TARA", planned: true } }, "Brawler selected: TARA", "ok"],
@@ -77,7 +79,7 @@ describe("feedText", () => {
   it("covers every event name the brief's table names", () => {
     const events = ROWS.map(([, o]) => o.event);
     expect(events.filter((e) => e === undefined)).toHaveLength(0);
-    expect(ROWS).toHaveLength(51);
+    expect(ROWS).toHaveLength(53);
     expect(new Set(events).size).toBe(39); // 37 named kinds plus the two fallback cases
   });
 });

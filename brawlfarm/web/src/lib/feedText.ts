@@ -75,10 +75,18 @@ export function feedText(record: FeedRecord): { text: string; tone: Tone } {
       return { text: `Logged ${n} ${n === 1 ? "game" : "games"}`, tone };
     }
     case "recap": {
-      // recap.trophies is the session delta; the "trophies" kind carries the total.
+      // The worker logs one recap when the session ends, not one per match: trophies is
+      // the whole session's delta, and the "trophies" kind carries the running total. A
+      // session whose end total never arrived writes trophies as null, and a delta nobody
+      // measured is left out of the sentence rather than printed as zero.
+      const games = num(f, "games");
+      const delta = has(f, "trophies") ? `, ${signed(num(f, "trophies"))} trophies` : "";
       const skins = num(f, "skins");
       const tail = skins > 0 ? `, ${skins} ${skins === 1 ? "skin" : "skins"}` : "";
-      return { text: `Match ended, ${signed(num(f, "trophies"))} trophies${tail}`, tone };
+      return {
+        text: `Session ended, ${games} ${games === 1 ? "game" : "games"}${delta}${tail}`,
+        tone,
+      };
     }
     case "trophies":
       return { text: `Trophies: ${num(f, "total")}`, tone };
