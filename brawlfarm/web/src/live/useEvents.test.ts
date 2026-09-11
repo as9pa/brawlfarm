@@ -75,6 +75,7 @@ afterEach(() => {
   closeEvents();
   setEventSourceFactory(null);
   vi.useRealTimers();
+  vi.restoreAllMocks();
 });
 
 describe("subscribe", () => {
@@ -111,6 +112,21 @@ describe("subscribe", () => {
     latest().emit("alert", { id: 2 }, 8);
     expect(seen).toEqual([{ id: 1 }, { id: 2 }]);
     expect(lastEventId()).toBe(8);
+  });
+
+  it("delivers to the handlers after one that throws, and keeps the stream open", () => {
+    const reported = vi.spyOn(console, "error").mockImplementation(() => {});
+    const seen: unknown[] = [];
+    subscribe("instance", () => {
+      throw new Error("a subscriber that throws");
+    });
+    subscribe("instance", (data) => seen.push(data));
+    latest().connect();
+    latest().emit("instance", { name: "Pie64" }, 1);
+    latest().emit("instance", { name: "Pie64_1" }, 2);
+    expect(seen).toEqual([{ name: "Pie64" }, { name: "Pie64_1" }]);
+    expect(latest().closed).toBe(false);
+    expect(reported).toHaveBeenCalledTimes(2);
   });
 
   it("stops delivering after the returned unsubscribe runs", () => {

@@ -27,7 +27,15 @@ let nextId = 1;
 const listeners = new Set<() => void>();
 
 function emit(): void {
-  for (const listener of [...listeners]) listener();
+  for (const listener of [...listeners]) {
+    try {
+      listener();
+    } catch (error) {
+      // A subscriber that throws would otherwise abort the loop, and every subscriber
+      // after it would never hear about a queue that has already changed.
+      console.error("toast: a subscriber threw", error);
+    }
+  }
 }
 
 export function toast(message: string, opts: ToastOptions = {}): number {
@@ -57,7 +65,9 @@ export function resetToasts(): void {
   emit();
 }
 
-function subscribeToasts(listener: () => void): () => void {
+/** The store half of useToasts: notified on every change to the queue. Exported so a
+ * test can register a plain listener of its own. */
+export function subscribeToasts(listener: () => void): () => void {
   listeners.add(listener);
   return () => {
     listeners.delete(listener);
