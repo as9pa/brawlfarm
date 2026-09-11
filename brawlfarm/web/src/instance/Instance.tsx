@@ -1,3 +1,10 @@
+/**
+ * One instance, at /instances/:name. There is no per-instance GET on the API, so the
+ * page reads the fleet list through useInstances and picks its own row out of it. That
+ * hook carries the 15 s visible poll, and App's "instance" handler invalidates the same
+ * key, so the header, the session figures and today's numbers all follow a state change
+ * without this page holding any state of its own.
+ */
 import { useQueryClient } from "@tanstack/react-query";
 import { Link, useParams } from "react-router";
 
@@ -10,7 +17,7 @@ import {
 } from "../api/instances";
 import { queryKeys } from "../api/queries";
 import { screenshotUrl } from "../api/screens";
-import type { InstancePayload } from "../api/types";
+import type { InstancePayload, InstanceState } from "../api/types";
 import { useInstances } from "../api/useInstances";
 import { Button } from "../components/ui/Button";
 import { ErrorBlock } from "../components/ui/ErrorBlock";
@@ -20,7 +27,11 @@ import { toast } from "../lib/toast";
 import { LiveScreen } from "./LiveScreen";
 
 /** Stop, Restart and Retry only mean something in some states (brief section 9). */
-const NOT_RUNNING = new Set(["stopped", "scheduled_break", "offline"]);
+const NOT_RUNNING: ReadonlySet<InstanceState> = new Set<InstanceState>([
+  "stopped",
+  "scheduled_break",
+  "offline",
+]);
 
 function Header({ inst, onDone }: { inst: InstancePayload; onDone: () => void }) {
   const stoppable = !NOT_RUNNING.has(inst.state);
@@ -105,13 +116,6 @@ function Header({ inst, onDone }: { inst: InstancePayload; onDone: () => void })
   );
 }
 
-/**
- * One instance, at /instances/:name. There is no per-instance GET on the API, so the
- * page reads the fleet list through useInstances and picks its own row out of it. That
- * hook carries the 15 s visible poll, and App's "instance" handler invalidates the same
- * key, so the header, the session figures and today's numbers all follow a state change
- * without this page holding any state of its own.
- */
 export function Instance() {
   const { name = "" } = useParams();
   const client = useQueryClient();

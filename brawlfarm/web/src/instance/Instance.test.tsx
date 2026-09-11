@@ -35,6 +35,17 @@ function stubPage(instances: ReturnType<typeof makeInstance>[]): FetchCall[] {
   }).calls;
 }
 
+/** The same page, except that every control fails with the API's own sentence. */
+function stubFailingPage(detail: string): FetchCall[] {
+  return stubFetch((url) => {
+    if (url === "/api/instances") {
+      return jsonResponse({ instances: [makeInstance({ name: "Pie64", state: "farming" })] });
+    }
+    if (url.endsWith("screenshot.png")) return pngResponse();
+    return jsonResponse({ detail }, 503);
+  }).calls;
+}
+
 function mountPage() {
   return renderWithProviders(
     <Routes>
@@ -93,6 +104,18 @@ describe("Instance", () => {
     });
   });
 
+  it("restarts the instance and only then says so", async () => {
+    const calls = stubPage([makeInstance({ name: "Pie64", state: "farming" })]);
+    mountPage();
+    await userEvent.click(await screen.findByRole("button", { name: "Restart" }));
+    await waitFor(() => {
+      expect(calls.map((call) => call.url)).toContain("/api/instances/Pie64/restart");
+    });
+    await waitFor(() => {
+      expect(toasts()[0]?.message).toBe("Restarting Pie64");
+    });
+  });
+
   it("disables Stop on a stopped instance and says why", async () => {
     stubPage([makeInstance({ name: "Pie64", state: "stopped" })]);
     mountPage();
@@ -113,19 +136,24 @@ describe("Instance", () => {
   });
 
   it("speaks the API's own sentence when a control fails, and says nothing else", async () => {
-    stubFetch((url) => {
-      if (url === "/api/instances") {
-        return jsonResponse({ instances: [makeInstance({ name: "Pie64", state: "farming" })] });
-      }
-      if (url.endsWith("screenshot.png")) return pngResponse();
-      return jsonResponse({ detail: "adb did not answer" }, 503);
-    });
+    stubFailingPage("adb did not answer");
     mountPage();
     await userEvent.click(await screen.findByRole("button", { name: "Stop" }));
     await waitFor(() => {
       expect(toasts()[0]?.message).toBe("adb did not answer");
     });
     // The success toast never fires, so the failure is the only line on screen.
+    expect(toasts()).toHaveLength(1);
+  });
+
+  it("says nothing but the failure when Restart is refused", async () => {
+    const calls = stubFailingPage("BlueStacks did not come back");
+    mountPage();
+    await userEvent.click(await screen.findByRole("button", { name: "Restart" }));
+    await waitFor(() => {
+      expect(toasts()[0]?.message).toBe("BlueStacks did not come back");
+    });
+    expect(calls.map((call) => call.url)).toContain("/api/instances/Pie64/restart");
     expect(toasts()).toHaveLength(1);
   });
 });
