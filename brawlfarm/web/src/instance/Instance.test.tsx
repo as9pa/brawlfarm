@@ -86,6 +86,14 @@ function stubFailingPage(detail: string): FetchCall[] {
   }).calls;
 }
 
+/** api<T>() sends a GET as fetch(path, {}), so a missing method means GET. */
+function scheduleGets(calls: FetchCall[]): number {
+  return calls.filter(
+    (call) =>
+      call.url === "/api/instances/Pie64/schedule" && (call.init?.method ?? "GET") === "GET",
+  ).length;
+}
+
 function mountPage() {
   return renderWithProviders(
     <Routes>
@@ -141,6 +149,26 @@ describe("Instance", () => {
     await toasts()[0].undo?.();
     await waitFor(() => {
       expect(calls.map((call) => call.url)).toContain("/api/instances/Pie64/start");
+    });
+  });
+
+  it("asks for the schedule again once a control has settled", async () => {
+    // Nothing on the schedule route is pushed over the event stream, so a Stop that has
+    // just written a stop override would otherwise leave the panel showing yesterday's
+    // answer until the page was reloaded.
+    const calls = stubPage([makeInstance({ name: "Pie64", state: "farming" })]);
+    mountPage();
+    await screen.findByRole("button", { name: "Stop" });
+    await waitFor(() => {
+      expect(scheduleGets(calls)).toBe(1);
+    });
+
+    await userEvent.click(screen.getByRole("button", { name: "Stop" }));
+    await waitFor(() => {
+      expect(calls.map((call) => call.url)).toContain("/api/instances/Pie64/stop");
+    });
+    await waitFor(() => {
+      expect(scheduleGets(calls)).toBe(2);
     });
   });
 

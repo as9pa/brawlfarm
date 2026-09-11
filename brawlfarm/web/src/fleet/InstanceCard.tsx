@@ -123,6 +123,15 @@ export function InstanceCard({ inst }: InstanceCardProps) {
     void client.invalidateQueries({ queryKey: queryKeys.instances() });
   };
 
+  /** Stopping, starting and restarting all write the schedule's override, and nothing on
+   * that route arrives over the event stream, so the instance page's schedule panel is
+   * asked again once the request has settled either way: a refused stop may still have
+   * cleared an override on its way out. */
+  const settled = <T,>(call: Promise<T>): Promise<T> =>
+    call.finally(() => {
+      void client.invalidateQueries({ queryKey: queryKeys.schedule(inst.name) });
+    });
+
   /** Nothing is announced until the request has settled: a rejection speaks the ApiError's
    * own detail -- the API's sentence, or the "cannot reach brawlfarm" one a dead server
    * produces -- and the success toast never fires. */
@@ -134,11 +143,11 @@ export function InstanceCard({ inst }: InstanceCardProps) {
 
   const onStop = () =>
     act(async () => {
-      await stopInstance(inst.name);
+      await settled(stopInstance(inst.name));
       refresh();
       toast(`Stopping ${inst.name} after this match`, {
         undo: async () => {
-          await startInstance(inst.name);
+          await settled(startInstance(inst.name));
           refresh();
         },
       });
@@ -146,7 +155,7 @@ export function InstanceCard({ inst }: InstanceCardProps) {
 
   const onRestart = () =>
     act(async () => {
-      await restartInstance(inst.name);
+      await settled(restartInstance(inst.name));
       refresh();
       toast(`Restarting ${inst.name}`);
     });
