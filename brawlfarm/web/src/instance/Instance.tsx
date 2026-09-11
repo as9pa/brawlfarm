@@ -24,6 +24,7 @@ import { ErrorBlock } from "../components/ui/ErrorBlock";
 import { StateChip } from "../components/ui/StateChip";
 import { phaseLabel } from "../lib/states";
 import { toast } from "../lib/toast";
+import { Feed } from "./Feed";
 import { LiveScreen } from "./LiveScreen";
 
 /** Stop, Restart and Retry only mean something in some states (brief section 9). */
@@ -137,6 +138,7 @@ export function Instance() {
       <div className="grid grid-cols-1 gap-4 min-[1100px]:grid-cols-[3fr_2fr]">
         <div className="flex flex-col gap-4">
           <LiveScreen name={inst.name} />
+          <Feed name={inst.name} session={inst.session?.session ?? null} />
         </div>
         <div className="flex flex-col gap-4" />
       </div>

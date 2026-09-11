@@ -3,10 +3,11 @@
 import { renderHook, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { Route, Routes } from "react-router";
-import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { Instance } from "./Instance";
 import { resetToasts, useToasts } from "../lib/toast";
+import { closeEvents, setEventSourceFactory } from "../live/useEvents";
 import { makeInstance } from "../test/fixtures";
 import { type FetchCall, jsonResponse, pngResponse, stubFetch } from "../test/http";
 import { renderWithProviders } from "../test/renderWithProviders";
@@ -16,7 +17,24 @@ beforeAll(() => {
   Object.defineProperty(URL, "revokeObjectURL", { value: vi.fn(), writable: true });
 });
 
+/** jsdom has no EventSource and the page's feed opens the stream the moment it mounts.
+ * What arrives on that stream is App.test.tsx's and Feed.test.tsx's business, so this
+ * page gets one that never speaks. */
+function silentStream(): EventSource {
+  return {
+    addEventListener: () => {},
+    removeEventListener: () => {},
+    close: () => {},
+  } as unknown as EventSource;
+}
+
+beforeEach(() => {
+  setEventSourceFactory(silentStream);
+});
+
 afterEach(() => {
+  closeEvents();
+  setEventSourceFactory(null);
   resetToasts();
   vi.unstubAllGlobals();
 });
@@ -25,12 +43,17 @@ function toasts() {
   return renderHook(() => useToasts()).result.current;
 }
 
-/** Every request the page makes: the fleet list, the screenshot, and the three controls,
- * each of which the API answers 202 Accepted. */
+/** The feed has its own tests; on this page it only has to render without asking for
+ * anything the other stubs would have to answer. */
+const EMPTY_FEED = () => jsonResponse({ session: null, records: [] });
+
+/** Every request the page makes: the fleet list, the screenshot, this session's feed, and
+ * the three controls, each of which the API answers 202 Accepted. */
 function stubPage(instances: ReturnType<typeof makeInstance>[]): FetchCall[] {
   return stubFetch((url) => {
     if (url === "/api/instances") return jsonResponse({ instances });
     if (url.endsWith("screenshot.png")) return pngResponse();
+    if (url.startsWith("/api/instances/Pie64/feed")) return EMPTY_FEED();
     return jsonResponse({ ok: true }, 202);
   }).calls;
 }
@@ -42,6 +65,7 @@ function stubFailingPage(detail: string): FetchCall[] {
       return jsonResponse({ instances: [makeInstance({ name: "Pie64", state: "farming" })] });
     }
     if (url.endsWith("screenshot.png")) return pngResponse();
+    if (url.startsWith("/api/instances/Pie64/feed")) return EMPTY_FEED();
     return jsonResponse({ detail }, 503);
   }).calls;
 }
