@@ -30,6 +30,9 @@ const EMPTY: Record<FeedKind, string> = {
 
 const INITIAL_LIMIT = 200;
 const FOLLOW_SLACK_PX = 40; // a nudge of the wheel is not "I want to read back"
+/** A long session writes thousands of lines; the reader scrolls back a screen or two, not
+ * a whole afternoon, so the list keeps the newest 500 and lets the rest go. */
+const MAX_RECORDS = 500;
 
 /** A line's identity: its 1-based seq inside the session file that produced it. */
 export function feedKey(session: string | null, record: FeedRecord): string {
@@ -39,7 +42,8 @@ export function feedKey(session: string | null, record: FeedRecord): string {
 /**
  * Append one live record. A seq already in the list is dropped, so an SSE replay after a
  * reconnect cannot double a match; a different session filename means the worker rolled
- * the file, so the list starts again from that line.
+ * the file, so the list starts again from that line. The list is capped at MAX_RECORDS,
+ * oldest dropped first.
  */
 export function appendRecord(
   prev: FeedResponse | undefined,
@@ -47,16 +51,17 @@ export function appendRecord(
   record: FeedRecord,
 ): FeedResponse {
   if (prev === undefined || prev.session !== session) return { session, records: [record] };
-  const key = feedKey(session, record);
-  if (prev.records.some((r) => feedKey(prev.session, r) === key)) return prev;
-  return { session, records: [...prev.records, record] };
+  const seen = new Set(prev.records.map((r) => feedKey(session, r)));
+  if (seen.has(feedKey(session, record))) return prev;
+  return { session, records: [...prev.records, record].slice(-MAX_RECORDS) };
 }
 
 /**
  * This session's narration. History comes from the API once per chip; everything after
  * that arrives on the event stream and is written into the cache for All AND for the
  * record's own chip, so switching chips never loses a line and the session panel's
- * interrupt count (task 11) stays live without a second subscription.
+ * interrupt count (task 11) stays live off the All entry without a second subscription.
+ * Only a chip that has already loaded is written to, though: see the stream handler.
  */
 export function Feed({ name, session }: { name: string; session: string | null }) {
   const client = useQueryClient();
@@ -78,7 +83,12 @@ export function Feed({ name, session }: { name: string; session: string | null }
         const targets: FeedKind[] =
           event.record.category === "other" ? ["all"] : ["all", event.record.category];
         for (const target of targets) {
-          client.setQueryData<FeedResponse>(queryKeys.feed(name, target), (prev) =>
+          const key = queryKeys.feed(name, target);
+          // A chip nobody has opened is left alone. Seeding it here would leave a
+          // one-line list that setQueryData keeps marking fresh on every append, so the
+          // chip would never fetch its own history; that fetch carries this record anyway.
+          if (client.getQueryData(key) === undefined) continue;
+          client.setQueryData<FeedResponse>(key, (prev) =>
             appendRecord(prev, event.session, event.record),
           );
         }
