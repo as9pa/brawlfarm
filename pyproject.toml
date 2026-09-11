@@ -31,6 +31,19 @@ build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
 packages = ["brawlfarm"]
+# The panel is built by pnpm and git ignores brawlfarm/web/dist, so hatchling's VCS-aware
+# file selection drops it: artifacts force it back in. The sources that produced it are
+# excluded in turn -- a wheel carries the built page, never the TypeScript behind it.
+artifacts = ["brawlfarm/web/dist/**"]
+exclude = [
+  "brawlfarm/web/src",
+  "brawlfarm/web/public",
+  "brawlfarm/web/node_modules",
+  "brawlfarm/web/*.json",
+  "brawlfarm/web/*.ts",
+  "brawlfarm/web/*.html",
+  "brawlfarm/web/*.yaml",
+]
 
 [tool.ruff]
 target-version = "py313"

@@ -7,8 +7,11 @@ extras and load_plan aliases the modes, because the editor must always have some
 show.
 
 The worker re-reads the plan live (at startup and on every trophy snapshot, roughly once
-a minute), so a PUT takes effect without restarting anything. The owned-brawler roster
-and the queue the editor will offer arrive with the Instance screen in phase 4.
+a minute), so a PUT takes effect without restarting anything. Both routes return the same
+enriched shape: the four stored keys plus the brawler being farmed, the owned roster from
+api/roster.py, the next three names plan_queue would reach for, and a roster_status
+saying why the roster is missing when it is. PUT returns it too, so the editor never has
+to re-read the plan to refresh its rows after a save.
 """
 
 from __future__ import annotations
@@ -18,7 +21,7 @@ from typing import Literal
 from fastapi import APIRouter, Request
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator
 
-from brawlfarm.api.deps import resolve_instance
+from brawlfarm.api.deps import get_sup, resolve_instance
 from brawlfarm.core import farmplan
 
 router = APIRouter()
@@ -55,11 +58,54 @@ def _as_plan(raw: dict) -> FarmPlan:
         return FarmPlan()
 
 
+async def enrich_plan(request: Request, name: str, plan: dict) -> dict:
+    """The stored plan plus everything the editor draws around it.
+
+    `current.goal` is the goal for the MODE, not the stored number: prestige always
+    finishes a brawler at PRESTIGE_GOAL, whatever goal_trophies happens to say. The
+    roster is None (and the queue empty) whenever roster_status is not "ok", except for
+    "unavailable", which may still carry the last good list. resolve_instance runs again
+    here rather than being threaded through from the route: it is a dict lookup, and the
+    helper stays callable from both routes with nothing but a name.
+    """
+    inst, _dir = resolve_instance(request, name)
+    sup = get_sup(request)
+    token = sup.settings.connection.brawl_api_token.strip()
+    tag = inst.player_tag.strip()
+    view = next((v for v in sup.views() if v.name == inst.name), None)
+    brawler = view.farm_brawler if view is not None else None
+
+    roster: list[dict] | None = None
+    if not token:
+        status = "no_token"
+    elif not tag:
+        status = "no_tag"
+    else:
+        roster, status = await request.app.state.roster.get(inst.name, tag, token)
+
+    trophies = None
+    if roster is not None and brawler:
+        want = brawler.upper()
+        match = next((b for b in roster if (b.get("name") or "").upper() == want), None)
+        trophies = None if match is None else match.get("trophies")
+    goal = farmplan.PRESTIGE_GOAL if plan["mode"] == "prestige" else plan["goal_trophies"]
+    queue = [] if roster is None else farmplan.plan_queue(plan, roster, current=brawler)
+    return {
+        **plan,
+        "current": {"brawler": brawler, "trophies": trophies, "goal": goal},
+        "roster": roster,
+        "queue": queue,
+        "roster_status": status,
+    }
+
+
 @router.get("/api/instances/{name}/plan")
 async def read_plan(request: Request, name: str) -> dict:
-    """The stored plan merged over the defaults (a missing file reads as ladder)."""
+    """The stored plan merged over the defaults (a missing file reads as ladder), plus
+    the roster block the editor draws its rows from."""
     _inst, inst_dir = resolve_instance(request, name)
-    return _as_plan(farmplan.load_plan(data_dir=inst_dir)).model_dump()
+    plan = _as_plan(farmplan.load_plan(data_dir=inst_dir)).model_dump()
+    return await enrich_plan(request, name, plan)
 
 
 @router.put("/api/instances/{name}/plan")
@@ -67,4 +113,5 @@ async def write_plan(request: Request, name: str, body: FarmPlan) -> dict:
     """Replace the plan. A running worker picks it up within a minute; no restart."""
     _inst, inst_dir = resolve_instance(request, name)
     inst_dir.mkdir(parents=True, exist_ok=True)
-    return _as_plan(farmplan.save_plan(body.model_dump(), data_dir=inst_dir)).model_dump()
+    saved = _as_plan(farmplan.save_plan(body.model_dump(), data_dir=inst_dir)).model_dump()
+    return await enrich_plan(request, name, saved)
