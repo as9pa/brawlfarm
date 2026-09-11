@@ -69,6 +69,7 @@ The API binds 127.0.0.1 only and has no authentication: anything that can reach 
 | POST | `/api/instances/{name}/restart` | stop now, relaunch on the next tick |
 | POST | `/api/instances/{name}/retry` | clear the offline backoff and probe again |
 | GET | `/api/instances/{name}/screenshot.png` | a live adb screencap |
+| GET | `/api/instances/{name}/preview.jpg` | the small frame the worker writes every second, or one throttled live capture when it is stopped |
 | GET, PUT | `/api/instances/{name}/plan` | the farm plan, plus the owned roster, the queue and the current brawler |
 | GET, PUT | `/api/instances/{name}/schedule` | today's sessions, the override, on/off, redraw |
 | GET | `/api/instances/{name}/feed` | session narration with a `seq` on every record, `kind=all\|matches\|interrupts\|errors` |
