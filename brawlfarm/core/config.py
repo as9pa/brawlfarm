@@ -115,7 +115,8 @@ TOUCH_MAX_Y = 32767  # ABS_MT_POSITION_Y max
 # when RAW_CAP is on and silently falls back to the PNG path on any failure (and
 # PERMANENTLY for the session if the device reports a non-RGBA_8888 raw format we can't
 # parse). Set BRAWL_RAW_CAP=0 to force the old PNG path.
-# Re-measured 2026-09-10 on the development machine: 172 ms median, one instance, no worker running; see docs/notes/2026-09-10-frame-capture-assessment.md.
+# Re-measured 2026-09-10 on the development machine: 172 ms median with one instance and
+# no worker running; see docs/notes/2026-09-10-frame-capture-assessment.md.
 RAW_CAP = os.environ.get("BRAWL_RAW_CAP", "1") != "0"
 
 
