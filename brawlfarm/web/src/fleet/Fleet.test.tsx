@@ -85,6 +85,21 @@ describe("Fleet", () => {
     expect(calls.filter((call) => call.url.endsWith("/stop"))).toHaveLength(3);
   });
 
+  it("says starting and stopping one instance in the singular", async () => {
+    const { calls } = stubFleet([FLEET[0]]);
+    renderWithProviders(<Fleet />);
+    await userEvent.click(await screen.findByRole("button", { name: "Start all" }));
+    await vi.waitFor(() => {
+      expect(toastMessages()).toContain("Starting 1 instance");
+    });
+    expect(calls.filter((call) => call.url.endsWith("/start"))).toHaveLength(1);
+
+    await userEvent.click(screen.getByRole("button", { name: "Stop all" }));
+    await vi.waitFor(() => {
+      expect(toastMessages()).toContain("Stopping 1 instance after its match");
+    });
+  });
+
   it("says why Start all failed rather than claiming the fleet started", async () => {
     stubFetch((url) => {
       if (url.endsWith("/start")) return jsonResponse({ detail: "Pie64_3 is offline" }, 409);

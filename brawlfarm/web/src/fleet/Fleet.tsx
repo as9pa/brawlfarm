@@ -63,7 +63,7 @@ export function Fleet() {
     void Promise.all(fleet.map((inst) => startInstance(inst.name)))
       .then(() => {
         refresh();
-        toast(`Starting ${fleet.length} instances`);
+        toast(`Starting ${plural(fleet.length, "instance")}`);
       })
       .catch(failed);
   };
@@ -72,7 +72,11 @@ export function Fleet() {
     void Promise.all(fleet.map((inst) => stopInstance(inst.name)))
       .then(() => {
         refresh();
-        toast(`Stopping ${fleet.length} instances after their matches`);
+        toast(
+          `Stopping ${plural(fleet.length, "instance")} after ${
+            fleet.length === 1 ? "its match" : "their matches"
+          }`,
+        );
       })
       .catch(failed);
   };
