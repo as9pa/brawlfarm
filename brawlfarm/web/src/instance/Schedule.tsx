@@ -11,6 +11,7 @@ import { ApiError } from "../api/client";
 import { startInstance } from "../api/instances";
 import { queryKeys } from "../api/queries";
 import { getSchedule, patchSchedule } from "../api/schedule";
+import type { SchedulePayload } from "../api/types";
 import { Button } from "../components/ui/Button";
 import { Chip } from "../components/ui/Chip";
 import { ErrorBlock } from "../components/ui/ErrorBlock";
@@ -45,6 +46,7 @@ export function Schedule({ name }: { name: string }) {
     refetchInterval,
   });
   const [hours, setHours] = useState("2");
+  const [switching, setSwitching] = useState(false);
   const timers = useRef<ReturnType<typeof setTimeout>[]>([]);
 
   useEffect(
@@ -76,6 +78,28 @@ export function Schedule({ name }: { name: string }) {
   const patch = (body: Parameters<typeof patchSchedule>[1], message: string | null) =>
     settle(patchSchedule(name, body), message);
 
+  /** The switch is the one control whose result is the switch itself, so it moves under
+   * the finger and the cache is corrected when the write lands, the same shape as the
+   * farm plan's saves. It is disabled until then: a second click on a switch that had
+   * not moved yet would send the opposite value and leave the two disagreeing. */
+  const onSwitch = async (enabled: boolean) => {
+    const before = client.getQueryData<SchedulePayload>(queryKeys.schedule(name));
+    if (before === undefined) return;
+    client.setQueryData<SchedulePayload>(queryKeys.schedule(name), { ...before, enabled });
+    setSwitching(true);
+    try {
+      await patchSchedule(name, { enabled });
+    } catch (error) {
+      client.setQueryData<SchedulePayload>(queryKeys.schedule(name), before);
+      toast(error instanceof ApiError ? error.detail : "Request failed");
+      return;
+    } finally {
+      setSwitching(false);
+    }
+    toast(enabled ? "Schedule on" : "Schedule off");
+    refetch();
+  };
+
   if (query.isPending) {
     return <section className="rounded-[10px] border border-line bg-panel p-3" />;
   }
@@ -98,9 +122,8 @@ export function Schedule({ name }: { name: string }) {
           <Switch
             label="Schedule on"
             checked={payload.enabled}
-            onChange={(enabled) =>
-              void patch({ enabled }, enabled ? "Schedule on" : "Schedule off")
-            }
+            disabled={switching}
+            onChange={(enabled) => void onSwitch(enabled)}
           />
         </div>
       </div>
