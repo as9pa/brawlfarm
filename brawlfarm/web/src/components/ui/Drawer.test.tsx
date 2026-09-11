@@ -56,4 +56,22 @@ describe("Drawer", () => {
     await userEvent.tab();
     expect(close).toHaveFocus();
   });
+
+  it("leaves focus alone when the caller re-renders with a fresh onClose", () => {
+    const panel = (
+      <Drawer open onClose={() => undefined} title="Alerts">
+        <Button variant="text">Dismiss</Button>
+      </Drawer>
+    );
+    const { rerender } = render(panel);
+    screen.getByRole("button", { name: "Dismiss" }).focus();
+    // A caller that builds onClose inline hands over a new function every render. That must
+    // not re-run the focus effect, whose cleanup returns focus to whatever opened the panel.
+    rerender(
+      <Drawer open onClose={() => undefined} title="Alerts">
+        <Button variant="text">Dismiss</Button>
+      </Drawer>,
+    );
+    expect(screen.getByRole("button", { name: "Dismiss" })).toHaveFocus();
+  });
 });
