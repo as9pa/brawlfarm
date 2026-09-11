@@ -67,6 +67,18 @@ def test_list_is_newest_first_and_hides_dismissed() -> None:
     assert store.unread_count() == 1
 
 
+def test_dismiss_all_clears_every_unread_alert() -> None:
+    store = AlertStore()
+    first = store.add("alpha", "crash", {"err": "adb gone"})
+    store.add("bravo", "offline", {"misses": 3})
+    assert store.dismiss(first.id) is True
+    assert store.dismiss_all() == 1  # only the one that was still unread
+    assert store.list() == []
+    assert store.unread_count() == 0
+    assert len(store.list(include_dismissed=True)) == 2
+    assert store.dismiss_all() == 0  # a second call is a no-op, not an error
+
+
 def test_the_store_is_bounded() -> None:
     store = AlertStore(maxlen=3)
     for n in range(5):
@@ -132,6 +144,20 @@ def test_alert_routes_list_and_dismiss(api) -> None:
     assert [a["kind"] for a in after["alerts"]] == ["offline"]
     assert len(client.get("/api/alerts?include_dismissed=true").json()["alerts"]) == 2
     assert client.post("/api/alerts/999/dismiss").status_code == 404
+
+
+def test_the_dismiss_all_route_empties_the_drawer(api) -> None:
+    client, _sup, _home = api
+    store: AlertStore = client.app.state.alerts
+    store.add("alpha", "crash", {"err": "adb gone"})
+    store.add("alpha", "offline", {"misses": 3})
+
+    assert client.post("/api/alerts/dismiss-all").status_code == 204
+    assert client.get("/api/alerts").json() == {"alerts": [], "unread": 0}
+    # Dismissed is read, not deleted: the drawer can still show them on request.
+    assert len(client.get("/api/alerts?include_dismissed=true").json()["alerts"]) == 2
+    # Clearing an already-clear drawer is still a 204, so the button never shows an error.
+    assert client.post("/api/alerts/dismiss-all").status_code == 204
 
 
 def test_the_app_wires_the_store_to_the_tailer_and_the_supervisor(api) -> None:

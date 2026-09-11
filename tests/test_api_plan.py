@@ -26,12 +26,15 @@ def api(tmp_path: Path):
 
 def test_get_returns_the_defaults_for_a_fresh_instance(api) -> None:
     client, _sup, _home = api
-    assert client.get(PLAN_URL).json() == {
+    body = client.get(PLAN_URL).json()
+    assert {k: body[k] for k in ("mode", "prestige_start", "goal_trophies", "maxed_fallback")} == {
         "mode": "ladder",
         "prestige_start": "highest",
         "goal_trophies": 1000,
         "maxed_fallback": None,
     }
+    # No token is configured here, so there is nothing to show beside the plan.
+    assert body["roster"] is None and body["roster_status"] == "no_token"
     assert client.get("/api/instances/ghost/plan").status_code == 404
 
 
@@ -47,13 +50,15 @@ def test_put_writes_the_plan_the_worker_reads(api) -> None:
         },
     )
     assert r.status_code == 200
-    assert r.json() == {
+    keys = ("mode", "prestige_start", "goal_trophies", "maxed_fallback")
+    stored = {k: r.json()[k] for k in keys}
+    assert stored == {
         "mode": "prestige",
         "prestige_start": "lowest",
         "goal_trophies": 1200,
         "maxed_fallback": "Shelly",
     }
-    assert farmplan.load_plan(data_dir=S.instance_dir(home, "alpha")) == r.json()
+    assert farmplan.load_plan(data_dir=S.instance_dir(home, "alpha")) == stored
 
 
 def test_put_rejects_a_mode_the_worker_does_not_know(api) -> None:
@@ -86,4 +91,16 @@ def test_a_legacy_plan_file_still_reads(api) -> None:
     body = client.get(PLAN_URL).json()
     assert body["mode"] == "ladder"  # load_plan aliases the removed mode
     assert body["goal_trophies"] == 1500
-    assert set(body) == {"mode", "prestige_start", "goal_trophies", "maxed_fallback"}
+    assert set(body) == {
+        "mode",
+        "prestige_start",
+        "goal_trophies",
+        "maxed_fallback",
+        "current",
+        "roster",
+        "queue",
+        "roster_status",
+    }
+    # The legacy file's own "queue" key is dropped; this one is the roster preview, and
+    # with no token there is no roster to preview.
+    assert body["queue"] == []

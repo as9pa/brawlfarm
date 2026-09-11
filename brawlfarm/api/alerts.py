@@ -95,6 +95,18 @@ class AlertStore:
                     return True
         return False
 
+    def dismiss_all(self) -> int:
+        """Mark everything read; returns how many were still unread. The drawer's
+        "Dismiss all" is one call rather than one per row, so a screen full of alerts
+        does not become a burst of writes against the same lock."""
+        dismissed = 0
+        with self._lock:
+            for alert in self._alerts:
+                if not alert.dismissed:
+                    alert.dismissed = True
+                    dismissed += 1
+        return dismissed
+
     def unread_count(self) -> int:
         with self._lock:
             return sum(1 for alert in self._alerts if not alert.dismissed)
@@ -108,6 +120,15 @@ async def get_alerts(request: Request, include_dismissed: bool = False) -> dict:
         "alerts": [asdict(a) for a in store.list(include_dismissed=include_dismissed)],
         "unread": store.unread_count(),
     }
+
+
+@router.post("/api/alerts/dismiss-all", status_code=204)
+async def dismiss_all_alerts(request: Request) -> Response:
+    """Clear the drawer in one call. Always 204, even when nothing was unread: the button
+    is idempotent, and a second click must not paint an error."""
+    store: AlertStore = request.app.state.alerts
+    store.dismiss_all()
+    return Response(status_code=204)
 
 
 @router.post("/api/alerts/{alert_id}/dismiss", status_code=204)

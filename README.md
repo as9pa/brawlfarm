@@ -2,7 +2,7 @@
 
 An open-source Brawl Stars trophy farmer for BlueStacks on Windows, with a local control panel in your browser.
 
-Status: under construction. Phase 3 of 8 (API and events). The React control panel, setup wizard and stats screens arrive in later phases; see `docs/PLAN.md`.
+Status: under construction. Phase 4 of 8 (the control panel: shell, Fleet and Instance). The setup wizard and the stats screens arrive in later phases; see `docs/PLAN.md`.
 
 ## What it does
 
@@ -29,10 +29,18 @@ Windows 11, BlueStacks 5 with Android Debug Bridge enabled, an instance display 
 
 ```
 uv sync --group dev
+corepack enable
+pnpm --dir brawlfarm/web install
+pnpm --dir brawlfarm/web build     # the panel is served from brawlfarm/web/dist
 uv run pytest
+pnpm --dir brawlfarm/web test && pnpm --dir brawlfarm/web typecheck
 uv run ruff check . && uv run ruff format --check .
 uv run python tools/scrub_check.py
 ```
+
+If `corepack enable` fails with EPERM, which is what a Windows shell without elevation gives you, `npm install -g pnpm@10.17.1` installs the same pnpm.
+
+`pnpm --dir brawlfarm/web dev` serves the panel on Vite's port with hot reload and proxies `/api` to a `uv run brawlfarm` on 8765, so the two run side by side while you work on the UI.
 
 ## Running
 
@@ -47,7 +55,7 @@ Settings live in `%LOCALAPPDATA%\brawlfarm\config.toml` (override the folder wit
 
 ## The panel and its API
 
-The panel lives at `http://127.0.0.1:8765/`. Change the port in Settings (it takes effect on the next start) or for one run with `--port`. Until the React UI lands in phase 4 the page is a placeholder, and the interesting surface is the API itself, browsable at `http://127.0.0.1:8765/docs`.
+The panel lives at `http://127.0.0.1:8765/`: a Fleet page with one card per instance led by its live screen, and an Instance page with the screen, the activity feed in plain sentences, the farm plan, today's schedule and the session's figures. Change the port in Settings (it takes effect on the next start) or for one run with `--port`. The API behind it is browsable at `http://127.0.0.1:8765/docs`.
 
 The API binds 127.0.0.1 only and has no authentication: anything that can reach it can drive your instances, so do not port-forward it or put it behind a reverse proxy.
 
@@ -61,9 +69,9 @@ The API binds 127.0.0.1 only and has no authentication: anything that can reach 
 | POST | `/api/instances/{name}/restart` | stop now, relaunch on the next tick |
 | POST | `/api/instances/{name}/retry` | clear the offline backoff and probe again |
 | GET | `/api/instances/{name}/screenshot.png` | a live adb screencap |
-| GET, PUT | `/api/instances/{name}/plan` | the farm plan: mode, goal, maxed fallback |
+| GET, PUT | `/api/instances/{name}/plan` | the farm plan, plus the owned roster, the queue and the current brawler |
 | GET, PUT | `/api/instances/{name}/schedule` | today's sessions, the override, on/off, redraw |
-| GET | `/api/instances/{name}/feed` | session narration, `kind=all\|matches\|interrupts\|errors` |
+| GET | `/api/instances/{name}/feed` | session narration with a `seq` on every record, `kind=all\|matches\|interrupts\|errors` |
 | GET | `/api/stats` | `range=today\|7d\|30d\|all`, `instances=a,b` |
 | GET | `/api/stats/export.csv` | the same selection as a CSV download |
 | GET, PUT | `/api/settings` | the whole `config.toml` document |
@@ -72,6 +80,7 @@ The API binds 127.0.0.1 only and has no authentication: anything that can reach 
 | POST | `/api/setup/display-check` | is this instance 1600 x 900 at DPI 240 |
 | GET | `/api/alerts` | the alert list and its unread count |
 | POST | `/api/alerts/{id}/dismiss` | mark one alert read |
+| POST | `/api/alerts/dismiss-all` | mark every alert read |
 | GET | `/api/events` | server-sent events |
 
 ### Live events

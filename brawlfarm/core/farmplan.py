@@ -500,6 +500,41 @@ def choose_target(
     return None, goal
 
 
+def plan_queue(
+    plan: dict,
+    brawlers: list[dict],
+    *,
+    current: str | None,
+    n: int = 3,
+) -> list[str]:
+    """The next ``n`` brawler names this plan would reach for after ``current``.
+
+    A READ-ONLY preview for the panel's "Next in queue" rows (spec section 8), kept
+    deliberately apart from :func:`choose_target`: it never reads games.csv, so the
+    win-rate bias and the controller's session rotation set cannot move it, and nothing
+    the panel does can change what the worker picks. Ladder lists the owned brawlers
+    still under ``goal_trophies``, lowest first, which is the order the ladder walks;
+    prestige lists the pool still under :data:`PRESTIGE_GOAL` from the end
+    ``prestige_start`` names. ``current`` is dropped from both and matched
+    case-insensitively, like every other name comparison in this module. An empty roster
+    gives an empty list: the panel shows the roster-status line instead.
+    """
+    skip = (current or "").strip().upper()
+    pool = [b for b in brawlers if (b.get("name") or "").upper() != skip]
+    if plan.get("mode") == "prestige":
+        pool = _prestige_pool(pool)
+        descending = plan.get("prestige_start", "highest") == "highest"
+    else:
+        goal = int(plan.get("goal_trophies") or PRESTIGE_GOAL)
+        pool = [b for b in pool if (b.get("trophies") or 0) < goal]
+        descending = False
+    # Two stable sorts: the name is the tie-break, so equal trophies read alphabetically
+    # whichever end the plan starts from.
+    pool.sort(key=lambda b: (b.get("name") or "").upper())
+    pool.sort(key=lambda b: b.get("trophies") or 0, reverse=descending)
+    return [b["name"] for b in pool[: max(0, int(n))] if b.get("name")]
+
+
 def resolve_target(api, exclude: set[str] | tuple = ()) -> tuple[str | None, int, list[str]]:
     """Controller-facing one-call resolution: load this instance's plan and return
     (target_name, goal_trophies, owned_names). target_name is None when the
