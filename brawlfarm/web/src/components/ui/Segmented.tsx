@@ -3,15 +3,12 @@
  * group's keyboard comes with them: one tab stop, arrows between the options. */
 import { type KeyboardEvent, useRef } from "react";
 
-export interface SegmentedOption {
-  value: string;
-  label: string;
-}
-
-export interface SegmentedProps {
-  value: string;
-  options: SegmentedOption[];
-  onChange: (next: string) => void;
+/** Generic over the option values, so a caller whose values are a union gets that union
+ * back in onChange rather than a bare string it has to assert its way out of. */
+export interface SegmentedProps<T extends string> {
+  value: T;
+  options: readonly { value: T; label: string }[];
+  onChange: (next: T) => void;
   label: string;
 }
 
@@ -25,7 +22,12 @@ const ARROW_STEP: Record<string, number> = {
   ArrowDown: 1,
 };
 
-export function Segmented({ value, options, onChange, label }: SegmentedProps) {
+export function Segmented<T extends string>({
+  value,
+  options,
+  onChange,
+  label,
+}: SegmentedProps<T>) {
   const group = useRef<HTMLDivElement>(null);
   // A value that matches nothing still has to leave one tab stop behind, or the group
   // drops out of the tab order entirely.

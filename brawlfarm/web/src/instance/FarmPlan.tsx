@@ -187,7 +187,7 @@ export function FarmPlan({ name }: { name: string }) {
         onChange={(mode) => {
           // Prestige takes the goal box away, so anything half typed into it goes too.
           if (mode !== plan.mode) cancelGoal();
-          save({ mode: mode as FarmPlanBody["mode"] });
+          save({ mode });
         }}
       />
 
@@ -199,7 +199,7 @@ export function FarmPlan({ name }: { name: string }) {
             { value: "highest", label: "Highest" },
             { value: "lowest", label: "Lowest" },
           ]}
-          onChange={(start) => save({ prestige_start: start as FarmPlanBody["prestige_start"] })}
+          onChange={(prestige_start) => save({ prestige_start })}
         />
       ) : null}
 

@@ -19,3 +19,4 @@ logs/
 # web (phase 4)
 node_modules/
 brawlfarm/web/dist/
+.playwright-cli/
