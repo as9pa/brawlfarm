@@ -70,4 +70,24 @@ describe("SessionPanel", () => {
     expect(screen.getByText("+86")).toBeInTheDocument();
     expect(screen.getByText("Session ended 14:15")).toBeInTheDocument();
   });
+
+  it("takes the real stop time once the feed's stop line arrives", () => {
+    const stopped = makeInstance({
+      name: "Pie64",
+      state: "stopped",
+      games_played: null,
+      session: null,
+    });
+    const { rerender } = render(
+      <SessionPanel inst={stopped} avgRank={null} interrupts={0} stopAt={null} />,
+    );
+    // Nothing has said when it stopped yet, so the caption is the moment the panel
+    // noticed. The feed's own stop line arrives a poll later and is the better answer.
+    expect(screen.getByText(/^Session ended \d\d:\d\d$/)).toBeInTheDocument();
+
+    rerender(
+      <SessionPanel inst={stopped} avgRank={null} interrupts={0} stopAt="2026-09-11T14:15:40" />,
+    );
+    expect(screen.getByText("Session ended 14:15")).toBeInTheDocument();
+  });
 });
