@@ -6,8 +6,9 @@
  * longer when an Undo is on offer because the user has a decision to make. A reader who
  * asked for less motion gets the same bar standing still rather than a sweep.
  *
- * An Undo is usually an API call, so a rejected one has to land somewhere: it becomes a
- * second toast carrying the API's own sentence, never a silent unhandled rejection.
+ * An Undo is usually an API call, so a failed one has to land somewhere: it becomes a
+ * second toast carrying the API's own sentence, never a silent unhandled rejection and
+ * never an exception thrown out of the click handler.
  */
 import { useEffect, useState } from "react";
 
@@ -52,7 +53,12 @@ export function Toast({ item }: ToastProps) {
 
   const onUndo = () => {
     dismissToast(item.id);
-    Promise.resolve(item.undo?.()).catch((failure: unknown) => {
+    // The call is made inside the promise, not handed to Promise.resolve, which would
+    // have evaluated it first: an undo that throws on its way to its request would
+    // otherwise escape the catch and die in the console instead of on screen.
+    new Promise<void>((resolve) => {
+      resolve(item.undo?.());
+    }).catch((failure: unknown) => {
       console.error("toast: undo failed", failure);
       toast(failure instanceof ApiError ? failure.detail : UNDO_FAILED);
     });
