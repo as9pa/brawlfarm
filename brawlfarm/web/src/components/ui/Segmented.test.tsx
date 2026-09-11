@@ -1,4 +1,5 @@
-/** The filter chips are a radio group, so arrow keys and screen readers both work. */
+/** The filter chips are a radio group, so a screen reader keeps the "one of these is
+ * selected" relationship. Each option is tabbable; there is no arrow-key roving. */
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";

@@ -3,14 +3,26 @@
  *
  * Toaster shows the head of the queue in lib/toast.ts, so exactly one is visible and the
  * rest wait their turn. The hairline bar drains over the toast's own duration, which is
- * longer when an Undo is on offer because the user has a decision to make.
+ * longer when an Undo is on offer because the user has a decision to make. A reader who
+ * asked for less motion gets the same bar standing still rather than a sweep.
+ *
+ * An Undo is usually an API call, so a rejected one has to land somewhere: it becomes a
+ * second toast carrying the API's own sentence, never a silent unhandled rejection.
  */
 import { useEffect, useState } from "react";
 
 import { Button } from "./Button";
-import { type ToastItem, dismissToast, useToasts } from "../../lib/toast";
+import { ApiError } from "../../api/client";
+import { type ToastItem, dismissToast, toast, useToasts } from "../../lib/toast";
 
 const TICK_MS = 100;
+const UNDO_FAILED = "Undo failed";
+
+/** jsdom and any non-browser render have no matchMedia; no implementation means the
+ * reader has stated no preference. */
+function prefersReducedMotion(): boolean {
+  return window.matchMedia?.("(prefers-reduced-motion: reduce)").matches === true;
+}
 
 export interface ToastProps {
   item: ToastItem;
@@ -22,21 +34,28 @@ export function Toast({ item }: ToastProps) {
   useEffect(() => {
     const startedAt = Date.now();
     setRemaining(item.durationMs);
-    const drain = setInterval(() => {
-      setRemaining(Math.max(0, item.durationMs - (Date.now() - startedAt)));
-    }, TICK_MS);
+    // The drain is decoration, so under reduced motion it is simply not run: the bar stays
+    // at its full width and only the dismissal timer keeps its own schedule.
+    const drain = prefersReducedMotion()
+      ? null
+      : setInterval(() => {
+          setRemaining(Math.max(0, item.durationMs - (Date.now() - startedAt)));
+        }, TICK_MS);
     const expire = setTimeout(() => {
       dismissToast(item.id);
     }, item.durationMs);
     return () => {
-      clearInterval(drain);
+      if (drain !== null) clearInterval(drain);
       clearTimeout(expire);
     };
   }, [item.id, item.durationMs]);
 
   const onUndo = () => {
     dismissToast(item.id);
-    void item.undo?.();
+    Promise.resolve(item.undo?.()).catch((failure: unknown) => {
+      console.error("toast: undo failed", failure);
+      toast(failure instanceof ApiError ? failure.detail : UNDO_FAILED);
+    });
   };
 
   return (
@@ -54,6 +73,7 @@ export function Toast({ item }: ToastProps) {
       </div>
       <div
         aria-hidden="true"
+        data-drain=""
         className="h-px bg-accent"
         style={{ width: `${(remaining / item.durationMs) * 100}%` }}
       />

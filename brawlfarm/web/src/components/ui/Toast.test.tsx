@@ -1,10 +1,24 @@
-/** One toast visible at a time, a life the caller can lengthen, and an Undo that both
- * runs the callback and closes the toast. */
+/** One toast visible at a time, a life the caller can lengthen, an Undo that both runs
+ * the callback and closes the toast, and a hairline that holds still for a reader who
+ * asked for less motion. */
 import { act, fireEvent, render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { Toaster } from "./Toast";
+import { ApiError } from "../../api/client";
 import { resetToasts, toast } from "../../lib/toast";
+
+/** jsdom ships no matchMedia at all, so each branch has to be stubbed in. */
+function stubReducedMotion(reduce: boolean): void {
+  vi.stubGlobal("matchMedia", (query: string) => ({ matches: reduce, media: query }));
+}
+
+function drainBar(container: HTMLElement): HTMLElement {
+  const bar = container.querySelector<HTMLElement>("[data-drain]");
+  if (bar === null) throw new Error("the toast has no drain bar");
+  return bar;
+}
 
 beforeEach(() => {
   vi.useFakeTimers();
@@ -13,6 +27,8 @@ beforeEach(() => {
 afterEach(() => {
   resetToasts();
   vi.useRealTimers();
+  vi.unstubAllGlobals();
+  vi.restoreAllMocks();
 });
 
 describe("Toaster", () => {
@@ -58,6 +74,62 @@ describe("Toaster", () => {
       "polite",
     );
     expect(screen.queryByRole("button", { name: "Undo" })).not.toBeInTheDocument();
+  });
+
+  it("says why an undo failed rather than leaving the rejection unhandled", async () => {
+    // Real timers: userEvent awaits testing-library's async wrapper, and the rejection has
+    // to settle before the replacement toast can be looked for.
+    vi.useRealTimers();
+    const logged = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const undo = vi.fn(() => Promise.reject(new ApiError(503, "adb did not answer")));
+    render(<Toaster />);
+    act(() => {
+      toast("Stopping Pie64 after this match", { undo });
+    });
+    await userEvent.click(screen.getByRole("button", { name: "Undo" }));
+    expect(await screen.findByText("adb did not answer")).toBeInTheDocument();
+    expect(logged).toHaveBeenCalledTimes(1);
+  });
+
+  it("falls back to its own wording when the undo failed for some other reason", async () => {
+    vi.useRealTimers();
+    const logged = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const undo = vi.fn(() => Promise.reject(new Error("boom")));
+    render(<Toaster />);
+    act(() => {
+      toast("Stopping Pie64 after this match", { undo });
+    });
+    await userEvent.click(screen.getByRole("button", { name: "Undo" }));
+    expect(await screen.findByText("Undo failed")).toBeInTheDocument();
+    expect(logged).toHaveBeenCalledTimes(1);
+  });
+
+  it("drains the hairline across the toast's life", () => {
+    stubReducedMotion(false);
+    const { container } = render(<Toaster />);
+    act(() => {
+      toast("Plan saved");
+    });
+    const bar = drainBar(container);
+    expect(bar.style.width).toBe("100%");
+    act(() => {
+      vi.advanceTimersByTime(2000);
+    });
+    expect(bar.style.width).toBe("50%");
+  });
+
+  it("holds the hairline still for a reader who asked for less motion", () => {
+    stubReducedMotion(true);
+    const { container } = render(<Toaster />);
+    act(() => {
+      toast("Plan saved");
+    });
+    const bar = drainBar(container);
+    expect(bar.style.width).toBe("100%");
+    act(() => {
+      vi.advanceTimersByTime(2000);
+    });
+    expect(bar.style.width).toBe("100%");
   });
 
   it("renders nothing at all when the queue is empty", () => {

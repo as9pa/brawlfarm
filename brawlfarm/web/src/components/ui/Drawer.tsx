@@ -22,6 +22,14 @@ export interface DrawerProps {
 
 export function Drawer({ open, onClose, title, children, actions }: DrawerProps) {
   const panelRef = useRef<HTMLDivElement>(null);
+  // Held in a ref so the effect below depends on `open` alone. A caller that builds onClose
+  // inline hands over a new function on every render, and re-running the effect would fire
+  // its cleanup, which returns focus to the opener and so takes it out of the open panel.
+  const onCloseRef = useRef(onClose);
+
+  useEffect(() => {
+    onCloseRef.current = onClose;
+  }, [onClose]);
 
   useEffect(() => {
     if (!open) return;
@@ -33,7 +41,7 @@ export function Drawer({ open, onClose, title, children, actions }: DrawerProps)
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
         event.preventDefault();
-        onClose();
+        onCloseRef.current();
         return;
       }
       if (event.key !== "Tab") return;
@@ -55,13 +63,13 @@ export function Drawer({ open, onClose, title, children, actions }: DrawerProps)
       document.removeEventListener("keydown", onKeyDown);
       opener?.focus();
     };
-  }, [open, onClose]);
+  }, [open]);
 
   if (!open) return null;
 
   return (
     <div className="fixed inset-0 z-40">
-      <div aria-hidden="true" className="absolute inset-0 bg-black/40" onClick={onClose} />
+      <div aria-hidden="true" className="absolute inset-0 bg-scrim" onClick={onClose} />
       <div
         ref={panelRef}
         role="dialog"

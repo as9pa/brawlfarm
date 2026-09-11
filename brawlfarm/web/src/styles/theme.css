@@ -30,6 +30,7 @@
   --text: #E7EAF0; --muted: #8A94A6; --accent: #E0B84B; --accent-ink: #0C0F14;
   --ok: #58B77E; --warn: #E08A3C; --bad: #E06565; --idle: #6B7484;
   --series-1: #3987E5; --series-2: #D95926; --series-3: #199E70;
+  --scrim: rgb(0 0 0 / 0.45);
 }
 @media (prefers-color-scheme: light) {
   :root:not([data-theme="dark"]) {
@@ -37,6 +38,7 @@
     --text: #161A21; --muted: #5F6876; --accent: #9A7418; --accent-ink: #FFFFFF;
     --ok: #2B8A57; --warn: #B8631E; --bad: #B94A4A; --idle: #7B838F;
     --series-1: #2A78D6; --series-2: #EB6834; --series-3: #1BAF7A;
+    --scrim: rgb(22 26 33 / 0.35);
   }
 }
 :root[data-theme="light"] {
@@ -44,12 +46,14 @@
   --text: #161A21; --muted: #5F6876; --accent: #9A7418; --accent-ink: #FFFFFF;
   --ok: #2B8A57; --warn: #B8631E; --bad: #B94A4A; --idle: #7B838F;
   --series-1: #2A78D6; --series-2: #EB6834; --series-3: #1BAF7A;
+  --scrim: rgb(22 26 33 / 0.35);
 }
 @theme inline {
   --color-ground: var(--ground); --color-panel: var(--panel); --color-panel-2: var(--panel-2);
   --color-line: var(--line); --color-text: var(--text); --color-muted: var(--muted);
   --color-accent: var(--accent); --color-accent-ink: var(--accent-ink);
   --color-ok: var(--ok); --color-warn: var(--warn); --color-bad: var(--bad); --color-idle: var(--idle);
+  --color-scrim: var(--scrim);
   --font-sans: "Archivo", system-ui, sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, monospace;
   --radius-control: 6px; --radius-panel: 10px;
