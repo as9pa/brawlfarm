@@ -35,9 +35,17 @@ def fetch_player(tag: str, token: str) -> dict:
     return ApiClient(token=token).get_player(tag)
 
 
-def _brawler(raw: dict) -> dict:
-    """One upstream brawler entry as the six fields the editor draws. The rest of the
-    payload (gadgets, star powers, gears) is dropped here rather than in the browser."""
+def _brawler(raw: object) -> dict | None:
+    """One upstream brawler entry as the six fields the editor draws, or None when the
+    entry is not one it could draw. The rest of the payload (gadgets, star powers, gears)
+    is dropped here rather than in the browser.
+
+    A name and a trophy count are what every consumer reads -- the progress bar, the queue
+    preview, the fallback picker -- so an entry missing either is skipped rather than
+    passed on as a row of nulls. A malformed entry costs its own line, never the roster.
+    """
+    if not isinstance(raw, dict) or raw.get("name") is None or raw.get("trophies") is None:
+        return None
     return {
         "id": raw.get("id"),
         "name": raw.get("name"),
@@ -79,7 +87,8 @@ class RosterCache:
         self._entries: dict[str, Entry] = {}
 
     def _entry(self, name: str) -> Entry:
-        """One lock per instance name, created on first use so it binds to this loop."""
+        """This instance's entry, created on first use. The Entry brings its own lock, so
+        the cache holds nothing loop-bound until a request actually asks for a name."""
         entry = self._entries.get(name)
         if entry is None:
             entry = self._entries[name] = Entry()
@@ -89,8 +98,13 @@ class RosterCache:
         """This instance's owned brawlers sorted by trophies descending, and a status.
 
         The status is "ok" when the list is fresh or was just refreshed, "unavailable"
-        when the fetch raised -- with the previous list, if there is one, still returned
-        beside it. A blank token or tag is the route's business, not this call's.
+        when anything on the way to a clean list went wrong -- with the previous list, if
+        there is one, still returned beside it. A blank token or tag is the route's
+        business, not this call's.
+
+        The parse is inside the try with the fetch on purpose: ApiClient._get returns
+        whatever the endpoint sent (its type is `dict | list`), so a 200 carrying a JSON
+        array must cost this refresh and not 500 the plan route that awaited it.
         """
         entry = self._entry(name)
         async with entry.lock:
@@ -98,12 +112,12 @@ class RosterCache:
                 return entry.brawlers, "ok"
             try:
                 player = await asyncio.to_thread(self._fetch, tag, token)
+                raw = player.get("brawlers") or []
+                brawlers = [b for b in map(_brawler, raw) if b is not None]
             except Exception as exc:  # network, auth, rate limit, a shape we did not expect
                 # str(exc) can carry the tag and the token, so only the type is logged.
                 log.warning("%s: roster fetch failed (%s)", name, type(exc).__name__)
                 return entry.brawlers, "unavailable"
-            raw = player.get("brawlers") or []
-            brawlers = [_brawler(b) for b in raw if isinstance(b, dict)]
             brawlers.sort(key=lambda b: b.get("name") or "")
             brawlers.sort(key=lambda b: b.get("trophies") or 0, reverse=True)
             entry.brawlers = brawlers
