@@ -118,7 +118,7 @@ export function Feed({ name, session }: { name: string; session: string | null }
           label="Feed filter"
           value={kind}
           options={KINDS}
-          onChange={(next) => setKind(next as FeedKind)}
+          onChange={(next) => setKind(next)}
         />
         <div className="ml-auto">
           <Switch checked={follow} onChange={setFollow} label="Follow" />
