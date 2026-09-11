@@ -8,6 +8,7 @@ not run brawlfarm.worker, so a reused PID can never be killed by mistake.
 
 from __future__ import annotations
 
+import ctypes
 import re
 import subprocess
 import sys
@@ -21,15 +22,54 @@ _DEVICE_LINE = re.compile(r"^127\.0\.0\.1:(\d+)\s+device\s*$")
 
 Runner = Callable[[list[str], float], str]
 
+# Windows leaves a killed PID in the active process list for a moment after the process
+# object is signalled, and Process.status() there is only ever running or stopped, never
+# zombie, so psutil on its own still calls such a PID running. Its Process.wait() shares
+# the blind spot: after WaitForSingleObject reports the process gone it polls the same
+# process list, so wait(timeout=0) raises TimeoutExpired in exactly this window. The one
+# authoritative answer is the process object's own signalled state.
+_SYNCHRONIZE = 0x00100000
+_WAIT_OBJECT_0 = 0x00000000
+
+if sys.platform == "win32":
+    # HANDLE as c_void_p so 64-bit handles are not truncated; DWORD as c_ulong. Plain
+    # ctypes types, not ctypes.wintypes, which does not import off Windows.
+    _kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+    _kernel32.OpenProcess.restype = ctypes.c_void_p
+    _kernel32.OpenProcess.argtypes = [ctypes.c_ulong, ctypes.c_int, ctypes.c_ulong]
+    _kernel32.WaitForSingleObject.restype = ctypes.c_ulong
+    _kernel32.WaitForSingleObject.argtypes = [ctypes.c_void_p, ctypes.c_ulong]
+    _kernel32.CloseHandle.argtypes = [ctypes.c_void_p]
+else:  # pragma: no cover - the supervisor only runs on Windows
+    _kernel32 = None
+
+
+def _has_exited(pid: int) -> bool:
+    """True only when Windows positively reports the process object as signalled, which it
+    does whether or not a handle is still open. Anything less than that proof (not Windows,
+    no SYNCHRONIZE access, PID already unresolvable) answers False."""
+    if _kernel32 is None:
+        return False
+    handle = _kernel32.OpenProcess(_SYNCHRONIZE, 0, pid)
+    if not handle:
+        return False
+    try:
+        return _kernel32.WaitForSingleObject(handle, 0) == _WAIT_OBJECT_0
+    finally:
+        _kernel32.CloseHandle(handle)
+
 
 def pid_alive(pid: int) -> bool:
     if pid is None or pid <= 0:
         return False
     try:
         p = psutil.Process(pid)
-        return p.is_running() and p.status() != psutil.STATUS_ZOMBIE
+        if not (p.is_running() and p.status() != psutil.STATUS_ZOMBIE):
+            return False
     except (psutil.NoSuchProcess, psutil.AccessDenied, ValueError):
         return False
+    # Only proof that the process exited may flip alive to dead, never the other way.
+    return not _has_exited(pid)
 
 
 def is_worker(pid: int) -> bool:
