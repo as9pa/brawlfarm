@@ -38,6 +38,8 @@ uv run ruff check . && uv run ruff format --check .
 uv run python tools/scrub_check.py
 ```
 
+If `corepack enable` fails with EPERM, which is what a Windows shell without elevation gives you, `npm install -g pnpm@10.17.1` installs the same pnpm.
+
 `pnpm --dir brawlfarm/web dev` serves the panel on Vite's port with hot reload and proxies `/api` to a `uv run brawlfarm` on 8765, so the two run side by side while you work on the UI.
 
 ## Running
