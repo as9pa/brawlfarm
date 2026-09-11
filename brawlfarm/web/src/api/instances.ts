@@ -1,4 +1,4 @@
-/** GET /api/instances and the five per-instance controls. Each control is 202 Accepted:
+/** GET /api/instances and the four per-instance controls. Each control is 202 Accepted:
  * the supervisor has been poked, not finished. */
 import { api } from "./client";
 import type { InstancePayload, InstancesResponse } from "./types";

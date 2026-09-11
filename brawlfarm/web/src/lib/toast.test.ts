@@ -3,10 +3,19 @@
 import { act, renderHook } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { TOAST_MS, TOAST_UNDO_MS, dismissToast, resetToasts, toast, useToasts } from "./toast";
+import {
+  TOAST_MS,
+  TOAST_UNDO_MS,
+  dismissToast,
+  resetToasts,
+  subscribeToasts,
+  toast,
+  useToasts,
+} from "./toast";
 
 afterEach(() => {
   resetToasts();
+  vi.restoreAllMocks();
 });
 
 describe("toast", () => {
@@ -30,6 +39,25 @@ describe("toast", () => {
       toast("Redrawing today; new sessions appear after the next tick", { durationMs: 9000 });
     });
     expect(result.current.map((item) => item.durationMs)).toEqual([TOAST_MS, TOAST_UNDO_MS, 9000]);
+  });
+
+  it("notifies the subscribers after one that throws", () => {
+    const reported = vi.spyOn(console, "error").mockImplementation(() => {});
+    const seen: string[] = [];
+    const offFirst = subscribeToasts(() => {
+      throw new Error("a subscriber that throws");
+    });
+    const offSecond = subscribeToasts(() => seen.push("second"));
+    try {
+      toast("Started Pie64");
+    } finally {
+      // Without this the throwing listener would outlive a regression and fail the
+      // next case too, hiding which one actually broke.
+      offFirst();
+      offSecond();
+    }
+    expect(seen).toEqual(["second"]);
+    expect(reported).toHaveBeenCalledTimes(1);
   });
 
   it("dismisses by id and ignores an id it has already dropped", () => {

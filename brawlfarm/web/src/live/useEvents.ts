@@ -94,10 +94,21 @@ function subscribeConnection(listener: () => void): () => void {
   };
 }
 
+/** One subscriber that throws must not cost the subscribers after it their turn: the
+ * loop would abort, and for a frame dispatch has already counted in lastId there is no
+ * second chance to deliver it. The panel reports the failure and carries on. */
+function runSafely(what: string, handler: () => void): void {
+  try {
+    handler();
+  } catch (error) {
+    console.error(`useEvents: a ${what} handler threw`, error);
+  }
+}
+
 function setConnection(next: Connection): void {
   if (connection === next) return;
   connection = next;
-  for (const listener of [...connectionListeners]) listener();
+  for (const listener of [...connectionListeners]) runSafely("connection", listener);
 }
 
 function openIfNeeded(): void {
@@ -118,7 +129,7 @@ function open(): void {
     lastId = 0;
     setConnection("live");
     if (reconnected) {
-      for (const handler of [...reconnectHandlers]) handler();
+      for (const handler of [...reconnectHandlers]) runSafely("reconnect", handler);
     }
   };
 
@@ -154,5 +165,9 @@ function dispatch(kind: EventKind, event: MessageEvent<string>): void {
   } catch {
     return; // a frame we cannot parse is one frame lost, never a dead stream
   }
-  for (const handler of [...(handlers.get(kind) ?? [])]) handler(data);
+  for (const handler of [...(handlers.get(kind) ?? [])]) {
+    runSafely(kind, () => {
+      handler(data);
+    });
+  }
 }
