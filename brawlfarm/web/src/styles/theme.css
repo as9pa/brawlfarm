@@ -35,7 +35,7 @@
 @media (prefers-color-scheme: light) {
   :root:not([data-theme="dark"]) {
     --ground: #F3F4F6; --panel: #FFFFFF; --panel-2: #EEF0F3; --line: #D9DDE4;
-    --text: #161A21; --muted: #5F6876; --accent: #9A7418; --accent-ink: #FFFFFF;
+    --text: #161A21; --muted: #5F6876; --accent: #8A6712; --accent-ink: #FFFFFF;
     --ok: #2B8A57; --warn: #B8631E; --bad: #B94A4A; --idle: #7B838F;
     --series-1: #2A78D6; --series-2: #EB6834; --series-3: #1BAF7A;
     --scrim: rgb(22 26 33 / 0.35);
@@ -43,7 +43,7 @@
 }
 :root[data-theme="light"] {
   --ground: #F3F4F6; --panel: #FFFFFF; --panel-2: #EEF0F3; --line: #D9DDE4;
-  --text: #161A21; --muted: #5F6876; --accent: #9A7418; --accent-ink: #FFFFFF;
+  --text: #161A21; --muted: #5F6876; --accent: #8A6712; --accent-ink: #FFFFFF;
   --ok: #2B8A57; --warn: #B8631E; --bad: #B94A4A; --idle: #7B838F;
   --series-1: #2A78D6; --series-2: #EB6834; --series-3: #1BAF7A;
   --scrim: rgb(22 26 33 / 0.35);
