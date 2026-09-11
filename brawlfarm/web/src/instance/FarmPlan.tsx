@@ -84,10 +84,12 @@ export function FarmPlan({ name }: { name: string }) {
       client.setQueryData<PlanResponse>(queryKeys.plan(name), before);
       // Only the box whose save failed goes back to the stored value; text the reader is
       // still typing in the other one stays where it is. The switch follows the cache
-      // too, so a failed clear leaves the fallback the worker still has on screen.
-      if ("goal_trophies" in patch) setGoalText(null);
+      // too, so a failed clear leaves the fallback the worker still has on screen. The
+      // cancels are the point: a debounce started while this save was in flight belongs
+      // to a box that is about to show the stored value again, so it must not fire.
+      if ("goal_trophies" in patch) cancelGoal();
       if ("maxed_fallback" in patch) {
-        setFallbackText(null);
+        cancelFallback();
         setFallbackOn(null);
       }
       setFailure(error);
