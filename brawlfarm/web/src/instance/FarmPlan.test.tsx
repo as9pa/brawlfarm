@@ -184,6 +184,33 @@ describe("FarmPlan", () => {
     expect(screen.getByText("SHELLY")).toBeInTheDocument();
     expect(screen.queryByText("TARA")).not.toBeInTheDocument();
   });
+
+  it("puts the Maxed fallback switch back on when clearing the name fails", async () => {
+    const calls = mount(makePlan({ maxed_fallback: "NORI" }), 500);
+    renderWithProviders(<FarmPlan name="Pie64" />);
+    expect(await screen.findByLabelText("Fallback brawler")).toHaveValue("NORI");
+    await userEvent.click(screen.getByRole("switch", { name: "Maxed fallback" }));
+    await waitFor(() => {
+      expect(puts(calls)).toHaveLength(1);
+    });
+    expect(puts(calls)[0]).toEqual({
+      mode: "ladder",
+      prestige_start: "highest",
+      goal_trophies: 1000,
+      maxed_fallback: null,
+    });
+
+    // The worker still has NORI, so the switch has to follow the cache back on.
+    expect(await screen.findByText("adb did not answer")).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByRole("switch", { name: "Maxed fallback" })).toHaveAttribute(
+        "aria-checked",
+        "true",
+      );
+    });
+    expect(screen.getByLabelText("Fallback brawler")).toHaveValue("NORI");
+    expect(toastMessages()).toEqual([]);
+  });
 });
 
 /** One keystroke on a controlled field. fireEvent rather than userEvent: userEvent awaits
