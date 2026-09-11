@@ -179,7 +179,7 @@ Everything the other eleven tasks stand on: a pnpm workspace under `brawlfarm/we
 - Test: `brawlfarm/web/src/App.test.tsx`
 - Create: `docs/superpowers/plans/2026-09-11-phase-4-design-brief.md` (the brief, copied in unchanged)
 - Modify: `.github/workflows/ci.yml` (insert the node block before `- run: uv sync --group dev`; append the wheel check after `- run: uv run pytest -q`)
-- Modify: `pyproject.toml` (`[tool.hatch.build.targets.wheel]`, lines 37 to 38)
+- Modify: `pyproject.toml` (the two lines under the `[tool.hatch.build.targets.wheel]` header, found by that header text, not by line number)
 - Modify: `README.md` (a `### Developing the panel` subsection at the end of `## Development`)
 
 **Interfaces:**
@@ -589,7 +589,14 @@ Open `http://127.0.0.1:8765/` in a browser: the page reads "brawlfarm" in Archiv
 
 - [ ] **Step 11: Put the built panel in the wheel**
 
-`dist/` is gitignored, and hatchling's file selection follows git, so the built panel would be silently missing from a wheel. Replace `pyproject.toml` lines 37 to 38 with:
+`dist/` is gitignored, and hatchling's file selection follows git, so the built panel would be silently missing from a wheel. Find the `[tool.hatch.build.targets.wheel]` header in `pyproject.toml` and work from the header text, never from a line number: `[tool.ruff]` sits a couple of lines below it and is easy to hit by counting. The block reads:
+
+```toml
+[tool.hatch.build.targets.wheel]
+packages = ["brawlfarm"]
+```
+
+Replace exactly those two lines with:
 
 ```toml
 [tool.hatch.build.targets.wheel]
@@ -3339,14 +3346,16 @@ describe("Drawer", () => {
         <Button variant="text">Dismiss</Button>
       </Drawer>,
     );
-    const dismiss = screen.getByRole("button", { name: "Dismiss" });
     const close = screen.getByRole("button", { name: "Close" });
-    await userEvent.tab();
-    expect(dismiss).toHaveFocus();
+    const dismiss = screen.getByRole("button", { name: "Dismiss" });
+    // The header, Close included, comes before the children in the DOM, so Tab reaches
+    // Close first and wraps from Dismiss back to it.
     await userEvent.tab();
     expect(close).toHaveFocus();
     await userEvent.tab();
     expect(dismiss).toHaveFocus();
+    await userEvent.tab();
+    expect(close).toHaveFocus();
   });
 });
 ```
@@ -4196,6 +4205,11 @@ Expected: FAIL, unresolved imports for `./Rail`, `./TopBar`, `./AlertsDrawer` an
 
 - [ ] **Step 3: Write the drawer store, the rail, the top bar and the drawer**
 
+The rail puts a literal space between a section's label and its `soon` tag. That space is
+deliberate: the flex gap is visual only, so without it the link's text content, and a screen
+reader reading the link, run the two words together as "Statssoon". `Rail.test.tsx` asserts
+the spaced form with `toHaveTextContent("Stats soon")`.
+
 `brawlfarm/web/src/app/alertsDrawer.ts`:
 
 ```ts
@@ -4309,7 +4323,7 @@ export function Rail() {
               className={({ isActive }) => linkClass(isActive)}
             >
               <span className="flex-1">{section.label}</span>
-              {section.soon && <span className="text-[11px] text-muted">soon</span>}
+              {section.soon && <> <span className="text-[11px] text-muted">soon</span></>}
             </NavLink>
           </li>
         ))}
@@ -6722,7 +6736,7 @@ class RosterCache:
 
 - [ ] **Step 5: Enrich both plan routes**
 
-In `brawlfarm/api/plans.py`, replace the docstring's last paragraph (lines 10 to 12):
+In `brawlfarm/api/plans.py`, replace the docstring's last paragraph, the one opening "The worker re-reads the plan live" (lines 9 to 11):
 
 ```python
 The worker re-reads the plan live (at startup and on every trophy snapshot, roughly once
@@ -6733,7 +6747,7 @@ saying why the roster is missing when it is. PUT returns it too, so the editor n
 to re-read the plan to refresh its rows after a save.
 ```
 
-Replace the import block (lines 17 to 23) with:
+Replace the import block, `from typing import Literal` down to `from brawlfarm.core import farmplan` (lines 16 to 22), with:
 
 ```python
 from typing import Literal
@@ -6789,7 +6803,7 @@ async def enrich_plan(request: Request, name: str, plan: dict) -> dict:
     }
 ```
 
-Replace both route bodies (lines 58 to 72):
+Replace both route bodies, `@router.get("/api/instances/{name}/plan")` to the end of `write_plan` (lines 58 to 70):
 
 ```python
 @router.get("/api/instances/{name}/plan")
@@ -6858,7 +6872,7 @@ In `test_put_writes_the_plan_the_worker_reads`, replace the two assertions that 
     assert farmplan.load_plan(data_dir=S.instance_dir(home, "alpha")) == stored
 ```
 
-In `test_a_legacy_plan_file_still_reads`, replace the key-set assertion (line 86):
+In `test_a_legacy_plan_file_still_reads`, replace the `assert set(body) == ...` line (line 89):
 
 ```python
     assert set(body) == {
@@ -7029,7 +7043,7 @@ function toasts() {
   return renderHook(() => useToasts()).result.current;
 }
 
-/** Every request the page makes: the fleet list, the screenshot, and the four controls,
+/** Every request the page makes: the fleet list, the screenshot, and the three controls,
  * each of which the API answers 202 Accepted. */
 function stubPage(instances: ReturnType<typeof makeInstance>[]): FetchCall[] {
   return stubFetch((url) => {
@@ -7114,6 +7128,23 @@ describe("Instance", () => {
       expect(calls.map((call) => call.url)).toContain("/api/instances/Pie64/retry");
     });
     expect(toasts()[0].message).toBe("Retrying Pie64 now");
+  });
+
+  it("speaks the API's own sentence when a control fails, and says nothing else", async () => {
+    stubFetch((url) => {
+      if (url === "/api/instances") {
+        return jsonResponse({ instances: [makeInstance({ name: "Pie64", state: "farming" })] });
+      }
+      if (url.endsWith("screenshot.png")) return pngResponse();
+      return jsonResponse({ detail: "adb did not answer" }, 503);
+    });
+    mountPage();
+    await userEvent.click(await screen.findByRole("button", { name: "Stop" }));
+    await waitFor(() => {
+      expect(toasts()[0]?.message).toBe("adb did not answer");
+    });
+    // The success toast never fires, so the failure is the only line on screen.
+    expect(toasts()).toHaveLength(1);
   });
 });
 ```
@@ -7272,14 +7303,22 @@ import { toast } from "../lib/toast";
 import { LiveScreen } from "./LiveScreen";
 
 /** Stop, Restart and Retry only mean something in some states (brief section 9). */
-const RUNNING = new Set(["farming", "starting", "stopping", "reconnecting"]);
 const NOT_RUNNING = new Set(["stopped", "scheduled_break", "offline"]);
 
 function Header({ inst, onDone }: { inst: InstancePayload; onDone: () => void }) {
   const stoppable = !NOT_RUNNING.has(inst.state);
-  const run = async (call: Promise<unknown>) => {
-    await call;
+  /** Nothing is announced until the request has settled. A rejection speaks the ApiError's
+   * own detail -- the API's sentence, or the "cannot reach brawlfarm" one a dead server
+   * produces -- and the success toast never fires. */
+  const run = async (call: Promise<unknown>, done: () => void) => {
+    try {
+      await call;
+    } catch (error) {
+      toast(error instanceof ApiError ? error.detail : "Request failed");
+      return;
+    }
     onDone();
+    done();
   };
   return (
     <header className="flex flex-wrap items-center gap-x-3 gap-y-2">
@@ -7307,29 +7346,18 @@ function Header({ inst, onDone }: { inst: InstancePayload; onDone: () => void })
           Screenshot
         </a>
         <Button
-          variant="primary"
-          size="sm"
-          disabled={RUNNING.has(inst.state)}
-          disabledReason="Already running"
-          onClick={() => {
-            void run(startInstance(inst.name));
-            toast(`Started ${inst.name}`);
-          }}
-        >
-          Start
-        </Button>
-        <Button
           variant="quiet"
           size="sm"
           disabled={!stoppable}
           disabledReason="Not running"
           onClick={() => {
-            void run(stopInstance(inst.name));
-            toast(`Stopping ${inst.name} after this match`, {
-              undo: async () => {
-                await startInstance(inst.name);
-                onDone();
-              },
+            void run(stopInstance(inst.name), () => {
+              toast(`Stopping ${inst.name} after this match`, {
+                undo: async () => {
+                  await startInstance(inst.name);
+                  onDone();
+                },
+              });
             });
           }}
         >
@@ -7339,8 +7367,7 @@ function Header({ inst, onDone }: { inst: InstancePayload; onDone: () => void })
           variant="quiet"
           size="sm"
           onClick={() => {
-            void run(restartInstance(inst.name));
-            toast(`Restarting ${inst.name}`);
+            void run(restartInstance(inst.name), () => toast(`Restarting ${inst.name}`));
           }}
         >
           Restart
@@ -7350,8 +7377,7 @@ function Header({ inst, onDone }: { inst: InstancePayload; onDone: () => void })
             variant="quiet"
             size="sm"
             onClick={() => {
-              void run(retryInstance(inst.name));
-              toast(`Retrying ${inst.name} now`);
+              void run(retryInstance(inst.name), () => toast(`Retrying ${inst.name} now`));
             }}
           >
             Retry now
@@ -7420,7 +7446,7 @@ pnpm typecheck
 ```
 
 Expected: `src/instance/LiveScreen.test.tsx` 2 passed, `src/instance/Instance.test.tsx`
-6 passed; `tsc --noEmit` silent. If a test times out waiting for the image, the screenshot
+7 passed; `tsc --noEmit` silent. If a test times out waiting for the image, the screenshot
 path the stub answers does not match what `screenshotUrl` builds: print `calls` and fix the
 test's URL, never the component.
 
@@ -7436,7 +7462,7 @@ uv run python tools/scrub_check.py
 git commit -m "feat(web): the Instance page frame and its live screen
 
 The route the Fleet card links to: a header that names the instance,
-links its raw screenshot and carries its four controls, the two-column
+links its raw screenshot and carries its three controls, the two-column
 layout the plan, schedule, feed and session panels land in next, and the
 15 s live screen. There is no per-instance GET on the API, so the page
 picks its row out of the fleet list through useInstances, which carries
@@ -8049,7 +8075,7 @@ pnpm typecheck
 ```
 
 Expected: `feedText.test.ts` 52 passed (51 table rows plus the coverage check),
-`Feed.test.tsx` 5 passed, `Instance.test.tsx` and `LiveScreen.test.tsx` still 6 and 2;
+`Feed.test.tsx` 5 passed, `Instance.test.tsx` and `LiveScreen.test.tsx` still 7 and 2;
 `tsc --noEmit` silent. A failure on the Errors chip usually means `Segmented` renders
 buttons rather than radios: check its markup and change the query, not the component.
 
@@ -8630,7 +8656,7 @@ a panel that blanks to zeros the moment the worker stops is worse than useless.
 - Test: `brawlfarm/web/src/instance/SessionPanel.test.tsx`
 
 **Interfaces:**
-- Consumes: `SchedulePayload`, `InstancePayload` (`../api/types`; the patch body is typed as `Parameters<typeof patchSchedule>[1]`, so this task never has to name task 2's patch type); `getSchedule(name)`, `patchSchedule(name, patch)` (`../api/schedule`); `startInstance(name, hours?)` (`../api/instances`); `getFeed(name, kind, limit)` (`../api/feed`); `getStatsToday(instance?)` (`../api/stats`, task 2 -- there is one stats function and this task adds none); `queryKeys.schedule(name)`, `queryKeys.statsToday(name)`, `queryKeys.feed(name, "all")` (`../api/queries`); `Button`, `Chip`, `ErrorBlock`, `Field` (with `step`), `Switch` (`../components/ui/`); `hhmm`, `duration` (`../lib/time`); `signed` (`../lib/format`); `toast`, `useToasts`, `resetToasts` (`../lib/toast`); `makeSchedule`, `makeInstance`, `makePlan` (`../test/fixtures`, tasks 2 and 8); `stubFetch`, `jsonResponse`, `FetchCall` (`../test/http`, task 2); `renderWithProviders` (`../test/renderWithProviders`, task 3).
+- Consumes: `ApiError` (`../api/client`); `X` (`lucide-react`, 16 px, `strokeWidth={1.6}`, like every other icon in the panel); `SchedulePayload`, `InstancePayload` (`../api/types`; the patch body is typed as `Parameters<typeof patchSchedule>[1]`, so this task never has to name task 2's patch type); `getSchedule(name)`, `patchSchedule(name, patch)` (`../api/schedule`); `startInstance(name, hours?)` (`../api/instances`); `getFeed(name, kind, limit)` (`../api/feed`); `getStatsToday(instance?)` (`../api/stats`, task 2 -- there is one stats function and this task adds none); `queryKeys.schedule(name)`, `queryKeys.statsToday(name)`, `queryKeys.feed(name, "all")` (`../api/queries`); `Button`, `Chip`, `ErrorBlock`, `Field` (with `step`), `Switch` (`../components/ui/`); `hhmm`, `duration` (`../lib/time`); `signed` (`../lib/format`); `toast`, `useToasts`, `resetToasts` (`../lib/toast`); `makeSchedule`, `makeInstance`, `makePlan` (`../test/fixtures`, tasks 2 and 8); `stubFetch`, `jsonResponse`, `FetchCall` (`../test/http`, task 2); `renderWithProviders` (`../test/renderWithProviders`, task 3).
 - Produces:
   - `timeline(payload: SchedulePayload, nowIso: string): { blocks: { leftPct: number; widthPct: number; state: "past" | "active" | "future" }[]; nowPct: number; ticks: { hour: number; leftPct: number }[] }`
   - `Schedule({ name }: { name: string })`
@@ -8781,6 +8807,20 @@ describe("Schedule", () => {
     expect(toastMessages()).toEqual(["Running Pie64 for 3 h"]);
   });
 
+  it("speaks the API's own sentence when Start fails, and says nothing else", async () => {
+    stubFetch((url) => {
+      if (url === SCHEDULE) return jsonResponse(makeSchedule());
+      if (url === START) return jsonResponse({ detail: "adb did not answer" }, 503);
+      throw new Error(`unstubbed request: ${url}`);
+    });
+    renderWithProviders(<Schedule name="Pie64" />);
+    await userEvent.click(await screen.findByRole("button", { name: "Start" }));
+    // The success toast never fires, so the failure is the only line on screen.
+    await waitFor(() => {
+      expect(toastMessages()).toEqual(["adb did not answer"]);
+    });
+  });
+
   it("shows an override and clears it", async () => {
     const calls = mount(
       makeSchedule({
@@ -8789,11 +8829,14 @@ describe("Schedule", () => {
     );
     renderWithProviders(<Schedule name="Pie64" />);
     expect(await screen.findByText("Override: stop until 18:00")).toBeInTheDocument();
+    // An icon button: its aria-label is the only accessible name it has.
     await userEvent.click(screen.getByRole("button", { name: "Clear override" }));
     await waitFor(() => {
       expect(countOf(calls, "PUT", SCHEDULE)).toBe(1);
     });
     expect(lastBody(calls, "PUT", SCHEDULE)).toEqual({ clear_override: true });
+    // The chip going away is the confirmation, so nothing is announced.
+    expect(toastMessages()).toEqual([]);
   });
 
   it("says so when the day has not been drawn", async () => {
@@ -9004,8 +9047,10 @@ export function timeline(payload: SchedulePayload, nowIso: string): Timeline {
 
 ```tsx
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
+import { ApiError } from "../api/client";
 import { startInstance } from "../api/instances";
 import { queryKeys } from "../api/queries";
 import { getSchedule, patchSchedule } from "../api/schedule";
@@ -9049,11 +9094,23 @@ export function Schedule({ name }: { name: string }) {
     void client.invalidateQueries({ queryKey: queryKeys.schedule(name) });
   };
 
-  const patch = async (body: Parameters<typeof patchSchedule>[1], message: string) => {
-    await patchSchedule(name, body);
-    toast(message);
+  /** Nothing is announced until the request has settled. A rejection speaks the ApiError's
+   * own detail -- the API's sentence, or the "cannot reach brawlfarm" one a dead server
+   * produces -- and the success message never fires. A null message is a control whose
+   * result is already visible, like the override chip disappearing. */
+  const settle = async (call: Promise<unknown>, message: string | null) => {
+    try {
+      await call;
+    } catch (error) {
+      toast(error instanceof ApiError ? error.detail : "Request failed");
+      return;
+    }
+    if (message !== null) toast(message);
     refetch();
   };
+
+  const patch = (body: Parameters<typeof patchSchedule>[1], message: string | null) =>
+    settle(patchSchedule(name, body), message);
 
   if (query.isPending) {
     return <section className="rounded-[10px] border border-line bg-panel p-3" />;
@@ -9116,13 +9173,17 @@ export function Schedule({ name }: { name: string }) {
           <Chip tone={payload.override.mode === "run" ? "ok" : "warn"}>
             {`Override: ${payload.override.mode} until ${hhmm(payload.override.until)}`}
           </Chip>
-          <Button
-            variant="text"
-            size="sm"
-            onClick={() => void patch({ clear_override: true }, "Override cleared")}
+          {/* An icon, not a word: the chip beside it already says what is being cleared,
+              and aria-label carries the sentence for a screen reader. Clearing the chip
+              is its own confirmation, so there is no toast. */}
+          <button
+            type="button"
+            aria-label="Clear override"
+            onClick={() => void patch({ clear_override: true }, null)}
+            className="rounded-[6px] p-1 text-muted transition-colors duration-[120ms] hover:text-text"
           >
-            Clear override
-          </Button>
+            <X size={16} strokeWidth={1.6} aria-hidden="true" />
+          </button>
         </div>
       )}
 
@@ -9143,8 +9204,7 @@ export function Schedule({ name }: { name: string }) {
           disabled={!runnable}
           disabledReason="Enter a number of hours"
           onClick={() => {
-            void startInstance(name, parsed).then(refetch);
-            toast(`Running ${name} for ${parsed} h`);
+            void settle(startInstance(name, parsed), `Running ${name} for ${parsed} h`);
           }}
         >
           Start
@@ -9641,10 +9701,12 @@ Replace the `## The panel and its API` opening paragraph (line 50):
 The panel lives at `http://127.0.0.1:8765/`: a Fleet page with one card per instance led by its live screen, and an Instance page with the screen, the activity feed in plain sentences, the farm plan, today's schedule and the session's figures. Change the port in Settings (it takes effect on the next start) or for one run with `--port`. The API behind it is browsable at `http://127.0.0.1:8765/docs`.
 ```
 
-In the API table, replace the plan row and add two rows after the alerts dismiss row:
+In the API table, replace the plan row and the feed row in place, and add the dismiss-all
+row after `POST /api/alerts/{id}/dismiss`:
 
 ```markdown
 | GET, PUT | `/api/instances/{name}/plan` | the farm plan, plus the owned roster, the queue and the current brawler |
+| GET | `/api/instances/{name}/feed` | session narration with a `seq` on every record, `kind=all\|matches\|interrupts\|errors` |
 | POST | `/api/alerts/dismiss-all` | mark every alert read |
 ```
 
@@ -9673,9 +9735,9 @@ git commit -m "docs: the panel is real, and the README says how to run it
 Phase 4 replaces the placeholder page with the Fleet and Instance
 screens, so the README's status line, its development steps (pnpm and
 the dev proxy) and the panel section now describe what is actually
-served. The API table gains dismiss-all and the roster on the plan
-route. docs/PLAN.md is left alone: the board is updated on main after
-the merge, as in every phase.
+served. The API table gains dismiss-all, the seq on every feed record
+and the roster on the plan route. docs/PLAN.md is left alone: the board
+is updated on main after the merge, as in every phase.
 
 Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>
 Claude-Session: https://claude.ai/code/session_01CQ1GimQ3uiR2sXPzfZLNWV"
