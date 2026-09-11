@@ -4,8 +4,13 @@
  * A module store rather than context: toasts are fired from event handlers deep in the
  * tree (a card's Stop button, the alerts drawer) and read by one Toaster mounted in App.
  * The queue holds every pending message; Toaster shows the head, so only one is visible.
+ *
+ * failureMessage lives here too, because a rejected request is the commonest reason to
+ * raise one and every caller had been writing the same two branches out by hand.
  */
 import { useSyncExternalStore } from "react";
+
+import { ApiError } from "../api/client";
 
 export interface ToastOptions {
   undo?: () => void | Promise<void>;
@@ -17,6 +22,13 @@ export interface ToastItem {
   message: string;
   durationMs: number;
   undo?: () => void | Promise<void>;
+}
+
+/** What a rejected request should say: the API's own sentence when it answered with one
+ * -- including the "cannot reach brawlfarm" wording a dead server produces -- and one
+ * plain fallback for a failure that came from somewhere else entirely. */
+export function failureMessage(error: unknown): string {
+  return error instanceof ApiError ? error.detail : "Request failed";
 }
 
 export const TOAST_MS = 4000;

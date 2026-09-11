@@ -20,7 +20,6 @@ import { ChevronRight } from "lucide-react";
 import type { ReactNode } from "react";
 import { Link, useNavigate } from "react-router";
 
-import { ApiError } from "../api/client";
 import {
   restartInstance,
   retryInstance,
@@ -36,7 +35,7 @@ import { useVisiblePolling } from "../live/useVisiblePolling";
 import { signed } from "../lib/format";
 import { phaseLabel } from "../lib/states";
 import { duration, hhmm } from "../lib/time";
-import { toast } from "../lib/toast";
+import { failureMessage, toast } from "../lib/toast";
 
 const THUMB_MS = 15000;
 const RETRY_MINUTES_RE = /Retrying in (\d+) min/;
@@ -137,7 +136,7 @@ export function InstanceCard({ inst }: InstanceCardProps) {
    * produces -- and the success toast never fires. */
   const act = (run: () => Promise<void>) => {
     void run().catch((failure: unknown) => {
-      toast(failure instanceof ApiError ? failure.detail : "Request failed");
+      toast(failureMessage(failure));
     });
   };
 

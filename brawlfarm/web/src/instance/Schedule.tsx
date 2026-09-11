@@ -7,7 +7,6 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
-import { ApiError } from "../api/client";
 import { startInstance } from "../api/instances";
 import { queryKeys } from "../api/queries";
 import { getSchedule, patchSchedule } from "../api/schedule";
@@ -20,7 +19,7 @@ import { Switch } from "../components/ui/Switch";
 import { useVisiblePolling } from "../live/useVisiblePolling";
 import { timeline } from "../lib/schedule";
 import { hhmm } from "../lib/time";
-import { toast } from "../lib/toast";
+import { failureMessage, toast } from "../lib/toast";
 
 const EMPTY = "No sessions drawn yet. The supervisor draws today on its next tick.";
 // The draw happens on a supervisor tick, not on the request, so ask again twice: once for
@@ -68,7 +67,7 @@ export function Schedule({ name }: { name: string }) {
     try {
       await call;
     } catch (error) {
-      toast(error instanceof ApiError ? error.detail : "Request failed");
+      toast(failureMessage(error));
       return;
     }
     if (message !== null) toast(message);
@@ -91,7 +90,7 @@ export function Schedule({ name }: { name: string }) {
       await patchSchedule(name, { enabled });
     } catch (error) {
       client.setQueryData<SchedulePayload>(queryKeys.schedule(name), before);
-      toast(error instanceof ApiError ? error.detail : "Request failed");
+      toast(failureMessage(error));
       return;
     } finally {
       setSwitching(false);
