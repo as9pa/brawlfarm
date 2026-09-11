@@ -70,7 +70,8 @@ function Header({ inst, onDone }: { inst: InstancePayload; onDone: () => void })
       <Link to="/" className="text-[12px] text-muted hover:text-text">
         Fleet
       </Link>
-      <h1 className="text-[28px] leading-none font-semibold">{inst.name}</h1>
+      {/* An h2: the top bar's route title is this page's h1 and carries the same name. */}
+      <h2 className="text-[28px] leading-none font-semibold">{inst.name}</h2>
       <StateChip state={inst.state} />
       <span className="font-mono text-[12px] tabular-nums text-muted">{inst.adb_port}</span>
       {inst.player_tag === "" ? null : (

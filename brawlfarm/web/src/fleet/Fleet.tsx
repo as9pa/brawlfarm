@@ -107,7 +107,9 @@ export function Fleet() {
   return (
     <section className="flex flex-col gap-4">
       <header className="flex items-center gap-3">
-        <h1 className="text-[28px] font-semibold tracking-tight">Fleet</h1>
+        {/* An h2: the top bar already carries this page's h1, and the same word twice
+            at level one leaves the document with no outline to speak of. */}
+        <h2 className="text-[28px] font-semibold tracking-tight">Fleet</h2>
         <span className="flex-1 text-[13px] text-muted">{plural(fleet.length, "instance")}</span>
         <Button variant="quiet" size="sm" onClick={onStartAll}>
           Start all
