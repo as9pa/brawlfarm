@@ -91,6 +91,19 @@ describe("App", () => {
     expect(await screen.findByRole("link", { name: "Open Pie64" })).toBeInTheDocument();
   });
 
+  it("gives the page one h1, the top bar's route title", async () => {
+    // Two level-one headings saying the same word is a screen reader reading the page
+    // name twice and a document outline with no top. The page's own heading sits under
+    // the bar's, so it is an h2.
+    stubApi();
+    render(<App />);
+    expect(await screen.findByRole("link", { name: "Open Pie64" })).toBeInTheDocument();
+    expect(screen.getAllByRole("heading", { level: 1 }).map((h) => h.textContent)).toEqual([
+      "Fleet",
+    ]);
+    expect(screen.getByRole("heading", { level: 2, name: "Fleet" })).toBeInTheDocument();
+  });
+
   it("renders the two placeholder pages with their copy", async () => {
     stubApi();
     window.history.pushState({}, "", "/stats");
