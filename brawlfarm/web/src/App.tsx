@@ -9,7 +9,7 @@
  * screen that is showing that instance's feed, so the Feed component subscribes itself
  * (task 9) and this file stays out of it.
  *
- * The Fleet and Instance routes are placeholders until tasks 6 and 8 land.
+ * The Instance route is a placeholder until task 8 lands.
  */
 import { QueryClientProvider, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
@@ -20,6 +20,7 @@ import { Shell } from "./app/Shell";
 import { createQueryClient, queryKeys } from "./api/queries";
 import { getSettings } from "./api/settings";
 import { Toaster } from "./components/ui/Toast";
+import { Fleet } from "./fleet/Fleet";
 import { onReconnect, subscribe } from "./live/useEvents";
 
 /** A burst of state changes (a tick touching five instances) is one refetch, not five. */
@@ -81,10 +82,7 @@ function Panel() {
   return (
     <Shell>
       <Routes>
-        <Route
-          path="/"
-          element={<Placeholder title="Fleet" body="The fleet grid arrives in the next commit." />}
-        />
+        <Route path="/" element={<Fleet />} />
         <Route
           path="/instances/:name"
           element={
