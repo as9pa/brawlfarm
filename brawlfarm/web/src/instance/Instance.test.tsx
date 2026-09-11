@@ -8,7 +8,7 @@ import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vite
 import { Instance } from "./Instance";
 import { resetToasts, useToasts } from "../lib/toast";
 import { closeEvents, setEventSourceFactory } from "../live/useEvents";
-import { makeInstance, makePlan } from "../test/fixtures";
+import { makeInstance, makePlan, makeSchedule } from "../test/fixtures";
 import { type FetchCall, jsonResponse, pngResponse, stubFetch } from "../test/http";
 import { renderWithProviders } from "../test/renderWithProviders";
 
@@ -51,14 +51,20 @@ const EMPTY_FEED = () => jsonResponse({ session: null, records: [] });
  * tests too; here it only has to be served a body of the right shape. */
 const PLAN = () => jsonResponse(makePlan());
 
-/** Every request the page makes: the fleet list, the screenshot, this session's feed, the
- * farm plan, and the three controls, each of which the API answers 202 Accepted. */
+/** Every request the page makes: the fleet list, the screenshot, today's stats, this
+ * session's feed, the farm plan, the schedule, and the three controls, each of which the
+ * API answers 202 Accepted. */
 function stubPage(instances: ReturnType<typeof makeInstance>[]): FetchCall[] {
   return stubFetch((url) => {
     if (url === "/api/instances") return jsonResponse({ instances });
     if (url.endsWith("screenshot.png")) return pngResponse();
+    // Only summary.avg_rank is read, so the rest of the stats body is left out.
+    if (url.startsWith("/api/stats")) {
+      return jsonResponse({ range: "today", instances: ["Pie64"], summary: { avg_rank: 3.4 } });
+    }
     if (url.startsWith("/api/instances/Pie64/feed")) return EMPTY_FEED();
     if (url === "/api/instances/Pie64/plan") return PLAN();
+    if (url === "/api/instances/Pie64/schedule") return jsonResponse(makeSchedule());
     return jsonResponse({ ok: true }, 202);
   }).calls;
 }
@@ -70,8 +76,12 @@ function stubFailingPage(detail: string): FetchCall[] {
       return jsonResponse({ instances: [makeInstance({ name: "Pie64", state: "farming" })] });
     }
     if (url.endsWith("screenshot.png")) return pngResponse();
+    if (url.startsWith("/api/stats")) {
+      return jsonResponse({ range: "today", instances: ["Pie64"], summary: { avg_rank: 3.4 } });
+    }
     if (url.startsWith("/api/instances/Pie64/feed")) return EMPTY_FEED();
     if (url === "/api/instances/Pie64/plan") return PLAN();
+    if (url === "/api/instances/Pie64/schedule") return jsonResponse(makeSchedule());
     return jsonResponse({ detail }, 503);
   }).calls;
 }
