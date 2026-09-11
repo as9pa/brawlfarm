@@ -35,6 +35,16 @@ function mount(body = makePlan(), putStatus = 200): FetchCall[] {
   }).calls;
 }
 
+/** A response the test hands over when it chooses, so one save can be caught in flight
+ * while the next control is touched. */
+function deferred(): { promise: Promise<Response>; resolve: (response: Response) => void } {
+  let resolve!: (response: Response) => void;
+  const promise = new Promise<Response>((settle) => {
+    resolve = settle;
+  });
+  return { promise, resolve };
+}
+
 afterEach(() => {
   resetToasts();
   vi.unstubAllGlobals();
@@ -67,11 +77,14 @@ describe("FarmPlan", () => {
     expect(screen.queryByText("Goal 1000, the prestige threshold")).not.toBeInTheDocument();
   });
 
-  it("caps the progress bar at 100 per cent", async () => {
+  it("caps the progress bar at 100 per cent and names it for a screen reader", async () => {
     mount(makePlan({ current: { brawler: "SPIKE", trophies: 1400, goal: 1000 } }));
     renderWithProviders(<FarmPlan name="Pie64" />);
-    const bar = await screen.findByTestId("plan-progress");
+    const bar = await screen.findByRole("progressbar", { name: "Progress to goal" });
     expect(bar.style.width).toBe("100%");
+    expect(bar).toHaveAttribute("aria-valuemin", "0");
+    expect(bar).toHaveAttribute("aria-valuemax", "100");
+    expect(bar).toHaveAttribute("aria-valuenow", "100");
   });
 
   it("lists the queue with its trophies and can show the whole roster", async () => {
@@ -138,6 +151,39 @@ describe("FarmPlan", () => {
     });
     expect(toastMessages()).toEqual([]);
   });
+
+  it("rolls a failed save back to the settled plan, not to an unconfirmed one", async () => {
+    const body = makePlan();
+    const first = deferred();
+    let sent = 0;
+    const { calls } = stubFetch((url, init) => {
+      if (url !== PLAN) throw new Error(`unstubbed request: ${url}`);
+      if (init?.method !== "PUT") return jsonResponse(body);
+      sent += 1;
+      return sent === 1 ? first.promise : jsonResponse({ detail: "adb did not answer" }, 503);
+    });
+    renderWithProviders(<FarmPlan name="Pie64" />);
+    await userEvent.click(await screen.findByRole("radio", { name: "Prestige" }));
+    await userEvent.click(await screen.findByRole("radio", { name: "Lowest" }));
+    expect(puts(calls)).toHaveLength(1); // the second save waits for the first to settle
+
+    // The API recomputes the queue for the new mode, so the plan it confirms is one the
+    // optimistic cache could not have guessed.
+    first.resolve(jsonResponse({ ...body, mode: "prestige", queue: ["SHELLY"] }));
+    await waitFor(() => {
+      expect(puts(calls)).toHaveLength(2);
+    });
+    expect(await screen.findByText("adb did not answer")).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByRole("radio", { name: "Highest" })).toHaveAttribute(
+        "aria-checked",
+        "true",
+      );
+    });
+    expect(screen.getByRole("radio", { name: "Prestige" })).toHaveAttribute("aria-checked", "true");
+    expect(screen.getByText("SHELLY")).toBeInTheDocument();
+    expect(screen.queryByText("TARA")).not.toBeInTheDocument();
+  });
 });
 
 /** One keystroke on a controlled field. fireEvent rather than userEvent: userEvent awaits
@@ -191,5 +237,81 @@ describe("FarmPlan goal debounce", () => {
     keystroke(goal, "-4");
     await tick(1000);
     expect(puts(calls)).toHaveLength(1); // an integer >= 0 or nothing is sent
+  });
+});
+
+/** A pending debounce belongs to the box it was typed into. When that box goes away the
+ * write goes with it, so the worker never holds a setting the panel has stopped showing. */
+describe("FarmPlan pending writes", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+  });
+
+  afterEach(() => {
+    resetToasts();
+    vi.useRealTimers();
+    vi.unstubAllGlobals();
+  });
+
+  it("switching Maxed fallback off cancels a name that was still pending", async () => {
+    const calls = mount();
+    renderWithProviders(<FarmPlan name="Pie64" />);
+    await tick(0);
+
+    fireEvent.click(screen.getByRole("switch", { name: "Maxed fallback" }));
+    keystroke(screen.getByLabelText("Fallback brawler"), "TARA");
+    await tick(400);
+    fireEvent.click(screen.getByRole("switch", { name: "Maxed fallback" }));
+    await tick(600);
+
+    expect(puts(calls)).toEqual([]); // the plan held no name, so the switch wrote nothing
+    expect(screen.queryByLabelText("Fallback brawler")).not.toBeInTheDocument();
+  });
+
+  it("switching Maxed fallback off still clears the name the plan holds", async () => {
+    const calls = mount(makePlan({ maxed_fallback: "NORI" }));
+    renderWithProviders(<FarmPlan name="Pie64" />);
+    await tick(0);
+
+    keystroke(screen.getByLabelText("Fallback brawler"), "TARA");
+    await tick(400);
+    fireEvent.click(screen.getByRole("switch", { name: "Maxed fallback" }));
+    await tick(600);
+
+    expect(puts(calls)).toEqual([
+      { mode: "ladder", prestige_start: "highest", goal_trophies: 1000, maxed_fallback: null },
+    ]);
+  });
+
+  it("switching to prestige cancels a goal that was still pending", async () => {
+    const calls = mount();
+    renderWithProviders(<FarmPlan name="Pie64" />);
+    await tick(0);
+
+    keystroke(screen.getByLabelText("Goal"), "850");
+    await tick(400);
+    fireEvent.click(screen.getByRole("radio", { name: "Prestige" }));
+    await tick(600);
+
+    // The body is always the four stored keys, so goal_trophies is there: what matters is
+    // that it is the plan's own 1000 and not the 850 typed into a box that is now gone.
+    expect(puts(calls)).toEqual([
+      { mode: "prestige", prestige_start: "highest", goal_trophies: 1000, maxed_fallback: null },
+    ]);
+  });
+
+  it("puts back only the field whose save failed", async () => {
+    mount(makePlan({ maxed_fallback: "NORI" }), 503);
+    renderWithProviders(<FarmPlan name="Pie64" />);
+    await tick(0);
+
+    keystroke(screen.getByLabelText("Goal"), "850");
+    await tick(400);
+    keystroke(screen.getByLabelText("Fallback brawler"), "TARA");
+    await tick(150); // the goal's 500 ms is up; the fallback still has 350 ms to run
+
+    expect(screen.getByText("adb did not answer")).toBeInTheDocument();
+    expect(screen.getByLabelText("Goal")).toHaveValue(1000);
+    expect(screen.getByLabelText("Fallback brawler")).toHaveValue("TARA");
   });
 });

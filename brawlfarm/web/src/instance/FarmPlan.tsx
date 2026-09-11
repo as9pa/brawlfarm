@@ -59,7 +59,9 @@ export function FarmPlan({ name }: { name: string }) {
   const [fallbackText, setFallbackText] = useState<string | null>(null);
   const goalTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const fallbackTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const chain = useRef<Promise<void>>(Promise.resolve());
 
+  // A navigation away must not let a debounce fire a write into a panel that is gone.
   useEffect(
     () => () => {
       if (goalTimer.current !== null) clearTimeout(goalTimer.current);
@@ -68,7 +70,7 @@ export function FarmPlan({ name }: { name: string }) {
     [],
   );
 
-  const save = async (patch: Partial<FarmPlanBody>) => {
+  const run = async (patch: Partial<FarmPlanBody>) => {
     const before = client.getQueryData<PlanResponse>(queryKeys.plan(name));
     if (before === undefined) return;
     client.setQueryData<PlanResponse>(queryKeys.plan(name), { ...before, ...patch });
@@ -80,10 +82,40 @@ export function FarmPlan({ name }: { name: string }) {
       toast("Plan saved");
     } catch (error) {
       client.setQueryData<PlanResponse>(queryKeys.plan(name), before);
-      setGoalText(null);
-      setFallbackText(null);
+      // Only the box whose save failed goes back to the stored value; text the reader is
+      // still typing in the other one stays where it is.
+      if ("goal_trophies" in patch) setGoalText(null);
+      if ("maxed_fallback" in patch) setFallbackText(null);
       setFailure(error);
     }
+  };
+
+  /**
+   * One save at a time, on a single chain. Each one reads the cache only once the save
+   * before it has settled, so the values it keeps for a rollback are ones the API
+   * confirmed rather than another save's optimistic guess. The catch is there so a link
+   * that breaks in some unforeseen way cannot stop every later save: run() reports its
+   * own failures inline already.
+   */
+  const save = (patch: Partial<FarmPlanBody>) => {
+    chain.current = chain.current.then(() => run(patch)).catch(() => undefined);
+  };
+
+  /**
+   * A debounce that is still pending when its box goes away is dropped, never flushed,
+   * along with the text that was typed into it: the panel never persists a setting it
+   * has stopped showing.
+   */
+  const cancelGoal = () => {
+    if (goalTimer.current !== null) clearTimeout(goalTimer.current);
+    goalTimer.current = null;
+    setGoalText(null);
+  };
+
+  const cancelFallback = () => {
+    if (fallbackTimer.current !== null) clearTimeout(fallbackTimer.current);
+    fallbackTimer.current = null;
+    setFallbackText(null);
   };
 
   const onGoal = (value: string) => {
@@ -92,8 +124,9 @@ export function FarmPlan({ name }: { name: string }) {
     if (!/^\d+$/.test(value.trim())) return; // an integer >= 0; anything else waits
     const goal_trophies = Number(value.trim());
     goalTimer.current = setTimeout(() => {
+      goalTimer.current = null;
       setGoalText(null);
-      void save({ goal_trophies });
+      save({ goal_trophies });
     }, DEBOUNCE_MS);
   };
 
@@ -102,8 +135,9 @@ export function FarmPlan({ name }: { name: string }) {
     if (fallbackTimer.current !== null) clearTimeout(fallbackTimer.current);
     const trimmed = value.trim();
     fallbackTimer.current = setTimeout(() => {
+      fallbackTimer.current = null;
       setFallbackText(null);
-      void save({ maxed_fallback: trimmed === "" ? null : trimmed });
+      save({ maxed_fallback: trimmed === "" ? null : trimmed });
     }, DEBOUNCE_MS);
   };
 
@@ -144,7 +178,11 @@ export function FarmPlan({ name }: { name: string }) {
           { value: "ladder", label: "Ladder" },
           { value: "prestige", label: "Prestige" },
         ]}
-        onChange={(mode) => void save({ mode: mode as FarmPlanBody["mode"] })}
+        onChange={(mode) => {
+          // Prestige takes the goal box away, so anything half typed into it goes too.
+          if (mode !== plan.mode) cancelGoal();
+          save({ mode: mode as FarmPlanBody["mode"] });
+        }}
       />
 
       {prestige ? (
@@ -155,9 +193,7 @@ export function FarmPlan({ name }: { name: string }) {
             { value: "highest", label: "Highest" },
             { value: "lowest", label: "Lowest" },
           ]}
-          onChange={(start) =>
-            void save({ prestige_start: start as FarmPlanBody["prestige_start"] })
-          }
+          onChange={(start) => save({ prestige_start: start as FarmPlanBody["prestige_start"] })}
         />
       ) : null}
 
@@ -180,9 +216,13 @@ export function FarmPlan({ name }: { name: string }) {
         checked={showFallback}
         onChange={(on) => {
           setFallbackOn(on);
-          // Turning it off clears the stored name; turning it on only reveals the box,
-          // because a blank fallback is the same as no fallback to the worker.
-          if (!on && plan.maxed_fallback !== null) void save({ maxed_fallback: null });
+          // Turning it off drops a name still being typed and clears the stored one;
+          // turning it on only reveals the box, because a blank fallback is the same as
+          // no fallback to the worker.
+          if (!on) {
+            cancelFallback();
+            if (plan.maxed_fallback !== null) save({ maxed_fallback: null });
+          }
         }}
       />
       {showFallback ? (
@@ -214,6 +254,11 @@ export function FarmPlan({ name }: { name: string }) {
         <div className="h-[3px] w-full bg-line">
           <div
             data-testid="plan-progress"
+            role="progressbar"
+            aria-label="Progress to goal"
+            aria-valuemin={0}
+            aria-valuemax={100}
+            aria-valuenow={progress}
             className="h-full bg-accent"
             style={{ width: `${progress}%` }}
           />
