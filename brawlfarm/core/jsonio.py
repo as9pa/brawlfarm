@@ -16,7 +16,16 @@ from __future__ import annotations
 
 import json
 import os
+import time
+from contextlib import suppress
 from pathlib import Path
+
+# How long to wait after each refused rename. Windows fails ``os.replace`` with
+# ``PermissionError`` (WinError 5) while any other process still has the target
+# open: another brawlfarm reading override.json, an editor, a virus scanner.
+# That window is milliseconds wide, so the write waits it out instead of turning
+# one unlucky moment into a failed POST. Five attempts, 1.55 s in the worst case.
+REPLACE_BACKOFF_S = (0.05, 0.1, 0.2, 0.4, 0.8)
 
 
 def atomic_write_json(path, obj, *, indent: int = 2) -> None:
@@ -26,9 +35,24 @@ def atomic_write_json(path, obj, *, indent: int = 2) -> None:
     ``indent=2`` matches every existing call site; pass ``indent`` to override.
     Not best-effort — it raises on a real I/O error, so callers that must never
     disturb the farm (core/status.py) keep their own try/except wrapper.
+
+    A ``PermissionError`` from the rename is the one error retried, on the
+    ``REPLACE_BACKOFF_S`` schedule; anything else, and a rename still refused
+    after the last attempt, is raised with no ``*.tmp`` left behind.
     """
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
     tmp = path.with_name(path.name + ".tmp")
     tmp.write_text(json.dumps(obj, indent=indent), encoding="utf-8")
-    os.replace(tmp, path)  # atomic rename on Windows + POSIX (same-dir)
+    for attempt, delay in enumerate(REPLACE_BACKOFF_S, start=1):
+        try:
+            os.replace(tmp, path)  # atomic rename on Windows + POSIX (same-dir)
+            return
+        except PermissionError:
+            time.sleep(delay)
+            if attempt == len(REPLACE_BACKOFF_S):
+                # The temp file is this writer's litter. Dropping it cannot be
+                # allowed to hide why the write failed, so a locked one is left.
+                with suppress(OSError):
+                    tmp.unlink()
+                raise
