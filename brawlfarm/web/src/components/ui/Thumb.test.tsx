@@ -1,10 +1,11 @@
-/** The screenshot box: it fetches, it ages, it retries, it never leaks an object URL,
- * and its image is marked private so the pull request's screenshots can blur it. */
+/** The preview box: it polls, it skips the frames that have not changed, it ages, it
+ * retries, it never leaks an object URL, and its image is marked private so the pull
+ * request's screenshots can blur it. */
 import { act, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { Thumb } from "./Thumb";
-import { jsonResponse, pngResponse, stubFetch } from "../../test/http";
+import { jpegResponse, jsonResponse, stubFetch } from "../../test/http";
 
 const created: string[] = [];
 const revoked: string[] = [];
@@ -30,34 +31,81 @@ afterEach(() => {
 });
 
 describe("Thumb", () => {
-  it("fetches the screen, shows its age and marks the image private", async () => {
-    const { calls } = stubFetch(() => pngResponse());
+  it("fetches the preview, shows its age and marks the image private", async () => {
+    const { calls } = stubFetch(() => jpegResponse());
     render(<Thumb name="Pie64" refreshMs={false} />);
     const image = await screen.findByRole("img", { name: "Pie64 screen" });
     expect(image).toHaveAttribute("src", "blob:fake/1");
     expect(image).toHaveAttribute("data-private");
     expect(screen.getByText("0 s ago")).toBeInTheDocument();
-    expect(calls[0].url).toBe("/api/instances/Pie64/screenshot.png");
+    expect(calls[0].url).toBe("/api/instances/Pie64/preview.jpg");
+  });
+
+  it("ages the caption from the frame's own timestamp, not from the fetch", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-09-10T12:00:05Z"));
+    stubFetch(() => jpegResponse({ "last-modified": "Thu, 10 Sep 2026 12:00:00 GMT" }));
+    render(<Thumb name="Pie64" refreshMs={false} />);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    expect(screen.getByText("5 s ago")).toBeInTheDocument();
   });
 
   it("refreshes on the interval and revokes the url it replaced", async () => {
     vi.useFakeTimers();
-    const { calls } = stubFetch(() => pngResponse());
-    render(<Thumb name="Pie64" refreshMs={15000} />);
+    // No etag at all: every answer is a frame we have not seen.
+    const { calls } = stubFetch(() => jpegResponse());
+    render(<Thumb name="Pie64" refreshMs={1000} />);
     await act(async () => {
       await vi.advanceTimersByTimeAsync(0);
     });
     expect(calls).toHaveLength(1);
     await act(async () => {
-      await vi.advanceTimersByTimeAsync(15000);
+      await vi.advanceTimersByTimeAsync(1000);
     });
     expect(calls).toHaveLength(2);
     expect(revoked).toEqual(["blob:fake/1"]);
     expect(created).toEqual(["blob:fake/1", "blob:fake/2"]);
   });
 
+  it("keeps the frame it is showing while the etag stays the same", async () => {
+    vi.useFakeTimers();
+    const { calls } = stubFetch(() => jpegResponse({ etag: '"one"' }));
+    render(<Thumb name="Pie64" refreshMs={1000} />);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1000);
+    });
+    expect(calls).toHaveLength(2);
+    expect(calls[1].init?.headers).toEqual({ "if-none-match": '"one"' });
+    expect(created).toEqual(["blob:fake/1"]);
+    expect(revoked).toEqual([]);
+  });
+
+  it("takes a new frame when the etag changes and revokes the one it dropped", async () => {
+    vi.useFakeTimers();
+    let frame = 0;
+    stubFetch(() => {
+      frame += 1;
+      return jpegResponse({ etag: `"${frame}"` });
+    });
+    render(<Thumb name="Pie64" refreshMs={1000} />);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1000);
+    });
+    expect(created).toEqual(["blob:fake/1", "blob:fake/2"]);
+    expect(revoked).toEqual(["blob:fake/1"]);
+    expect(screen.getByRole("img", { name: "Pie64 screen" })).toHaveAttribute("src", "blob:fake/2");
+  });
+
   it("fetches again as soon as refreshKey changes", async () => {
-    const { calls } = stubFetch(() => pngResponse());
+    const { calls } = stubFetch(() => jpegResponse());
     const { rerender } = render(<Thumb name="Pie64" refreshMs={false} refreshKey={0} />);
     await screen.findByRole("img", { name: "Pie64 screen" });
     expect(calls).toHaveLength(1);
@@ -83,7 +131,7 @@ describe("Thumb", () => {
   });
 
   it("dims the image and captions it while the instance is on a break", async () => {
-    stubFetch(() => pngResponse());
+    stubFetch(() => jpegResponse());
     render(<Thumb name="Pie64" refreshMs={false} dimmed caption="Break until 21:30" />);
     const image = await screen.findByRole("img", { name: "Pie64 screen" });
     expect(image.className).toContain("opacity-40");
@@ -91,7 +139,7 @@ describe("Thumb", () => {
   });
 
   it("revokes its object url when it unmounts", async () => {
-    stubFetch(() => pngResponse());
+    stubFetch(() => jpegResponse());
     const { unmount } = render(<Thumb name="Pie64" refreshMs={false} />);
     await screen.findByRole("img", { name: "Pie64 screen" });
     unmount();

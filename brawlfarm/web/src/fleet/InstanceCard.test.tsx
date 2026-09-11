@@ -11,7 +11,7 @@ import { InstanceCard, breakCaption, nextValue, retryMinutes } from "./InstanceC
 import type { InstanceState } from "../api/types";
 import { resetToasts, useToasts } from "../lib/toast";
 import { makeInstance } from "../test/fixtures";
-import { jsonResponse, pngResponse, stubFetch } from "../test/http";
+import { jpegResponse, jsonResponse, stubFetch } from "../test/http";
 import { renderWithProviders } from "../test/renderWithProviders";
 
 function toastMessages(): string[] {
@@ -26,7 +26,7 @@ function LocationProbe() {
 
 function stubScreens() {
   return stubFetch((url) => {
-    if (url.endsWith("screenshot.png")) return pngResponse();
+    if (url.endsWith("preview.jpg")) return jpegResponse();
     if (url === "/api/instances") return jsonResponse({ instances: [] });
     return jsonResponse({ ok: true });
   });
@@ -222,8 +222,8 @@ describe("InstanceCard", () => {
 
   it("says why a stop failed rather than claiming the instance is stopping", async () => {
     stubFetch((url) =>
-      url.endsWith("screenshot.png")
-        ? pngResponse()
+      url.endsWith("preview.jpg")
+        ? jpegResponse()
         : jsonResponse({ detail: "adb did not answer" }, 503),
     );
     renderWithProviders(<InstanceCard inst={makeInstance({ state: "farming" })} />);

@@ -19,11 +19,12 @@ export function jsonResponse(body: unknown, status = 200): Response {
   });
 }
 
-/** A four-byte PNG header: enough for Response.blob(), nothing decodes it. */
-export function pngResponse(): Response {
-  return new Response(new Uint8Array([137, 80, 78, 71]), {
+/** A four-byte JPEG header: enough for Response.blob(), nothing decodes it. Takes
+ * whichever of the preview route's own headers (etag, last-modified) the test pins. */
+export function jpegResponse(headers: Record<string, string> = {}): Response {
+  return new Response(new Uint8Array([255, 216, 255, 224]), {
     status: 200,
-    headers: { "content-type": "image/png" },
+    headers: { "content-type": "image/jpeg", ...headers },
   });
 }
 

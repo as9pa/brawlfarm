@@ -36,6 +36,7 @@ from brawlfarm.core import (
     config,
     farmplan,
     match_vision,
+    preview,
     quests,
     recalib,
     rewards,
@@ -1450,6 +1451,9 @@ class Controller:
                 try:
                     screen = adb.screencap()
                     self._adb_errors = 0  # screencap worked -> adb is alive again
+                    # The panel's live preview, once a second off this very frame: no
+                    # second screencap, and it swallows everything it could go wrong on.
+                    preview.maybe_write(screen)
                     # Phase hint = faster anchor ordering only; never changes the State
                     # returned for a frame (see states.PHASE_ORDER).
                     state = states.classify(screen, phase=self.phase)

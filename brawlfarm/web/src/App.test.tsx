@@ -7,7 +7,7 @@ import { App } from "./App";
 import { closeAlertsDrawer } from "./lib/alertsDrawer";
 import { closeEvents, setEventSourceFactory } from "./live/useEvents";
 import { resetToasts } from "./lib/toast";
-import { jsonResponse, pngResponse, stubFetch } from "./test/http";
+import { jpegResponse, jsonResponse, stubFetch } from "./test/http";
 import { makeAlert, makeInstance } from "./test/fixtures";
 
 class FakeEventSource {
@@ -53,7 +53,7 @@ function stubApi(theme: "system" | "dark" | "light" = "system"): { calls: { url:
     }
     if (url === "/api/instances") return jsonResponse({ instances: [makeInstance()] });
     if (url === "/api/alerts") return jsonResponse({ alerts: [makeAlert()], unread: 1 });
-    if (url.endsWith("screenshot.png")) return pngResponse();
+    if (url.endsWith("preview.jpg")) return jpegResponse();
     throw new Error(`unstubbed request: ${url}`);
   });
 }

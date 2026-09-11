@@ -1,5 +1,5 @@
 /**
- * The instance's screen, refreshed every 15 s while the tab is visible. "Refresh" bumps
+ * The instance's screen, refreshed once a second while the tab is visible. "Refresh" bumps
  * refreshKey, which is Thumb's "fetch one now" signal; "Full size" is a real link, so it
  * opens in a tab, can be copied, and reaches the keyboard like any other link.
  */
@@ -10,7 +10,9 @@ import { Button } from "../components/ui/Button";
 import { Thumb } from "../components/ui/Thumb";
 import { useVisiblePolling } from "../live/useVisiblePolling";
 
-const REFRESH_MS = 15000; // the same cadence a Fleet card's thumbnail uses
+// The worker writes a frame a second, so this is as live as the page can be; a poll that
+// lands between two frames is a 304 with no body.
+const REFRESH_MS = 1000;
 
 export function LiveScreen({ name }: { name: string }) {
   const refreshMs = useVisiblePolling(REFRESH_MS);
