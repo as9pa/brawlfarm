@@ -16,6 +16,7 @@ import { Chip } from "../components/ui/Chip";
 import { ErrorBlock } from "../components/ui/ErrorBlock";
 import { Field } from "../components/ui/Field";
 import { Switch } from "../components/ui/Switch";
+import { useVisiblePolling } from "../live/useVisiblePolling";
 import { timeline } from "../lib/schedule";
 import { hhmm } from "../lib/time";
 import { toast } from "../lib/toast";
@@ -24,6 +25,10 @@ const EMPTY = "No sessions drawn yet. The supervisor draws today on its next tic
 // The draw happens on a supervisor tick, not on the request, so ask again twice: once for
 // a tick that was already due, once for the poke this PUT sent.
 const REDRAW_REFETCH_MS = [2000, 10_000];
+// Nothing on this route is pushed over the event stream: the supervisor draws the day and
+// writes an override on its own tick, and a stop from another window is invisible here.
+// The same cadence as the instances list (api/useInstances.ts), and it stops with the tab.
+const POLL_MS = 15000;
 const BLOCK_TONE: Record<string, string> = {
   past: "bg-idle opacity-40",
   active: "bg-ok",
@@ -33,9 +38,11 @@ const BLOCK_TONE: Record<string, string> = {
 /** Today's sessions, the on/off switch, the manual override and the two manual controls. */
 export function Schedule({ name }: { name: string }) {
   const client = useQueryClient();
+  const refetchInterval = useVisiblePolling(POLL_MS);
   const query = useQuery({
     queryKey: queryKeys.schedule(name),
     queryFn: () => getSchedule(name),
+    refetchInterval,
   });
   const [hours, setHours] = useState("2");
   const timers = useRef<ReturnType<typeof setTimeout>[]>([]);

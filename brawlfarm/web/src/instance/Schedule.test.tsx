@@ -156,4 +156,18 @@ describe("Schedule redraw", () => {
     await tick(8000);
     expect(countOf(calls, "GET", SCHEDULE)).toBe(asked + 2);
   });
+
+  it("asks again every 15 s, because nothing on this route arrives over the stream", async () => {
+    const calls = mount();
+    renderWithProviders(<Schedule name="Pie64" />);
+    await tick(0);
+    expect(countOf(calls, "GET", SCHEDULE)).toBe(1);
+
+    await tick(14_999);
+    expect(countOf(calls, "GET", SCHEDULE)).toBe(1);
+    await tick(1);
+    expect(countOf(calls, "GET", SCHEDULE)).toBe(2);
+    await tick(15_000);
+    expect(countOf(calls, "GET", SCHEDULE)).toBe(3);
+  });
 });

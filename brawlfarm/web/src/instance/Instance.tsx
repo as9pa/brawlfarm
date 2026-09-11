@@ -40,7 +40,18 @@ const NOT_RUNNING: ReadonlySet<InstanceState> = new Set<InstanceState>([
 ]);
 
 function Header({ inst, onDone }: { inst: InstancePayload; onDone: () => void }) {
+  const client = useQueryClient();
   const stoppable = !NOT_RUNNING.has(inst.state);
+
+  /** Stopping, starting and restarting all write the schedule's override, and nothing on
+   * that route arrives over the event stream. The panel below asks again once the request
+   * has settled either way: a refused stop may still have cleared an override on its way
+   * out, so success is not the only outcome worth a refetch. */
+  const settled = <T,>(call: Promise<T>): Promise<T> =>
+    call.finally(() => {
+      void client.invalidateQueries({ queryKey: queryKeys.schedule(inst.name) });
+    });
+
   /** Nothing is announced until the request has settled. A rejection speaks the ApiError's
    * own detail -- the API's sentence, or the "cannot reach brawlfarm" one a dead server
    * produces -- and the success toast never fires. */
@@ -85,10 +96,10 @@ function Header({ inst, onDone }: { inst: InstancePayload; onDone: () => void })
           disabled={!stoppable}
           disabledReason="Not running"
           onClick={() => {
-            void run(stopInstance(inst.name), () => {
+            void run(settled(stopInstance(inst.name)), () => {
               toast(`Stopping ${inst.name} after this match`, {
                 undo: async () => {
-                  await startInstance(inst.name);
+                  await settled(startInstance(inst.name));
                   onDone();
                 },
               });
@@ -101,7 +112,9 @@ function Header({ inst, onDone }: { inst: InstancePayload; onDone: () => void })
           variant="quiet"
           size="sm"
           onClick={() => {
-            void run(restartInstance(inst.name), () => toast(`Restarting ${inst.name}`));
+            void run(settled(restartInstance(inst.name)), () =>
+              toast(`Restarting ${inst.name}`),
+            );
           }}
         >
           Restart
