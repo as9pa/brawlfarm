@@ -23,6 +23,7 @@ MODULES = [
     "match_vision",
     "notify",
     "onboarding",
+    "preview",
     "quests",
     "recalib",
     "rewards",

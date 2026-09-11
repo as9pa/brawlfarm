@@ -10,10 +10,11 @@
  * not tell you which instance you are about to open.
  *
  * The thumbnail is the headline: a screen is the fastest way to see that a bot is in a
- * match and not stuck on a popup. It refreshes every 15 s while the tab is visible and
- * stops entirely while it is hidden, because every frame is an adb screencap against a
- * live BlueStacks window. An offline instance has no window to capture, so its card shows
- * the supervisor's own retry note instead.
+ * match and not stuck on a popup. It refreshes every 5 s while the tab is visible and
+ * stops entirely while it is hidden: a farming instance is serving the frame its worker
+ * wrote anyway, but a stopped one costs an adb screencap against a live BlueStacks window
+ * and a wall of cards should not spend that. An offline instance has no window to capture,
+ * so its card shows the supervisor's own retry note instead.
  */
 import { useQueryClient } from "@tanstack/react-query";
 import { ChevronRight } from "lucide-react";
@@ -37,7 +38,7 @@ import { phaseLabel } from "../lib/states";
 import { duration, hhmm } from "../lib/time";
 import { failureMessage, toast } from "../lib/toast";
 
-const THUMB_MS = 15000;
+const THUMB_MS = 5000;
 const RETRY_MINUTES_RE = /Retrying in (\d+) min/;
 
 /** The overlay that makes the rest of the card clickable, and the card's own ring while

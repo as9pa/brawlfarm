@@ -1,11 +1,16 @@
 /**
- * The live screenshot box.
+ * The live preview box.
  *
  * Owns its own fetch loop instead of going through react-query: the body is a Blob, not
  * JSON, and every caller wants a different cadence (a Fleet card idles, the Instance page
- * refreshes every 15 s, both stop when the tab is hidden). Each frame becomes an object
+ * refreshes once a second, both stop when the tab is hidden). Each frame becomes an object
  * URL, and the previous one is revoked the moment it is replaced -- an unrevoked blob is
  * a megabyte of retained memory per frame.
+ *
+ * Polling that fast is only free because most polls change nothing: the box remembers the
+ * ETag it is showing, hands it back on the next request, and a "no change" answer leaves
+ * the image element exactly as it is. The caption ages from the frame's own timestamp, so
+ * a frame that stays on screen for four seconds is honest about being four seconds old.
  *
  * A change of `refreshKey` fetches immediately: that is the Instance page's Refresh
  * button. The `<img>` carries data-private so the pull request's screenshots can blur it.
@@ -13,7 +18,7 @@
 import { type ReactNode, useEffect, useRef, useState } from "react";
 
 import { ApiError } from "../../api/client";
-import { fetchScreenshot } from "../../api/screens";
+import { fetchPreview } from "../../api/screens";
 import { age } from "../../lib/time";
 
 const ERROR_RETRY_MS = 15000;
@@ -41,6 +46,9 @@ export function Thumb({
   const [error, setError] = useState<ApiError | null>(null);
   const [now, setNow] = useState(() => Date.now());
   const urlRef = useRef<string | null>(null);
+  // The ETag of the frame on screen, tied to the instance it came from: a Thumb that is
+  // handed a new name must not claim to already hold that instance's frame.
+  const seenRef = useRef<{ name: string; etag: string | null }>({ name, etag: null });
 
   useEffect(() => {
     let cancelled = false;
@@ -55,12 +63,18 @@ export function Thumb({
 
     const load = async (): Promise<void> => {
       try {
-        const blob = await fetchScreenshot(name);
+        const seen = seenRef.current;
+        const frame = await fetchPreview(name, seen.name === name ? seen.etag : null);
         if (cancelled) return;
-        if (urlRef.current !== null) URL.revokeObjectURL(urlRef.current);
-        urlRef.current = URL.createObjectURL(blob);
-        setUrl(urlRef.current);
-        setTakenAt(Date.now());
+        // null is "the frame you are showing is still the current one": leave the image
+        // alone, so the browser has nothing to decode and nothing to repaint.
+        if (frame !== null) {
+          if (urlRef.current !== null) URL.revokeObjectURL(urlRef.current);
+          urlRef.current = URL.createObjectURL(frame.blob);
+          seenRef.current = { name, etag: frame.etag };
+          setUrl(urlRef.current);
+          setTakenAt(frame.takenAt);
+        }
         setNow(Date.now());
         setError(null);
         schedule(refreshMs);
