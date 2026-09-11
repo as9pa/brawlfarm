@@ -15,7 +15,7 @@ Living board. Finished work moves to the top with its proof.
 
 ## In flight
 
-- Phase 5: Setup wizard and Settings screens. Proposal artifact published 2026-09-11 (21 items with Accept, Later or Reject per item, decisions stored on the page) and waiting for the owner's decisions; the follow-up page with a Go control comes after that, and no phase 5 code is written before go.
+- Phase 5: Setup wizard and Settings screens. Proposal page published 2026-09-11 (21 items, all accepted, no notes); follow-up page in the show-everything format answered the same day (display path confirmed, tags asked on the Stats step, notification channels explained with ntfy first, reset keeps instances and data, theme follows Windows) and the owner pressed Go at 21:59 UTC. Design brief committed as docs/superpowers/plans/2026-09-11-phase-5-design-brief.md; implementation plan and task-by-task build next. Queued to phase 6 from the answers: the Stats page prompts for a missing player tag and for an API key that stopped working.
 
 ## Queue (v1)
 
