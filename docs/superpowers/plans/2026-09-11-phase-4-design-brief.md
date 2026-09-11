@@ -180,8 +180,12 @@ noted. Table (event, fields → text):
 - phase: `to=playing` "Playing"; `to=queuing` "Queuing for Showdown"; `to=at_menu` "At the
   menu"; `to=returning` "Returning to the menu"; other "Phase ${to}".
 - games_logged: "Logged ${count} game(s)" (singular when 1).
-- recap: "Match ended, ${signed(trophies)} trophies" plus ", ${skins} skin(s)" when skins > 0.
-  (`recap.trophies` is the session delta; `trophies` events carry the total.)
+- recap: "Session ended, ${games} game(s)" plus ", ${signed(trophies)} trophies" when the
+  record carries a trophy delta, plus ", ${skins} skin(s)" when skins > 0. Amended from
+  "Match ended, ${signed(trophies)} trophies" after the live run: the worker writes exactly
+  one recap per session, on stop, so the per-match sentence named a line that never came
+  (commit 13b4196). (`recap.trophies` is the session delta, null when the end total never
+  arrived; `trophies` events carry the running total.)
 - trophies: "Trophies: ${total}".
 - farming: "Farming ${brawler}".
 - select_brawler: "Brawler selected: ${brawler}" plus " (goal ${goal})" when goal present.
