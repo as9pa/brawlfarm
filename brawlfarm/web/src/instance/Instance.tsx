@@ -24,6 +24,7 @@ import { ErrorBlock } from "../components/ui/ErrorBlock";
 import { StateChip } from "../components/ui/StateChip";
 import { phaseLabel } from "../lib/states";
 import { toast } from "../lib/toast";
+import { FarmPlan } from "./FarmPlan";
 import { Feed } from "./Feed";
 import { LiveScreen } from "./LiveScreen";
 
@@ -140,7 +141,9 @@ export function Instance() {
           <LiveScreen name={inst.name} />
           <Feed name={inst.name} session={inst.session?.session ?? null} />
         </div>
-        <div className="flex flex-col gap-4" />
+        <div className="flex flex-col gap-4">
+          <FarmPlan name={inst.name} />
+        </div>
       </div>
     </div>
   );
