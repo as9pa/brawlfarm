@@ -31,6 +31,7 @@ from brawlfarm.api import (
     feed,
     instances,
     plans,
+    roster,
     schedule,
     screens,
     settings_routes,
@@ -130,6 +131,9 @@ def create_app(sup: Supervisor, home: Path) -> FastAPI:
     # One asyncio.Lock per instance, filled lazily by the screenshot route: two
     # concurrent screencaps against one BlueStacks window fight each other.
     app.state.screenshot_locks = {}
+    # One roster cache for the process: per instance, five-minute TTL, stale on failure.
+    # Not built in the lifespan because it holds nothing loop-bound until its first use.
+    app.state.roster = roster.RosterCache()
 
     @app.middleware("http")
     async def _loopback_only(request: Request, call_next):
