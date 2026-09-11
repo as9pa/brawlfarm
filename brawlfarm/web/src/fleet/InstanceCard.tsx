@@ -1,10 +1,13 @@
 /**
  * One instance, at a glance.
  *
- * The whole card is a link to the instance page, so the largest target does the most
- * likely thing. The three controls in the footer are buttons inside that link, so each
- * one stops the click from reaching it; that is the price of making the card itself
- * clickable, and it is paid in one helper rather than in every handler.
+ * The card is an article, and only the instance name is a link. That link is stretched
+ * over the whole card by a pseudo-element, so the largest target still does the most
+ * likely thing without nesting four buttons inside an anchor: the controls sit on their
+ * own layer above the overlay and are ordinary buttons again, and the link's accessible
+ * name is "Open Pie64" rather than the entire card read aloud. The focus ring moves to
+ * the card while the name has keyboard focus, because a ring around six characters does
+ * not tell you which instance you are about to open.
  *
  * The thumbnail is the headline: a screen is the fastest way to see that a bot is in a
  * match and not stuck on a popup. It refreshes every 15 s while the tab is visible and
@@ -14,7 +17,7 @@
  */
 import { useQueryClient } from "@tanstack/react-query";
 import { ChevronRight } from "lucide-react";
-import type { MouseEvent, ReactNode } from "react";
+import type { ReactNode } from "react";
 import { Link, useNavigate } from "react-router";
 
 import { ApiError } from "../api/client";
@@ -37,6 +40,12 @@ import { toast } from "../lib/toast";
 
 const THUMB_MS = 15000;
 const RETRY_MINUTES_RE = /Retrying in (\d+) min/;
+
+/** The overlay that makes the rest of the card clickable, and the card's own ring while
+ * that link holds keyboard focus. Kept as names because they are one idea in two places. */
+const STRETCHED_LINK = "after:absolute after:inset-0 after:content-[''] focus-visible:outline-none";
+const CARD_RING =
+  "has-[a:focus-visible]:outline-2 has-[a:focus-visible]:outline-offset-2 has-[a:focus-visible]:outline-accent";
 
 const STOPPABLE_STATES: ReadonlySet<InstanceState> = new Set<InstanceState>([
   "farming",
@@ -114,20 +123,17 @@ export function InstanceCard({ inst }: InstanceCardProps) {
     void client.invalidateQueries({ queryKey: queryKeys.instances() });
   };
 
-  /** Every footer control lives inside the card's own link. Nothing is announced until
-   * the request has settled either: a rejection speaks the ApiError's own detail -- the
-   * API's sentence, or the "cannot reach brawlfarm" one a dead server produces -- and the
-   * success toast never fires. */
-  const act = (event: MouseEvent<HTMLButtonElement>, run: () => Promise<void>) => {
-    event.preventDefault();
-    event.stopPropagation();
+  /** Nothing is announced until the request has settled: a rejection speaks the ApiError's
+   * own detail -- the API's sentence, or the "cannot reach brawlfarm" one a dead server
+   * produces -- and the success toast never fires. */
+  const act = (run: () => Promise<void>) => {
     void run().catch((failure: unknown) => {
       toast(failure instanceof ApiError ? failure.detail : "Request failed");
     });
   };
 
-  const onStop = (event: MouseEvent<HTMLButtonElement>) =>
-    act(event, async () => {
+  const onStop = () =>
+    act(async () => {
       await stopInstance(inst.name);
       refresh();
       toast(`Stopping ${inst.name} after this match`, {
@@ -138,15 +144,15 @@ export function InstanceCard({ inst }: InstanceCardProps) {
       });
     });
 
-  const onRestart = (event: MouseEvent<HTMLButtonElement>) =>
-    act(event, async () => {
+  const onRestart = () =>
+    act(async () => {
       await restartInstance(inst.name);
       refresh();
       toast(`Restarting ${inst.name}`);
     });
 
-  const onRetry = (event: MouseEvent<HTMLButtonElement>) =>
-    act(event, async () => {
+  const onRetry = () =>
+    act(async () => {
       await retryInstance(inst.name);
       refresh();
       toast(`Retrying ${inst.name} now`);
@@ -156,17 +162,18 @@ export function InstanceCard({ inst }: InstanceCardProps) {
   const sessionMinutes = inst.session?.minutes_elapsed ?? null;
 
   return (
-    <Link
-      to={`/instances/${inst.name}`}
-      className="block rounded-[10px] border border-line bg-panel p-3 transition-colors duration-[120ms] hover:border-accent"
+    <article
+      className={`relative rounded-[10px] border border-line bg-panel p-3 transition-colors duration-[120ms] hover:border-accent ${CARD_RING}`}
     >
       {inst.state === "offline" ? (
         <OfflineBlock
           note={inst.note}
           onRetry={
-            <Button variant="text" size="sm" onClick={onRetry}>
-              Retry now
-            </Button>
+            <span className="relative z-10">
+              <Button variant="text" size="sm" onClick={onRetry}>
+                Retry now
+              </Button>
+            </span>
           }
         />
       ) : (
@@ -180,7 +187,13 @@ export function InstanceCard({ inst }: InstanceCardProps) {
       )}
 
       <div className="mt-3 flex items-baseline gap-2">
-        <span className="text-[15px] font-semibold">{inst.name}</span>
+        <Link
+          to={`/instances/${inst.name}`}
+          aria-label={`Open ${inst.name}`}
+          className={`text-[15px] font-semibold ${STRETCHED_LINK}`}
+        >
+          {inst.name}
+        </Link>
         <span className="font-mono text-[12px] tabular-nums text-muted">{inst.adb_port}</span>
         <span className="flex-1 truncate text-right text-[12px] text-muted">
           {phaseLabel(inst.phase)}
@@ -197,7 +210,7 @@ export function InstanceCard({ inst }: InstanceCardProps) {
         <Metric label={NEXT_LABELS[inst.state]} value={nextValue(inst)} />
       </div>
 
-      <div className="mt-3 flex items-center gap-2 border-t border-line pt-2">
+      <div className="relative z-10 mt-3 flex items-center gap-2 border-t border-line pt-2">
         <Button
           variant="quiet"
           size="sm"
@@ -214,9 +227,7 @@ export function InstanceCard({ inst }: InstanceCardProps) {
         <Button
           variant="text"
           size="sm"
-          onClick={(event) => {
-            event.preventDefault();
-            event.stopPropagation();
+          onClick={() => {
             void navigate(`/instances/${inst.name}`);
           }}
         >
@@ -224,6 +235,6 @@ export function InstanceCard({ inst }: InstanceCardProps) {
           <ChevronRight size={16} strokeWidth={1.6} aria-hidden="true" />
         </Button>
       </div>
-    </Link>
+    </article>
   );
 }

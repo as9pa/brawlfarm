@@ -1,10 +1,11 @@
 /** One card per instance, in all seven states: what it shows, what it disables, and what
  * it calls. The seven cases are the whole point -- a card that looks the same when the
  * instance is farming and when it is offline is a card nobody can trust. */
-import { screen, within } from "@testing-library/react";
+import { screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { renderHook } from "@testing-library/react";
+import { useLocation } from "react-router";
 
 import { InstanceCard, breakCaption, nextValue, retryMinutes } from "./InstanceCard";
 import type { InstanceState } from "../api/types";
@@ -15,6 +16,12 @@ import { renderWithProviders } from "../test/renderWithProviders";
 
 function toastMessages(): string[] {
   return renderHook(() => useToasts()).result.current.map((item) => item.message);
+}
+
+/** The router's current path, so a click on the card can be shown to have moved. */
+function LocationProbe() {
+  const { pathname } = useLocation();
+  return <span data-testid="pathname">{pathname}</span>;
 }
 
 function stubScreens() {
@@ -79,13 +86,41 @@ describe("InstanceCard", () => {
     expect(await screen.findByText(label)).toBeInTheDocument();
   });
 
-  it("links the whole card to the instance page and names the port and phase", () => {
+  it("links the instance name to its page and names the port and phase", () => {
     stubScreens();
     renderWithProviders(<InstanceCard inst={makeInstance({ phase: "queuing" })} />);
-    expect(screen.getByRole("link")).toHaveAttribute("href", "/instances/Pie64");
-    expect(screen.getByText("Pie64")).toBeInTheDocument();
+    const link = screen.getByRole("link", { name: "Open Pie64" });
+    expect(link).toHaveAttribute("href", "/instances/Pie64");
+    expect(link).toHaveTextContent("Pie64");
     expect(screen.getByText("5555")).toBeInTheDocument();
     expect(screen.getByText("queuing")).toBeInTheDocument();
+  });
+
+  it("stretches that one link over the whole card", async () => {
+    stubScreens();
+    renderWithProviders(
+      <>
+        <InstanceCard inst={makeInstance({ state: "farming" })} />
+        <LocationProbe />
+      </>,
+    );
+    const link = screen.getByRole("link", { name: "Open Pie64" });
+    // jsdom loads no stylesheet, so the overlay that carries a click on the card body is
+    // asserted as the utilities that draw it; the click itself proves the link navigates.
+    expect(link.className).toContain("after:absolute");
+    expect(link.className).toContain("after:inset-0");
+    await userEvent.click(link);
+    expect(screen.getByTestId("pathname")).toHaveTextContent("/instances/Pie64");
+  });
+
+  it("rings the card, not the name, while the link has keyboard focus", async () => {
+    stubScreens();
+    renderWithProviders(<InstanceCard inst={makeInstance({ state: "farming" })} />);
+    const link = screen.getByRole("link", { name: "Open Pie64" });
+    await userEvent.tab();
+    expect(link).toHaveFocus();
+    expect(link.className).toContain("focus-visible:outline-none");
+    expect(link.closest("article")?.className).toContain("has-[a:focus-visible]:outline-2");
   });
 
   it("shows the four metrics", () => {
@@ -134,7 +169,9 @@ describe("InstanceCard", () => {
     expect(
       screen.getByText("BlueStacks window not found. Retrying in 4 min."),
     ).toBeInTheDocument();
-    await userEvent.click(screen.getByRole("button", { name: "Retry now" }));
+    const retry = screen.getByRole("button", { name: "Retry now" });
+    expect(retry.closest("a")).toBeNull();
+    await userEvent.click(retry);
     await vi.waitFor(() => {
       expect(calls.map((call) => call.url)).toContain("/api/instances/Pie64/retry");
     });
@@ -207,9 +244,13 @@ describe("InstanceCard", () => {
     expect(toastMessages()).toContain("Restarting Pie64");
   });
 
-  it("has an Open control beside the two that act", () => {
+  it("has an Open control beside the two that act, none of them inside the link", () => {
     stubScreens();
     renderWithProviders(<InstanceCard inst={makeInstance({ state: "farming" })} />);
-    expect(within(screen.getByRole("link")).getByRole("button", { name: /Open/ })).toBeInTheDocument();
+    for (const name of ["Stop", "Restart", "Open"]) {
+      const button = screen.getByRole("button", { name });
+      expect(button).toBeInTheDocument();
+      expect(button.closest("a")).toBeNull();
+    }
   });
 });
