@@ -12,7 +12,7 @@ import pytest
 
 from brawlfarm import settings as S
 from brawlfarm.api.events import EventBus
-from brawlfarm.api.feed import FeedTailer, classify, latest_session, read_feed
+from brawlfarm.api.feed import FeedTailer, classify, count_lines, latest_session, read_feed
 from tests.apihelpers import build_settings, make_client
 
 
@@ -81,10 +81,13 @@ def test_read_feed_reads_the_newest_session_newest_last(tmp_path: Path) -> None:
     assert [r["event"] for r in records] == ["start", "crash", "phase"]
     assert records[-1] == {
         "ts": "2026-09-10T18:00:00",
+        "seq": 5,
         "event": "phase",
         "category": "matches",
         "fields": {"to": "queuing", "frm": "menu", "games": 0},
     }
+    # The dropped tap and the torn line still consume their own line numbers.
+    assert [r["seq"] for r in records] == [1, 4, 5]
     assert [r["event"] for r in read_feed(tmp_path, "errors")] == ["crash"]
     assert [r["event"] for r in read_feed(tmp_path, "matches", limit=1)] == ["phase"]
 
@@ -92,6 +95,18 @@ def test_read_feed_reads_the_newest_session_newest_last(tmp_path: Path) -> None:
 def test_read_feed_is_empty_without_a_session(tmp_path: Path) -> None:
     assert latest_session(tmp_path) is None
     assert read_feed(tmp_path) == []
+
+
+def test_count_lines_ignores_a_half_written_tail(tmp_path: Path) -> None:
+    session = tmp_path / "session-20260911-100000.jsonl"
+    _append(session, "start", max_minutes=90)
+    _append(session, "phase", to="queuing", frm="menu", games=0)
+    assert count_lines(session) == 2
+    with session.open("a", encoding="utf-8") as f:
+        f.write('{"ts": "2026-09-11T18:05:00", "kind": "rec')
+    # The torn line is not a line yet; it becomes line 3 once the worker finishes it.
+    assert count_lines(session) == 2
+    assert count_lines(tmp_path / "nothing.jsonl") == 0
 
 
 def test_feed_route_returns_the_session_name_and_records(api) -> None:
@@ -131,9 +146,10 @@ async def test_tailer_skips_history_then_publishes_new_lines(tmp_path: Path) -> 
     _append(session, "tap", button="play", x=1, y=2)
     _append(session, "recover", reason="stuck", attempt=1)
     assert await tailer.poll_once() == 2  # tap is dropped
-    published = [(e.kind, e.data["record"]["event"]) for e in bus.recent()]
-    assert published == [("feed", "crash"), ("feed", "recover")]
+    published = [(e.kind, e.data["record"]["event"], e.data["record"]["seq"]) for e in bus.recent()]
+    assert published == [("feed", "crash", 3), ("feed", "recover", 5)]
     assert bus.recent()[0].data["instance"] == "alpha"
+    assert bus.recent()[0].data["session"] == "session-20260910-100000.jsonl"
     assert alerts.seen == [("alpha", "crash"), ("alpha", "tap"), ("alpha", "recover")]
 
 
@@ -147,6 +163,9 @@ async def test_tailer_follows_a_session_roll_from_the_top(tmp_path: Path) -> Non
     _append(inst_dir / "session-20260910-120000.jsonl", "start", max_minutes=90)
     assert await tailer.poll_once() == 1
     assert bus.recent()[-1].data["record"]["event"] == "start"
+    # A new file starts its own numbering at 1, not where the old one left off.
+    assert bus.recent()[-1].data["record"]["seq"] == 1
+    assert bus.recent()[-1].data["session"] == "session-20260910-120000.jsonl"
 
 
 @pytest.mark.asyncio
@@ -166,6 +185,7 @@ async def test_tailer_waits_for_a_half_written_line(tmp_path: Path) -> None:
     assert await tailer.poll_once() == 1
     record = bus.recent()[-1].data["record"]
     assert record["event"] == "recap" and record["fields"]["trophies"] == 120
+    assert record["seq"] == 1  # the file was empty when the tailer first looked
 
 
 @pytest.mark.asyncio
@@ -180,3 +200,28 @@ def test_the_app_runs_a_tailer(api) -> None:
     client, _sup, _home = api
     assert isinstance(client.app.state.tailer, FeedTailer)
     assert client.app.state.tailer.interval_s == 2.0
+
+
+@pytest.mark.asyncio
+async def test_get_and_the_stream_agree_on_a_line_number(tmp_path: Path) -> None:
+    """The panel de-duplicates a streamed record against a polled one by (session, seq),
+    so the two paths have to number the same physical line identically -- including the
+    lines neither path shows."""
+    inst_dir = S.instance_dir(tmp_path, "alpha")
+    session = inst_dir / "session-20260911-100000.jsonl"
+    _append(session, "start", max_minutes=90)  # line 1
+    _append(session, "tap", button="play", x=1, y=2)  # line 2, dropped by both paths
+    bus = EventBus()
+    tailer = FeedTailer(tmp_path, StubSup(build_settings(("alpha",))), bus)
+    assert await tailer.poll_once() == 0  # joins the session already in progress at its end
+
+    _append(session, "crash", err="adb gone")  # line 3
+    assert await tailer.poll_once() == 1
+    streamed = bus.recent()[-1].data
+    assert streamed["instance"] == "alpha"
+    assert streamed["session"] == "session-20260911-100000.jsonl"
+    assert streamed["record"]["seq"] == 3
+
+    polled = read_feed(inst_dir)
+    assert [(r["event"], r["seq"]) for r in polled] == [("start", 1), ("crash", 3)]
+    assert polled[-1] == streamed["record"]

@@ -73,9 +73,12 @@ def classify(kind: str) -> str | None:
     return "other"
 
 
-def to_record(line: dict) -> dict | None:
+def to_record(line: dict, seq: int) -> dict | None:
     """One session line as a feed record, or None when the kind is dropped. `kind` is
-    renamed to `event` because the screen's filter is also called kind."""
+    renamed to `event` because the screen's filter is also called kind. `seq` is the
+    line's 1-based position in its session file: `ts` is only second-resolution, so
+    without it the panel cannot tell a record streamed over SSE from the same record it
+    already fetched."""
     kind = str(line.get("kind") or "")
     if not kind:
         return None
@@ -83,7 +86,13 @@ def to_record(line: dict) -> dict | None:
     if category is None:
         return None
     fields = {k: v for k, v in line.items() if k not in ("ts", "kind")}
-    return {"ts": str(line.get("ts") or ""), "event": kind, "category": category, "fields": fields}
+    return {
+        "ts": str(line.get("ts") or ""),
+        "seq": seq,
+        "event": kind,
+        "category": category,
+        "fields": fields,
+    }
 
 
 def latest_session(inst_dir: Path) -> Path | None:
@@ -96,6 +105,22 @@ def latest_session(inst_dir: Path) -> Path | None:
     return files[-1] if files else None
 
 
+def count_lines(path: Path) -> int:
+    """How many complete lines the file already holds. The tailer needs it the first time
+    it meets a session that is already in progress: it seeks to the end, so its numbering
+    has to continue from the file's real length rather than restarting at 1. A half-written
+    tail is not counted -- it becomes the next line once the worker finishes writing it."""
+    total = 0
+    try:
+        with path.open("rb") as f:
+            for raw in f:
+                if raw.endswith(b"\n"):
+                    total += 1
+    except OSError:
+        return 0
+    return total
+
+
 def read_session(path: Path, *, kind: str = "all", limit: int = 100) -> list[dict]:
     """Feed records from one session file, newest last, at most `limit` of them.
     Unparsable lines are skipped: a half-written tail must not empty the screen."""
@@ -105,14 +130,14 @@ def read_session(path: Path, *, kind: str = "all", limit: int = 100) -> list[dic
     records: list[dict] = []
     try:
         with path.open("r", encoding="utf-8", errors="replace") as f:
-            for raw in f:
+            for seq, raw in enumerate(f, start=1):
                 try:
                     line = json.loads(raw)
                 except ValueError:
                     continue
                 if not isinstance(line, dict):
                     continue
-                record = to_record(line)
+                record = to_record(line, seq)
                 if record is None or (kind != "all" and record["category"] != kind):
                     continue
                 records.append(record)
@@ -141,7 +166,7 @@ def _feed_payload(inst_dir: Path, kind: str, limit: int) -> dict:
 
 class FeedTailer:
     """Follows every instance's newest session file and publishes new lines onto the bus as
-    kind "feed" (`{"instance": name, "record": <feed record>}`).
+    kind "feed" (`{"instance": name, "session": <file name>, "record": <feed record>}`).
 
     On its first look at an instance it seeks to the END of the session already in progress
     (ruling 4): a supervisor restart must not replay a whole night onto the panel, and
@@ -156,7 +181,8 @@ class FeedTailer:
         self._sup = sup
         self._bus = bus
         self._alerts = alerts
-        self._positions: dict[str, tuple[Path, int]] = {}
+        # name -> (session file, byte offset, last line number handed out)
+        self._positions: dict[str, tuple[Path, int, int]] = {}
         self._seen: set[str] = set()
 
     async def run(self) -> None:
@@ -173,55 +199,62 @@ class FeedTailer:
         for inst in self._sup.settings.instances:
             name = inst.name
             try:
-                lines = await asyncio.to_thread(self._read_new, name)
+                session, lines = await asyncio.to_thread(self._read_new, name)
             except Exception:  # one unreadable folder must never kill the tailer
                 log.exception("%s: feed tail failed", name)
                 continue
-            for line in lines:
+            for seq, line in lines:
                 if self._alerts is not None:
                     self._alerts.ingest(name, line)
-                record = to_record(line)
+                record = to_record(line, seq)
                 if record is None:
                     continue
-                self._bus.publish("feed", {"instance": name, "record": record})
+                self._bus.publish("feed", {"instance": name, "session": session, "record": record})
                 published += 1
         return published
 
-    def _read_new(self, name: str) -> list[dict]:
-        """Blocking: the session lines written since the last poll. Offsets are counted in
-        bytes on a binary handle because text-mode tell() is not allowed while iterating."""
+    def _read_new(self, name: str) -> tuple[str | None, list[tuple[int, dict]]]:
+        """Blocking: the current session's file name, and the lines written since the last
+        poll with their 1-based line numbers. Offsets are counted in bytes on a binary
+        handle because text-mode tell() is not allowed while iterating."""
         inst_dir = S.instance_dir(self.home, name)
         path = latest_session(inst_dir)
         first_look = name not in self._seen
         self._seen.add(name)
         if path is None:
             self._positions.pop(name, None)
-            return []
-        known, offset = self._positions.get(name, (None, 0))
+            return None, []
+        known, offset, seq = self._positions.get(name, (None, 0, 0))
         if known != path:
+            # A session already in progress is joined at its end (ruling 4), so the
+            # numbering continues from the lines already on disk. A file that rolled
+            # under us is a new session and starts again at 1.
             offset = path.stat().st_size if first_look else 0
-        lines: list[dict] = []
+            seq = count_lines(path) if first_look else 0
+        lines: list[tuple[int, dict]] = []
         try:
             with path.open("rb") as f:
                 f.seek(0, 2)
                 if f.tell() < offset:  # replaced or truncated under us
                     offset = 0
+                    seq = 0
                 f.seek(offset)
                 for raw in f:
                     if not raw.endswith(b"\n"):
                         break  # a half-written line; the next poll picks it up whole
                     offset += len(raw)
+                    seq += 1
                     try:
                         line = json.loads(raw.decode("utf-8"))
                     except (ValueError, UnicodeDecodeError):
                         continue
                     if isinstance(line, dict):
-                        lines.append(line)
+                        lines.append((seq, line))
         except OSError as exc:
             log.debug("%s: cannot read %s: %s", name, path.name, exc)
-            return []
-        self._positions[name] = (path, offset)
-        return lines
+            return path.name, []
+        self._positions[name] = (path, offset, seq)
+        return path.name, lines
 
 
 @router.get("/api/instances/{name}/feed")
