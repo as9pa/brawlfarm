@@ -327,6 +327,68 @@ describe("FarmPlan pending writes", () => {
     ]);
   });
 
+  it("drops a name typed while the save before it was in flight and failed", async () => {
+    // The failure takes the box away. A debounce left running behind it would write the
+    // newer name a moment later, and the panel would be holding a setting it has stopped
+    // showing -- the same rule as switching the fallback off.
+    const body = makePlan();
+    const first = deferred();
+    let sent = 0;
+    const { calls } = stubFetch((url, init) => {
+      if (url !== PLAN) throw new Error(`unstubbed request: ${url}`);
+      if (init?.method !== "PUT") return jsonResponse(body);
+      sent += 1;
+      return sent === 1
+        ? first.promise
+        : jsonResponse({ ...body, ...JSON.parse(String(init.body)) });
+    });
+    renderWithProviders(<FarmPlan name="Pie64" />);
+    await tick(0);
+
+    fireEvent.click(screen.getByRole("switch", { name: "Maxed fallback" }));
+    keystroke(screen.getByLabelText("Fallback brawler"), "TARA");
+    await tick(500); // the debounce fired; the PUT is held open
+    expect(puts(calls)).toHaveLength(1);
+
+    keystroke(screen.getByLabelText("Fallback brawler"), "TARAB"); // a second debounce
+    first.resolve(jsonResponse({ detail: "adb did not answer" }, 503));
+    await tick(600);
+
+    expect(puts(calls)).toEqual([
+      { mode: "ladder", prestige_start: "highest", goal_trophies: 1000, maxed_fallback: "TARA" },
+    ]);
+    expect(screen.queryByLabelText("Fallback brawler")).not.toBeInTheDocument();
+  });
+
+  it("drops a goal typed while the save before it was in flight and failed", async () => {
+    const body = makePlan();
+    const first = deferred();
+    let sent = 0;
+    const { calls } = stubFetch((url, init) => {
+      if (url !== PLAN) throw new Error(`unstubbed request: ${url}`);
+      if (init?.method !== "PUT") return jsonResponse(body);
+      sent += 1;
+      return sent === 1
+        ? first.promise
+        : jsonResponse({ ...body, ...JSON.parse(String(init.body)) });
+    });
+    renderWithProviders(<FarmPlan name="Pie64" />);
+    await tick(0);
+
+    keystroke(screen.getByLabelText("Goal"), "850");
+    await tick(500);
+    expect(puts(calls)).toHaveLength(1);
+
+    keystroke(screen.getByLabelText("Goal"), "860");
+    first.resolve(jsonResponse({ detail: "adb did not answer" }, 503));
+    await tick(600);
+
+    expect(puts(calls)).toEqual([
+      { mode: "ladder", prestige_start: "highest", goal_trophies: 850, maxed_fallback: null },
+    ]);
+    expect(screen.getByLabelText("Goal")).toHaveValue(1000); // the plan's own value is back
+  });
+
   it("puts back only the field whose save failed", async () => {
     mount(makePlan({ maxed_fallback: "NORI" }), 503);
     renderWithProviders(<FarmPlan name="Pie64" />);
