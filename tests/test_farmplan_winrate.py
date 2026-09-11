@@ -5,9 +5,9 @@ step goal, minus the session's rotation exclude set) are ordered by their score,
 tie-break lowest trophies; the top one is promoted only if its score beats the
 roster-minimum brawler's by >= config.WINRATE_MARGIN.
 
-r8: the SCORE is now the empirical-Bayes-shrunk recency rate (model v2 —
-docs/research/winrate-model.md): an EWMA over the brawler's history shrunk toward
-the account mean by config.WINRATE_PRIOR_K games. This replaces v1's trailing-mean
+r8: the SCORE is now the empirical-Bayes-shrunk recency rate (model v2 — the legacy
+research note "winrate model", not ported): an EWMA over the brawler's history shrunk
+toward the account mean by config.WINRATE_PRIOR_K games. This replaces v1's trailing-mean
 + hard min-sample/neutral-prior cliff. The SURFACE invariants below are unchanged
 (missing/garbled csv = today, kill switch off = today, prestige untouched, exclude
 wins); the cases whose VALUES depend on the scoring math were updated for v2 and
@@ -100,8 +100,8 @@ def test_v2_near_tie_shrinks_inside_the_margin(tmp_path, monkeypatch):
     # v2: 10 games of +2 vs +1 is a NEAR TIE — both are shrunk toward the +1.5
     # account mean, so the gap (~0.47) stays inside the 1.0 margin and nothing
     # promotes. (Under v1 the raw +1.0 difference exactly met the margin; v2's
-    # shrinkage deliberately damps small-sample differences — see
-    # docs/research/winrate-model.md.)
+    # shrinkage deliberately damps small-sample differences — see the legacy
+    # research note "winrate model", not ported.)
     rows = [("MINNIE", 1, "True")] * 10 + [("HOT", 2, "True")] * 10
     d = _write_games(tmp_path, rows)
     plan = {"mode": "ladder", "goal_trophies": 1000}

@@ -6,7 +6,7 @@ captures — a handful of small-ROI ``color_fraction`` calls per frame (~1-2 ms,
 negligible against the ~370 ms capture). No templates, no OCR, no taps: this
 module only LOOKS; the controller decides and acts.
 
-Phase A (gas-aware heading), per docs/research/in-match-vision.md:
+Phase A (gas-aware heading), per the legacy research note "in-match vision" (not ported):
   * ``gas_fractions(frame)``   — gas-colored fraction in each of the 4 HUD-clipped
     screen-edge bands (config.GAS_BANDS, validated HSV window).
   * ``GasTracker``             — per-edge hysteresis (ON >= 0.04, OFF < 0.02) so a
@@ -14,7 +14,7 @@ Phase A (gas-aware heading), per docs/research/in-match-vision.md:
   * ``gas_bias_heading(...)``  — pure math: push the wander heading away from
     gassed edges, weighted by how deep the gas has penetrated each band.
 
-Phase D (ability buttons), spec in docs/future-plans/in-match-intelligence.md:
+Phase D (ability buttons), spec in the legacy planning note "in-match intelligence" (not ported):
   * ``ready_abilities(frame)`` — which of gadget/super/hypercharge are lit with
     their ready color (green/yellow/purple) right now. The controller taps them
     on a per-button cooldown.

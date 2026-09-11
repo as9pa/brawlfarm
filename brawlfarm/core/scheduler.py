@@ -1,16 +1,16 @@
 """Anti-ban scheduler — computes per-account desired run/stop state (P2).
 
 WHY: 24/7 uptime + day-after-day self-similarity are the two macro ban tells
-(docs/research/ban-mechanics.md). This module draws a randomized, human-shaped
-play-day per account and continuously evaluates "should this farm be running
-RIGHT NOW?" into ``data/<acct>/schedule.json``. It never launches or kills
+(legacy research note "ban mechanics", not ported). This module draws a randomized,
+human-shaped play-day per account and continuously evaluates "should this farm be
+running RIGHT NOW?" into ``data/<acct>/schedule.json``. It never launches or kills
 anything itself: the supervisor stays the only automatic launcher/killer and the
 control panel the only manual one — they just *gate* on the ``desired``
 block written here.
 
-DAY MODEL (round 6 redesign, docs/more instructions.md — "remove the sleep thing.
-we should just have random hourly breaks in between"): a plan covers its FULL
-local day (00:00 -> 24:00) by ALTERNATING play-session -> break -> play-session ->
+DAY MODEL (round 6 redesign, legacy owner-instructions note, not ported — "remove the
+sleep thing. we should just have random hourly breaks in between"): a plan covers its
+FULL local day (00:00 -> 24:00) by ALTERNATING play-session -> break -> play-session ->
 … until the next-midnight boundary. There is NO overnight sleep block, NO rest
 days, and NO daily total-hours cap — the day is filled by alternation, not capped.
 Sessions keep the existing per-session lognormal length distribution; breaks are
@@ -46,15 +46,15 @@ many more. So instead each account gets a deterministic per-account PHASE OFFSET
 (drawn from its seed) applied to the first session start — different phases mean
 the whole session/break rhythm is shifted relative to the other accounts, so they
 never line up at 00:00. Simpler than re-nudging dozens of transitions and good
-enough for 3 instances (documented choice, docs/bot/scheduler.md).
+enough for 3 instances (documented choice, legacy scheduler design note, not ported).
 
 FAIL-OPEN CONTRACT: any tick exception writes desired=run reason=scheduler_error
 for ALL accounts and exits nonzero — a scheduler bug must NEVER strand farms
-stopped. DEFAULT-ON, then LAST-SET (round 6, docs/more instructions.md — "just
-make it be set to the last thing that was set"): a missing control file, a
-missing account entry, or an entry without the ``enabled`` key all mean the
-scheduler IS enabled (a never-set account stays ON). The flag is then last-set:
-only ``/schedule on|off`` writes it — ``/start`` no longer flips it. An explicit
+stopped. DEFAULT-ON, then LAST-SET (round 6, legacy owner-instructions note, not
+ported — "just make it be set to the last thing that was set"): a missing control
+file, a missing account entry, or an entry without the ``enabled`` key all mean the
+scheduler IS enabled (a never-set account stays ON). The flag is then last-set: only
+``/schedule on|off`` writes it — ``/start`` no longer flips it. An explicit
 enabled=false (``/schedule off``) opts an account into legacy always-run
 (desired=run reason=disabled, no caps).
 
@@ -62,7 +62,7 @@ IMPORT BUDGET: this runs every 60 s — stdlib + config only (config imports
 dotenv, ~40 ms). It must NOT import cv2/RapidOCR/core.adb/core.vision, directly or
 transitively. ``python -c "import brawlfarm.core.scheduler"`` must stay < 0.5 s.
 
-FILE FORMATS — see docs/bot/scheduler.md (the ops runbook).
+FILE FORMATS — see the legacy scheduler design note (the ops runbook, not ported).
 
 CLI:
   python -m brawlfarm.core.scheduler tick [--now ISO]        # the watchdog's call
@@ -91,13 +91,14 @@ from brawlfarm.core.jsonio import atomic_write_json
 # they are run by hand from a console.
 log = logging.getLogger("brawlfarm.scheduler")
 
-# --- Randomization model (docs/research/ban-mechanics.md §5; all per-day draws) ---
+# --- Randomization model (all per-day draws) ---------------------------------------
+# The model comes from §5 of the legacy research note "ban mechanics" (not ported).
 
-# Round 6 redesign (docs/more instructions.md): NO sleep block, NO rest days, NO
-# daily total-hours cap. A plan covers the full local day (00:00 -> 24:00) by
-# alternating session -> break -> session -> … until the boundary. Daily volume is
-# bounded by the alternation itself (a session + a >=45 min break each cycle), not
-# by a games budget or an hours cap.
+# Round 6 redesign (legacy owner-instructions note, not ported): NO sleep block, NO
+# rest days, NO daily total-hours cap. A plan covers the full local day (00:00 ->
+# 24:00) by alternating session -> break -> session -> … until the boundary. Daily
+# volume is bounded by the alternation itself (a session + a >=45 min break each
+# cycle), not by a games budget or an hours cap.
 
 # Per-session length: lognormal, the SAME distribution the old model used for an
 # individual session. mu set below ln(65) so the [30,120] clip + the occasional

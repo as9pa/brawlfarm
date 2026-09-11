@@ -129,8 +129,8 @@ def screencap(serial: str | None = None) -> np.ndarray:
 
     Fast path (config.RAW_CAP, default on): `exec-out screencap` streams the RAW
     framebuffer — larger transfer, but skips the on-device PNG encode AND the host
-    cv2.imdecode (~200 ms faster per capture, measured; see
-    docs/research/performance-optimization.md #4). Verified byte-identical pixels to
+    cv2.imdecode (~200 ms faster per capture, measured; see the legacy research note
+    "performance optimization", item 4, not ported). Verified byte-identical pixels to
     the PNG path (PNG is lossless). Falls back silently to the PNG path on any
     failure, mirroring the FAST_INPUT pattern.
 
@@ -260,9 +260,9 @@ def input_text(text: str) -> None:
 
     SECURITY: `adb shell` re-evaluates its arguments through the DEVICE-side shell,
     so metacharacters (;, $(), backticks, quotes) in user-supplied text would
-    execute there — the injection vector in docs/future-plans/multi-user-security.md.
-    Whitelist-gate instead of escaping; callers still validate semantics (email
-    shape, 6-digit code) on top of this."""
+    execute there — the injection vector in the legacy planning note "multi-user
+    security" (not ported). Whitelist-gate instead of escaping; callers still
+    validate semantics (email shape, 6-digit code) on top of this."""
     s = str(text)
     if not re.fullmatch(r"[A-Za-z0-9@._%+\- ]+", s):
         raise ValueError(f"input_text refused {s!r}: characters outside the safe set")

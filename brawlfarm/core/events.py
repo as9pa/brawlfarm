@@ -1,10 +1,11 @@
 """Event-rotation snapshotter — Phase 0 of event-modifier awareness.
 
-WHY (docs/future-plans/event-modifier-awareness.md): some event rotations carry
-trophy-affecting modifiers, but we do NOT yet know which ones actually appear on
-trioShowdown rotations. Phase 0 is measure-first: fetch the official rotation,
-cache it, and append every snapshot to a history log. After ~2 weeks of history
-the research doc records what shows up; only then does anything change behavior.
+WHY (legacy planning note "event modifier awareness", not ported): some event
+rotations carry trophy-affecting modifiers, but we do NOT yet know which ones
+actually appear on trioShowdown rotations. Phase 0 is measure-first: fetch the
+official rotation, cache it, and append every snapshot to a history log. After
+~2 weeks of history the research doc records what shows up; only then does
+anything change behavior.
 This module NEVER touches the scheduler — it is pure fetch + file plumbing.
 
 Files (both under data/, anchored on the PROJECT ROOT — deliberately NOT
