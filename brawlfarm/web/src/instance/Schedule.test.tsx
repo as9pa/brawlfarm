@@ -106,6 +106,44 @@ describe("Schedule", () => {
     });
   });
 
+  it("sends one write for two quick clicks on the switch", async () => {
+    const calls = mount();
+    renderWithProviders(<Schedule name="Pie64" />);
+    const toggle = await screen.findByRole("switch", { name: "Schedule on" });
+    expect(toggle).toHaveAttribute("aria-checked", "true");
+
+    // fireEvent rather than userEvent: the second click has to land while the first
+    // write is still in flight, which is the whole case.
+    fireEvent.click(toggle);
+    expect(toggle).toHaveAttribute("aria-checked", "false"); // it moved under the finger
+    expect(toggle).toBeDisabled();
+
+    fireEvent.click(toggle);
+    await waitFor(() => {
+      expect(countOf(calls, "PUT", SCHEDULE)).toBe(1);
+    });
+    expect(lastBody(calls, "PUT", SCHEDULE)).toEqual({ enabled: false });
+    expect(toastMessages()).toEqual(["Schedule off"]);
+  });
+
+  it("puts the switch back when the write is refused", async () => {
+    stubFetch((url, init) => {
+      if (url !== SCHEDULE) throw new Error(`unstubbed request: ${url}`);
+      if (init?.method !== "PUT") return jsonResponse(makeSchedule());
+      return jsonResponse({ detail: "adb did not answer" }, 503);
+    });
+    renderWithProviders(<Schedule name="Pie64" />);
+    const toggle = await screen.findByRole("switch", { name: "Schedule on" });
+    fireEvent.click(toggle);
+    expect(toggle).toHaveAttribute("aria-checked", "false"); // it moved straight away
+
+    await waitFor(() => {
+      expect(toastMessages()).toEqual(["adb did not answer"]);
+    });
+    expect(toggle).toHaveAttribute("aria-checked", "true"); // and went back
+    expect(toggle).toBeEnabled();
+  });
+
   it("shows an override and clears it", async () => {
     const calls = mount(
       makeSchedule({
