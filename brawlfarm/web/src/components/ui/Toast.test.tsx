@@ -104,6 +104,39 @@ describe("Toaster", () => {
     expect(logged).toHaveBeenCalledTimes(1);
   });
 
+  it("reports an undo that threw exactly as it reports one that rejected", async () => {
+    // An undo is usually async, but not always: a handler that reads the cache and
+    // throws on the way to its request fails before a promise ever exists, and that has
+    // to reach the reader rather than the browser's console.
+    vi.useRealTimers();
+    const logged = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const undo = vi.fn(() => {
+      throw new ApiError(503, "adb did not answer");
+    });
+    render(<Toaster />);
+    act(() => {
+      toast("Stopping Pie64 after this match", { undo });
+    });
+    await userEvent.click(screen.getByRole("button", { name: "Undo" }));
+    expect(await screen.findByText("adb did not answer")).toBeInTheDocument();
+    expect(logged).toHaveBeenCalledTimes(1);
+  });
+
+  it("falls back to its own wording when an undo throws something else", async () => {
+    vi.useRealTimers();
+    const logged = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const undo = vi.fn(() => {
+      throw new Error("boom");
+    });
+    render(<Toaster />);
+    act(() => {
+      toast("Stopping Pie64 after this match", { undo });
+    });
+    await userEvent.click(screen.getByRole("button", { name: "Undo" }));
+    expect(await screen.findByText("Undo failed")).toBeInTheDocument();
+    expect(logged).toHaveBeenCalledTimes(1);
+  });
+
   it("drains the hairline across the toast's life", () => {
     stubReducedMotion(false);
     const { container } = render(<Toaster />);
