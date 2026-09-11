@@ -1,0 +1,46 @@
+/** The panel's only button. A disabled control still says why: disabledReason becomes
+ * the title, so "Stop" on a stopped instance explains itself instead of just greying. */
+import type { MouseEvent, ReactNode } from "react";
+
+export interface ButtonProps {
+  variant?: "primary" | "quiet" | "text";
+  size?: "sm" | "md";
+  disabled?: boolean;
+  disabledReason?: string;
+  onClick?: (event: MouseEvent<HTMLButtonElement>) => void;
+  children: ReactNode;
+  type?: "button" | "submit";
+}
+
+const VARIANTS: Record<NonNullable<ButtonProps["variant"]>, string> = {
+  primary: "bg-accent text-accent-ink hover:brightness-110",
+  quiet: "border border-line bg-panel-2 text-text hover:border-accent",
+  text: "text-accent hover:underline",
+};
+
+const SIZES: Record<NonNullable<ButtonProps["size"]>, string> = {
+  sm: "h-7 px-2 text-[12px]",
+  md: "h-8 px-3 text-[13px]",
+};
+
+export function Button({
+  variant = "quiet",
+  size = "md",
+  disabled = false,
+  disabledReason,
+  onClick,
+  children,
+  type = "button",
+}: ButtonProps) {
+  return (
+    <button
+      type={type}
+      disabled={disabled}
+      title={disabled ? disabledReason : undefined}
+      onClick={onClick}
+      className={`inline-flex items-center gap-1.5 rounded-[6px] font-medium transition-[background-color,border-color,color] duration-[120ms] disabled:cursor-not-allowed disabled:opacity-50 ${SIZES[size]} ${VARIANTS[variant]}`}
+    >
+      {children}
+    </button>
+  );
+}
