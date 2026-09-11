@@ -86,7 +86,9 @@ export function Schedule({ name }: { name: string }) {
   const payload = query.data;
   const bar = timeline(payload, payload.now);
   const parsed = Number(hours);
-  const runnable = Number.isFinite(parsed) && parsed > 0;
+  // The same half hour the field asks for. Without it the button disagreed with its own
+  // box: a typed 0.3 stayed in the input as invalid and still started a run.
+  const runnable = Number.isFinite(parsed) && parsed >= 0.5;
 
   return (
     <section className="flex flex-col gap-3 rounded-[10px] border border-line bg-panel p-3">
