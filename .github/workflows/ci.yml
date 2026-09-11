@@ -13,8 +13,24 @@ jobs:
       - uses: astral-sh/setup-uv@v5
         with:
           python-version: "3.13"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: corepack enable
+      - run: pnpm install --frozen-lockfile
+        working-directory: brawlfarm/web
+      - run: pnpm typecheck
+        working-directory: brawlfarm/web
+      - run: pnpm test
+        working-directory: brawlfarm/web
+      - run: pnpm build
+        working-directory: brawlfarm/web
       - run: uv sync --group dev
       - run: uv run ruff check .
       - run: uv run ruff format --check .
       - run: uv run python tools/scrub_check.py
       - run: uv run pytest -q
+      - run: uv build --wheel
+      - name: the wheel carries the built panel
+        run: |
+          uv run python -c "import glob, zipfile; names = zipfile.ZipFile(sorted(glob.glob('dist/*.whl'))[-1]).namelist(); assert 'brawlfarm/web/dist/index.html' in names, 'dist/index.html missing from the wheel'; assert not any(n.startswith('brawlfarm/web/src/') for n in names), 'the wheel carries web sources'; print('wheel ok')"

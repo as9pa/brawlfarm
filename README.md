@@ -34,6 +34,25 @@ uv run ruff check . && uv run ruff format --check .
 uv run python tools/scrub_check.py
 ```
 
+### Developing the panel
+
+The panel lives in `brawlfarm/web`. pnpm runs it, pinned by `packageManager` in
+`brawlfarm/web/package.json` and installed through corepack.
+
+```
+corepack enable                  # once per machine
+cd brawlfarm/web
+pnpm install
+pnpm dev                         # http://127.0.0.1:5173, proxying /api to port 8765
+```
+
+Run `uv run brawlfarm --no-browser` in a second terminal so the dev server has an API to
+proxy to; the proxy carries the live event stream as well as the plain requests.
+
+`pnpm typecheck`, `pnpm test` and `pnpm build` are the three checks CI runs. `pnpm build`
+writes `brawlfarm/web/dist`; restart `uv run brawlfarm` afterwards and it serves the built
+panel from `http://127.0.0.1:8765/` instead of the placeholder page.
+
 ## Running
 
 ```
