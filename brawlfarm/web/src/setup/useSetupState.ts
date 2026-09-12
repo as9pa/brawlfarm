@@ -37,7 +37,8 @@ export interface SetupState {
   step: StepId;
   /** Its position in SETUP_STEPS, which is what the rail compares against. */
   index: number;
-  /** False until GET /api/settings has answered; the frame shows nothing before that. */
+  /** False until GET /api/settings has answered and the landing step is decided; the frame
+   * shows nothing before that, so no step ever mounts and scans on a landing it is not on. */
   ready: boolean;
   done: Record<StepId, boolean>;
   go: (id: StepId) => void;
@@ -144,7 +145,7 @@ export function useSetupState(settingsPatch: SettingsPatch): SetupState {
   return {
     step: current,
     index,
-    ready: settings !== undefined,
+    ready: settings !== undefined && step !== null,
     done,
     go: setStep,
     next,

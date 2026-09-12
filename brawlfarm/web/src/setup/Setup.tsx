@@ -17,6 +17,8 @@
 import type { ReactElement } from "react";
 
 import { StepBlueStacks } from "./StepBlueStacks";
+import { StepDisplay } from "./StepDisplay";
+import { StepInstances } from "./StepInstances";
 import { StepRail } from "./StepRail";
 import { type StepId, type StepProps, useSetupState } from "./useSetupState";
 import { useSettingsPatch } from "../settings/useSettingsPatch";
@@ -25,6 +27,8 @@ type StepView = (props: StepProps) => ReactElement;
 
 const STEP_VIEWS: Partial<Record<StepId, StepView>> = {
   bluestacks: StepBlueStacks,
+  instances: StepInstances,
+  display: StepDisplay,
 };
 
 export function Setup() {
