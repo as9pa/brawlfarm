@@ -4,6 +4,8 @@ named in the 422, and an instance whose worker is alive cannot be removed."""
 from __future__ import annotations
 
 import json
+import os
+import sys
 from datetime import datetime, timedelta
 from pathlib import Path
 
@@ -101,3 +103,81 @@ def test_put_allows_removing_an_offline_instance_and_keeps_its_data(tmp_path: Pa
         assert S.instance_dir(home, "alpha").exists()  # spec: removing keeps the data folder
     finally:
         client.__exit__(None, None, None)
+
+
+def test_reset_restores_every_default_and_keeps_the_instances(api) -> None:
+    client, sup, home = api
+    doc = client.get("/api/settings").json()
+    doc["app"]["theme"] = "dark"
+    doc["behavior"]["gas_aware"] = False
+    doc["notifications"]["ntfy_topic"] = "brawlfarm-test"
+    doc["instances"][0]["player_tag"] = "#2P0YLQ9"
+    assert client.put("/api/settings", json=doc).status_code == 200
+
+    r = client.post("/api/settings/reset")
+    assert r.status_code == 200
+    body = r.json()
+    assert body["app"]["theme"] == "system"
+    assert body["behavior"]["gas_aware"] is True
+    assert body["notifications"]["ntfy_topic"] == ""
+    # The one thing a reset must not touch is the fleet, tags and ports included.
+    assert [i["name"] for i in body["instances"]] == ["alpha", "bravo"]
+    assert body["instances"][0]["player_tag"] == "#2P0YLQ9"
+    assert body["instances"][1]["adb_port"] == 5565
+    assert sup.settings.app.theme == "system"
+    assert sup.settings.notifications.ntfy_topic == ""
+    # It was written, not only applied: a restart has to come back reset.
+    text = S.config_path(home).read_text(encoding="utf-8")
+    assert "brawlfarm-test" not in text
+    assert "bravo" in text
+
+
+def test_reset_works_while_an_instance_is_farming(tmp_path: Path) -> None:
+    world = FakeWorld()
+    world.alive.add(4242)
+    _heartbeat(tmp_path, "bravo", 4242, world.now)
+    client, sup, _home = make_client(tmp_path, ("alpha", "bravo"), world=world)
+    try:
+        assert next(v for v in sup.views() if v.name == "bravo").state == InstanceState.FARMING
+        sup.settings.app.theme = "dark"
+        r = client.post("/api/settings/reset")
+        # Nothing is removed by a reset, so the 409 that guards PUT cannot happen here.
+        assert r.status_code == 200
+        assert r.json()["app"]["theme"] == "system"
+        assert [i.name for i in sup.settings.instances] == ["alpha", "bravo"]
+    finally:
+        client.__exit__(None, None, None)
+
+
+def test_open_data_folder_asks_windows_to_open_the_home_directory(api, monkeypatch) -> None:
+    client, _sup, home = api
+    opened: list[str] = []
+    monkeypatch.setattr(sys, "platform", "win32")
+    monkeypatch.setattr(os, "startfile", lambda path: opened.append(path), raising=False)
+    r = client.post("/api/settings/open-data-folder")
+    assert r.status_code == 204
+    assert r.content == b""
+    assert opened == [str(home)]
+
+
+def test_open_data_folder_off_windows_says_so(api, monkeypatch) -> None:
+    client, _sup, _home = api
+    monkeypatch.setattr(sys, "platform", "linux")
+    r = client.post("/api/settings/open-data-folder")
+    assert r.status_code == 501
+    assert r.json() == {"detail": "Only on Windows"}
+
+
+def test_open_data_folder_reports_a_refusal_without_naming_the_path(api, monkeypatch) -> None:
+    client, _sup, home = api
+
+    def denied(path):
+        raise OSError("access is denied")
+
+    monkeypatch.setattr(sys, "platform", "win32")
+    monkeypatch.setattr(os, "startfile", denied, raising=False)
+    r = client.post("/api/settings/open-data-folder")
+    assert r.status_code == 500
+    assert r.json() == {"detail": "could not open the data folder"}
+    # The home directory is a Windows user path; it never goes into an error message.
+    assert str(home) not in r.text

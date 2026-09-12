@@ -2,15 +2,13 @@
  * A right-side modal panel.
  *
  * Focus moves into the panel on open, Tab cycles inside it, Escape closes it, and focus
- * returns to whatever opened it. Written by hand rather than pulled from a library: this
- * is the only modal in the panel and it owes nothing to a dependency.
+ * returns to whatever opened it: useFocusTrap owns all four, and Dialog shares the same
+ * hook, so the two modals cannot drift apart.
  */
-import { type ReactNode, useEffect, useRef } from "react";
+import { type ReactNode, useRef } from "react";
 
 import { Button } from "./Button";
-
-const FOCUSABLE =
-  'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+import { useFocusTrap } from "./useFocusTrap";
 
 export interface DrawerProps {
   open: boolean;
@@ -22,48 +20,7 @@ export interface DrawerProps {
 
 export function Drawer({ open, onClose, title, children, actions }: DrawerProps) {
   const panelRef = useRef<HTMLDivElement>(null);
-  // Held in a ref so the effect below depends on `open` alone. A caller that builds onClose
-  // inline hands over a new function on every render, and re-running the effect would fire
-  // its cleanup, which returns focus to the opener and so takes it out of the open panel.
-  const onCloseRef = useRef(onClose);
-
-  useEffect(() => {
-    onCloseRef.current = onClose;
-  }, [onClose]);
-
-  useEffect(() => {
-    if (!open) return;
-    const panel = panelRef.current;
-    if (panel === null) return;
-    const opener = document.activeElement instanceof HTMLElement ? document.activeElement : null;
-    panel.focus();
-
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
-        event.preventDefault();
-        onCloseRef.current();
-        return;
-      }
-      if (event.key !== "Tab") return;
-      const focusable = [...panel.querySelectorAll<HTMLElement>(FOCUSABLE)];
-      if (focusable.length === 0) return;
-      const first = focusable[0];
-      const last = focusable[focusable.length - 1];
-      if (event.shiftKey && document.activeElement === first) {
-        event.preventDefault();
-        last.focus();
-      } else if (!event.shiftKey && document.activeElement === last) {
-        event.preventDefault();
-        first.focus();
-      }
-    };
-
-    document.addEventListener("keydown", onKeyDown);
-    return () => {
-      document.removeEventListener("keydown", onKeyDown);
-      opener?.focus();
-    };
-  }, [open]);
+  useFocusTrap(open, panelRef, onClose);
 
   if (!open) return null;
 

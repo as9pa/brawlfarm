@@ -35,4 +35,45 @@ describe("Field", () => {
     expect(input).toHaveAttribute("list", "roster");
     expect(input).toBeDisabled();
   });
+
+  it("masks the token, keeps browsers out of it, and toggles with Show and Hide", async () => {
+    render(
+      <Field
+        label="Brawl Stars API token"
+        id="token"
+        value="a-token-that-is-not-real"
+        onChange={vi.fn()}
+        type="password"
+        width="full"
+      />,
+    );
+    const input = screen.getByLabelText("Brawl Stars API token");
+    expect(input).toHaveAttribute("type", "password");
+    expect(input).toHaveAttribute("autocomplete", "off");
+    // The screenshot pass blurs every [data-private] before the shot is taken.
+    expect(input).toHaveAttribute("data-private");
+
+    await userEvent.click(screen.getByRole("button", { name: "Show" }));
+    expect(input).toHaveAttribute("type", "text");
+    expect(screen.queryByRole("button", { name: "Show" })).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Hide" }));
+    expect(input).toHaveAttribute("type", "password");
+  });
+
+  it("leaves an ordinary field alone: no mask, no reveal button, the control width", () => {
+    render(<Field label="Goal" id="goal" value="1000" onChange={vi.fn()} type="number" />);
+    const input = screen.getByLabelText("Goal");
+    expect(input).toHaveAttribute("type", "number");
+    expect(input).not.toHaveAttribute("data-private");
+    expect(input).not.toHaveAttribute("autocomplete");
+    expect(input.className).toContain("w-24");
+    expect(screen.queryByRole("button")).not.toBeInTheDocument();
+  });
+
+  it("grows to the row when asked", () => {
+    render(<Field label="ADB path" id="adb" value="C:/adb.exe" onChange={vi.fn()} width="full" />);
+    const input = screen.getByLabelText("ADB path");
+    expect(input.className).toContain("w-full");
+    expect(input.className).not.toContain("w-24");
+  });
 });

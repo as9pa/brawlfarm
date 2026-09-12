@@ -12,15 +12,17 @@ of leaving the user waiting up to a tick.
 
 from __future__ import annotations
 
+import asyncio
 import csv
+import shutil
 from datetime import datetime, timezone
 from pathlib import Path
 
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, HTTPException, Request, Response
 from pydantic import BaseModel, ConfigDict, Field
 
 from brawlfarm import settings as S
-from brawlfarm.api.deps import get_home, get_sup, resolve_instance
+from brawlfarm.api.deps import LIVE_STATES, get_home, get_sup, resolve_instance
 from brawlfarm.core import status
 from brawlfarm.supervisor.state import InstanceView
 
@@ -197,3 +199,40 @@ async def retry_instance(request: Request, name: str) -> dict:
     sup.retry_now(inst.name)
     sup.poke()
     return {"ok": True}
+
+
+@router.delete("/api/instances/{name}/data", status_code=204)
+async def delete_instance_data(request: Request, name: str) -> Response:
+    """Delete this instance's data folder: status.json, farmplan.json, the schedule,
+    games.csv and every past session.
+
+    The instance itself stays in config.toml. That is the mirror image of PUT /api/settings
+    dropping a row and leaving the folder behind, and between them the user can remove
+    either half without the other.
+
+    Three guards, in order. resolve_instance answers 404 both for a name that is not
+    configured and for one that could never be a folder. A live worker is a 409, because
+    deleting the files it is writing would leave it logging into nothing. And the resolved
+    target has to still sit under <home>/instances: the folder name comes out of
+    config.toml, so a path that has left the data directory is a refusal, not a delete.
+    A folder that is already gone is a 204, so a second click is not an error.
+    """
+    inst, _dir = resolve_instance(request, name)
+    home = get_home(request)
+    view = next((v for v in get_sup(request).views() if v.name == inst.name), None)
+    if view is not None and view.state in LIVE_STATES:
+        raise HTTPException(status_code=409, detail=f"Stop {inst.name} before deleting its data")
+    target = S.instance_dir(home, inst.name).resolve()
+    root = (Path(home) / "instances").resolve()
+    if not target.is_relative_to(root):
+        raise HTTPException(status_code=400, detail="refusing to delete outside the data folder")
+    if not target.exists():
+        return Response(status_code=204)
+    try:
+        await asyncio.to_thread(shutil.rmtree, target)
+    except OSError as exc:
+        raise HTTPException(
+            status_code=409,
+            detail=f"could not delete {inst.name}'s data; a file is still in use",
+        ) from exc
+    return Response(status_code=204)

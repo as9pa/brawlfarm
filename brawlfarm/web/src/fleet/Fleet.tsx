@@ -11,6 +11,7 @@
  * fleet-wide route, and inventing one in the client would hide a partial failure.
  */
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { Link } from "react-router";
 
 import { AlertStrip } from "./AlertStrip";
 import { InstanceCard } from "./InstanceCard";
@@ -96,9 +97,18 @@ export function Fleet() {
       <section className="max-w-[560px]">
         <h1 className="text-[28px] font-semibold tracking-tight">No instances yet.</h1>
         <p className="mt-2 text-[13px] text-muted">
-          Setup arrives in the next phase; until then add an [[instances]] table to
-          config.toml and restart brawlfarm.
+          Open setup to find your BlueStacks instances.
         </p>
+        <div className="mt-4">
+          {/* A link, not a Button with a navigate: it goes somewhere, so it should open in
+              a new tab on a middle click like every other link does. */}
+          <Link
+            to="/setup"
+            className="inline-flex h-8 items-center gap-1.5 rounded-[6px] bg-accent px-3 text-[13px] font-medium text-accent-ink transition-[background-color,border-color,color] duration-[120ms] hover:brightness-110"
+          >
+            Open setup
+          </Link>
+        </div>
       </section>
     );
   }

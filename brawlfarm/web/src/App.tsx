@@ -11,7 +11,7 @@
  */
 import { QueryClientProvider, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
-import { BrowserRouter, Route, Routes } from "react-router";
+import { BrowserRouter, Navigate, Route, Routes } from "react-router";
 
 import { Placeholder } from "./app/Placeholder";
 import { Shell } from "./app/Shell";
@@ -21,6 +21,8 @@ import { Toaster } from "./components/ui/Toast";
 import { Fleet } from "./fleet/Fleet";
 import { Instance } from "./instance/Instance";
 import { onReconnect, subscribe } from "./live/useEvents";
+import { Settings } from "./settings/Settings";
+import { Setup } from "./setup/Setup";
 
 /** A burst of state changes (a tick touching five instances) is one refetch, not five. */
 const INSTANCE_DEBOUNCE_MS = 250;
@@ -74,27 +76,33 @@ function useLiveHandlers(): void {
   }, [client]);
 }
 
-function Panel() {
-  useThemeBootstrap();
-  useLiveHandlers();
-
+/** Everything that lives inside the shell. Task 8 puts the wizard's route beside it, which
+ * is the only reason it is a component of its own rather than the body of Panel. */
+function ShellRoutes() {
   return (
     <Shell>
       <Routes>
         <Route path="/" element={<Fleet />} />
         <Route path="/instances/:name" element={<Instance />} />
         <Route path="/stats" element={<Placeholder title="Stats" body="Stats arrive in phase 6." />} />
-        <Route
-          path="/settings"
-          element={
-            <Placeholder
-              title="Settings"
-              body="Settings arrive in phase 5. Until then edit config.toml and restart brawlfarm."
-            />
-          }
-        />
+        <Route path="/settings" element={<Navigate to="/settings/instances" replace />} />
+        <Route path="/settings/:section" element={<Settings />} />
       </Routes>
     </Shell>
+  );
+}
+
+function Panel() {
+  useThemeBootstrap();
+  useLiveHandlers();
+
+  // The wizard is deliberately outside ShellRoutes: it is the one page with no fleet
+  // behind it, so it carries its own chrome.
+  return (
+    <Routes>
+      <Route path="/setup" element={<Setup />} />
+      <Route path="*" element={<ShellRoutes />} />
+    </Routes>
   );
 }
 

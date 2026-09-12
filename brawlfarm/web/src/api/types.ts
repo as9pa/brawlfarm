@@ -1,10 +1,9 @@
 /**
  * The API's payloads as TypeScript.
  *
- * Mirrors brawlfarm/api/*.py exactly: optional in Python means `| null` here, never
- * `?`, because the API always sends the key. Anything the panel does not use (the stats
- * series, the settings sections other than app.theme) is left out on purpose -- the
- * client must not carry connection.brawl_api_token anywhere near a component.
+ * Mirrors brawlfarm/api/*.py exactly: optional in Python means `| null` here, never `?`,
+ * because the API always sends the key. The stats series is the only payload still left
+ * out, and it arrives with the Stats page in phase 6.
  */
 
 export type InstanceState =
@@ -172,11 +171,94 @@ export interface StatsResponse {
   summary: StatsSummary;
 }
 
-/** Only app.theme is read. The rest of GET /api/settings, including the plaintext Brawl
- * Stars token, is deliberately not modelled so no component can reach it. */
+/**
+ * The whole config.toml document, as GET /api/settings serves it and PUT takes it back.
+ *
+ * connection.brawl_api_token is modelled because the document is whole: the API is
+ * loopback-only and hands the token over in full, and masking it is the panel's job, not
+ * the server's. It reaches exactly one control, the masked Field on Settings > Connection
+ * and on the wizard's Stats step. It is never logged, never stored anywhere but the query
+ * cache and the PUT body, never rendered unmasked by default, and never put into a toast,
+ * an error message or a screenshot.
+ */
 export interface AppSettings {
-  app: {
-    port: number;
-    theme: "system" | "dark" | "light";
+  app: { port: number; theme: "system" | "dark" | "light" };
+  connection: { adb_path: string; brawl_api_token: string };
+  behavior: {
+    winrate_aware: boolean;
+    opportunity_cost: boolean;
+    gas_aware: boolean;
+    bush_hide: boolean;
+    close_game_on_stop: boolean;
+    dnd_at_start: boolean;
   };
+  advanced: {
+    fast_input: boolean;
+    raw_cap: boolean;
+    gray_match: boolean;
+    phase_classify: boolean;
+    ability_buttons: boolean;
+    recalib_tripwire: boolean;
+    dnd_off_on_stop: boolean;
+  };
+  scheduler: { default_enabled: boolean };
+  notifications: {
+    webhook_url: string;
+    ntfy_topic: string;
+    ntfy_server: string;
+    healthchecks_url: string;
+    events: string[];
+  };
+  instances: { name: string; adb_port: number; player_tag: string }[];
+}
+
+/** One row of POST /api/setup/scan: a BlueStacks instance as bluestacks.conf describes it,
+ * with `online` from `adb devices`. `adb_port` is null when the conf line was unreadable,
+ * which is what the wizard's "Add a port" field is for. */
+export interface ScanInstance {
+  name: string;
+  display_name: string;
+  adb_port: number | null;
+  width: number | null;
+  height: number | null;
+  dpi: number | null;
+  online: boolean;
+}
+
+export interface ScanResponse {
+  adb_path: string | null;
+  adb_found: boolean;
+  conf_found: boolean;
+  instances: ScanInstance[];
+}
+
+export interface PortTestResponse {
+  ok: boolean;
+  detail: string;
+}
+
+/** POST /api/setup/display-check. `hint` is checks.DISPLAY_HINT, rendered verbatim so the
+ * sentence telling the user where to change the display has exactly one source. */
+export interface DisplayCheckResponse {
+  ok: boolean;
+  width: number | null;
+  height: number | null;
+  dpi: number | null;
+  detail: string;
+  hint: string;
+  expected: { width: number; height: number; dpi: number };
+}
+
+export interface NotifyTestResponse {
+  sent: string[];
+  failed: string[];
+}
+
+/** GET /api/health. Not called `Health`: that name is already this file's instance-health
+ * union ("healthy" | "stale" | "dead"), and the two mean different things. */
+export interface HealthResponse {
+  version: string;
+  home: string;
+  instances: number;
+  uptime_s: number;
 }

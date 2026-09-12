@@ -14,7 +14,7 @@ from pathlib import Path
 import pytest
 
 from brawlfarm import settings as S
-from brawlfarm.core import scheduler, status
+from brawlfarm.core import config, scheduler, status
 from brawlfarm.supervisor import Health, InstanceState, Supervisor
 from brawlfarm.supervisor import loop as L
 
@@ -438,3 +438,20 @@ def test_two_ticks_at_once_launch_only_one_worker(tmp_path: Path, world: World) 
     assert all(not t.is_alive() for t in threads)  # both ticks finished
     assert len(world.launches) == 1
     assert len(world.alive) == 1
+
+
+def test_clearing_the_token_clears_the_applied_one(tmp_path, world, monkeypatch) -> None:
+    monkeypatch.delenv("BRAWL_API_TOKEN", raising=False)
+    sup = make_sup(tmp_path, world, ("Pie64",))
+    assert config.API_TOKEN == "tok"  # _settings() sets one, and __init__ applied it
+
+    sup.settings.connection.brawl_api_token = ""
+    sup.apply_settings(sup.settings)
+    # Blank means blank. Before this, the last non-blank token stuck for the life of the
+    # process, so clearing it in Settings changed nothing until a restart.
+    assert config.API_TOKEN == ""
+
+    monkeypatch.setenv("BRAWL_API_TOKEN", "from-the-environment")
+    sup.apply_settings(sup.settings)
+    # The environment override the spec promises is still the fallback, not the leftover.
+    assert config.API_TOKEN == "from-the-environment"

@@ -30,6 +30,7 @@ from brawlfarm.api import (
     events,
     feed,
     instances,
+    notify_routes,
     plans,
     roster,
     schedule,
@@ -165,6 +166,7 @@ def create_app(sup: Supervisor, home: Path) -> FastAPI:
     app.include_router(events.router)
     app.include_router(instances.router)
     app.include_router(settings_routes.router)
+    app.include_router(notify_routes.router)
     app.include_router(setup_routes.router)
     app.include_router(screens.router)
     app.include_router(plans.router)
