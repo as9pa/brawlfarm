@@ -20,7 +20,7 @@ Living board. Finished work moves to the top with its proof.
 ## Queue (v1)
 
 6. Stats with brawler icons Also: a last-session block on the API so a stopped instance's Session panel shows its last figures on a cold load (accepted 2026-09-11).
-7. Docs and publish; archive the legacy repo
+7. Docs and publish. The legacy repo as9pa/bsutil was archived on GitHub on 2026-09-11 at the owner's request (read-only there; the local checkout stays the reference for the scrub rule).
 
 ## After v1
 
