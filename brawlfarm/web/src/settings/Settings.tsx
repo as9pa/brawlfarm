@@ -13,18 +13,28 @@
 import type { ReactElement } from "react";
 import { useParams } from "react-router";
 
+import { About } from "./About";
+import { Behavior } from "./Behavior";
+import { Connection } from "./Connection";
 import { Instances } from "./Instances";
+import { Schedule } from "./Schedule";
 import { SETTINGS_SECTIONS, type SectionId, SettingsNav } from "./SettingsNav";
 import { type SettingsPatch, useSettingsPatch } from "./useSettingsPatch";
 import { ErrorBlock } from "../components/ui/ErrorBlock";
 
-/** Every section takes the same one prop, so the table below can hold all seven. */
-type SectionView = (props: { settingsPatch: SettingsPatch }) => ReactElement;
+/** Every section takes the same one prop, so the table below can hold all seven. Null is
+ * in the return type because a section whose rows all read the settings document renders
+ * nothing until the first GET lands, rather than a half-built row of empty controls. */
+type SectionView = (props: { settingsPatch: SettingsPatch }) => ReactElement | null;
 
-/** Partial while this branch is being built: tasks 6 and 7 fill the other six in, and the
- * last of them makes this a total Record so the compiler proves none is missing. */
+/** Partial while this branch is being built: task 7 fills Notifications and Data in and
+ * makes this a total Record, so the compiler proves none is missing. */
 const SECTION_VIEWS: Partial<Record<SectionId, SectionView>> = {
   instances: Instances,
+  connection: Connection,
+  behavior: Behavior,
+  schedule: Schedule,
+  about: About,
 };
 
 const UNKNOWN_SECTION = new Error("unknown settings section");

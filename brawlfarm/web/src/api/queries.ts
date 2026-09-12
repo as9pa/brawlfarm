@@ -20,6 +20,8 @@ export const queryKeys = {
   statsToday: (instance?: string) =>
     instance === undefined ? (["stats", "today"] as const) : (["stats", "today", instance] as const),
   settings: () => ["settings"] as const,
+  /** Version and home folder. About and Data both read it, so one request serves both. */
+  health: () => ["health"] as const,
 };
 
 export function createQueryClient(): QueryClient {
