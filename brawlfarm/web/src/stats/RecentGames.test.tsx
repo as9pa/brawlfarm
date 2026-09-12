@@ -21,7 +21,7 @@ function game(overrides: Partial<StatsGame> = {}): StatsGame {
 
 describe("RecentGames", () => {
   it("is headed Recent games and shows the seven columns", () => {
-    renderWithProviders(<RecentGames rows={[game()]} />);
+    renderWithProviders(<RecentGames rows={[game()]} range="today" />);
     expect(screen.getByRole("heading", { name: "Recent games" })).toBeInTheDocument();
     expect(screen.getAllByRole("columnheader").map((n) => n.textContent)).toEqual([
       "Time",
@@ -38,7 +38,7 @@ describe("RecentGames", () => {
     const rows = Array.from({ length: 20 }, (_, i) =>
       game({ t: `2026-09-12T22:${String(59 - i).padStart(2, "0")}:00`, rank: (i % 10) + 1 }),
     );
-    renderWithProviders(<RecentGames rows={rows} />);
+    renderWithProviders(<RecentGames rows={rows} range="today" />);
     const body = screen.getAllByRole("row").slice(1);
     expect(body).toHaveLength(20);
     expect(within(body[0]).getAllByRole("cell")[0]).toHaveTextContent("22:59");
@@ -46,13 +46,18 @@ describe("RecentGames", () => {
   });
 
   it("renders an icon beside every brawler name", () => {
-    renderWithProviders(<RecentGames rows={[game(), game({ t: "2026-09-12T21:00:00" })]} />);
+    renderWithProviders(
+      <RecentGames rows={[game(), game({ t: "2026-09-12T21:00:00" })]} range="today" />,
+    );
     expect(screen.getAllByTestId("brawler-icon")).toHaveLength(2);
   });
 
   it("says none for a null mode, a null map and a null brawler", () => {
     renderWithProviders(
-      <RecentGames rows={[game({ mode: null, map: null, brawler: null, rank: null })]} />,
+      <RecentGames
+        rows={[game({ mode: null, map: null, brawler: null, rank: null })]}
+        range="today"
+      />,
     );
     const cells = screen.getAllByRole("row")[1].querySelectorAll("td");
     expect(cells[2]).toHaveTextContent("none");
@@ -63,7 +68,10 @@ describe("RecentGames", () => {
 
   it("signs and tints the trophy change", () => {
     renderWithProviders(
-      <RecentGames rows={[game({ trophy_change: -3, t: "2026-09-12T21:00:00" }), game()]} />,
+      <RecentGames
+        rows={[game({ trophy_change: -3, t: "2026-09-12T21:00:00" }), game()]}
+        range="today"
+      />,
     );
     const values = screen.getAllByTestId("recent-trophies");
     expect(values[0]).toHaveTextContent("-3");
@@ -72,8 +80,19 @@ describe("RecentGames", () => {
     expect(values[1]).toHaveClass("text-accent");
   });
 
+  it("carries the day on a range wider than today and drops it on today", () => {
+    const { unmount } = renderWithProviders(<RecentGames rows={[game()]} range="7d" />);
+    const wide = within(screen.getAllByRole("row")[1]).getAllByRole("cell")[0];
+    expect(wide).toHaveTextContent("Sep 12, 22:00");
+    unmount();
+    renderWithProviders(<RecentGames rows={[game()]} range="today" />);
+    const today = within(screen.getAllByRole("row")[1]).getAllByRole("cell")[0];
+    expect(today).toHaveTextContent("22:00");
+    expect(today).not.toHaveTextContent("Sep");
+  });
+
   it("says so when the range has no games", () => {
-    renderWithProviders(<RecentGames rows={[]} />);
+    renderWithProviders(<RecentGames rows={[]} range="today" />);
     expect(screen.getByText("No games in this range.")).toBeInTheDocument();
   });
 });

@@ -6,7 +6,7 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
 
 import { TrophyChart } from "./TrophyChart";
-import type { StatsSeries } from "../api/types";
+import type { StatsRange, StatsSeries } from "../api/types";
 import { renderWithProviders } from "../test/renderWithProviders";
 
 const SERIES: StatsSeries[] = [
@@ -30,8 +30,10 @@ const SERIES: StatsSeries[] = [
 
 const INSTANCES = ["Pie64", "Pie64_1", "Pie64_3"];
 
-function mount(series = SERIES, instances = INSTANCES) {
-  return renderWithProviders(<TrophyChart series={series} instances={instances} />);
+function mount(series = SERIES, instances = INSTANCES, range: StatsRange = "today") {
+  return renderWithProviders(
+    <TrophyChart series={series} instances={instances} range={range} />,
+  );
 }
 
 function plot(): HTMLElement {
@@ -164,5 +166,17 @@ describe("TrophyChart", () => {
     expect(container.querySelectorAll("[data-series-path]")).toHaveLength(0);
     expect(screen.getAllByTestId("legend-entry")).toHaveLength(1);
     expect(screen.getByTestId("chart-empty")).toHaveTextContent("No games in this range.");
+  });
+
+  it("carries the day on a range wider than today and drops it on today", async () => {
+    const user = userEvent.setup();
+    const { unmount } = mount(SERIES, INSTANCES, "7d");
+    await user.click(screen.getByRole("button", { name: "Table" }));
+    expect(screen.getAllByRole("row")[1]).toHaveTextContent("Sep 12, 21:00");
+    unmount();
+    mount();
+    await user.click(screen.getByRole("button", { name: "Table" }));
+    expect(screen.getAllByRole("row")[1]).toHaveTextContent("21:00");
+    expect(screen.getAllByRole("row")[1]).not.toHaveTextContent("Sep");
   });
 });

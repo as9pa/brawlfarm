@@ -153,7 +153,7 @@ export function Stats() {
           <div data-testid="metrics-row">
             <MetricsRow summary={stats.data.summary} />
           </div>
-          <TrophyChart series={stats.data.series} instances={selected} />
+          <TrophyChart series={stats.data.series} instances={selected} range={range} />
           <div className="grid gap-3 min-[900px]:grid-cols-[1fr_320px]">
             <section className="flex flex-col gap-2 rounded-[10px] border border-line bg-panel p-3">
               <h2 className="text-[13px] font-semibold">Brawlers</h2>
@@ -161,7 +161,7 @@ export function Stats() {
             </section>
             <RankBars rows={stats.data.ranks} />
           </div>
-          <RecentGames rows={stats.data.recent} />
+          <RecentGames rows={stats.data.recent} range={range} />
         </>
       )}
     </section>
