@@ -19,7 +19,7 @@ def _run(args: list[str], home: Path) -> subprocess.CompletedProcess:
 
 def test_version() -> None:
     r = _run(["--version"], Path.cwd())
-    assert r.returncode == 0 and r.stdout.startswith("brawlfarm 0.")
+    assert r.returncode == 0 and r.stdout.startswith("brawlfarm 1.")
 
 
 def test_first_run_writes_defaults_and_once_prints_no_instances(tmp_path: Path) -> None:
