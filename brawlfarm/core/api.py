@@ -24,7 +24,17 @@ from brawlfarm.core import config
 
 
 class ApiError(RuntimeError):
-    """Raised when an API call fails (network, auth, or non-200 status)."""
+    """Raised when an API call fails (network, auth, or non-200 status).
+
+    ``status`` is the HTTP status of a non-200 answer and None for a transport failure or
+    a missing token. Callers that need to tell a rejected token from an unreachable API
+    read it rather than parsing the message: the message embeds the requested path, which
+    carries the player tag, so it is never logged, echoed or matched against.
+    """
+
+    def __init__(self, message: str) -> None:
+        super().__init__(message)
+        self.status: int | None = None
 
 
 class ApiClient:
@@ -50,7 +60,9 @@ class ApiClient:
         if resp.status_code != 200:
             # 403 usually = bad token or IP not in the token's allowlist.
             body = resp.text[:300]
-            raise ApiError(f"{path} -> HTTP {resp.status_code}: {body}")
+            err = ApiError(f"{path} -> HTTP {resp.status_code}: {body}")
+            err.status = resp.status_code
+            raise err
         return resp.json()
 
     # --- endpoints -----------------------------------------------------------
