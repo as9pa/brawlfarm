@@ -168,6 +168,25 @@ describe("TrophyChart", () => {
     expect(screen.getByTestId("chart-empty")).toHaveTextContent("No games in this range.");
   });
 
+  it("drops a y-axis label that would overprint the zero one", () => {
+    // Every game lost trophies, so the top of the domain is the zero rule itself and the
+    // label for the maximum would sit exactly on the zero label.
+    mount(
+      [
+        {
+          instance: "Pie64",
+          points: [
+            { t: "2026-09-12T21:00:00", cum: -3 },
+            { t: "2026-09-12T22:00:00", cum: -5 },
+          ],
+        },
+      ],
+      ["Pie64"],
+    );
+    const axis = screen.getByTestId("chart-axis");
+    expect(Array.from(axis.children).map((node) => node.textContent)).toEqual(["0", "-5"]);
+  });
+
   it("says whether the table view is the one showing", async () => {
     const user = userEvent.setup();
     mount();

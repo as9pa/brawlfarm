@@ -53,6 +53,9 @@ const PAD_Y = 10; // so a point at the very top or bottom is not half a stroke o
 const VALUE_PAD = 0.05; // the brief's 5 %
 const EMPTY = "No games in this range.";
 const NONE = "none";
+/** The line box at 11 px type, the gap the end labels are nudged by. Two y-axis labels
+ * closer together than this would overprint each other. */
+const LABEL_H = 12;
 
 function colorFor(index: number): string {
   return SERIES_COLORS[index % SERIES_COLORS.length];
@@ -109,6 +112,17 @@ export function TrophyChart({ series, instances, range }: TrophyChartProps) {
   const yFor = (value: number): number =>
     PAD_Y + ((hi - value) / (hi - lo)) * (PLOT_H - PAD_Y * 2);
   const topPercent = (y: number): string => `${(y / PLOT_H) * 100}%`;
+
+  /** The y axis: the two extremes and the zero the lines are read against. Zero goes in
+   * first and is never dropped, because its rule is drawn whatever the labels do, and an
+   * extreme landing within a label height of one already kept is dropped rather than
+   * printed over it. A run of losses, where the maximum IS zero, is the common case. */
+  const ticks: { value: number; y: number }[] = [{ value: 0, y: yFor(0) }];
+  for (const value of [rawHi, rawLo]) {
+    const y = yFor(value);
+    if (ticks.every((tick) => Math.abs(tick.y - y) >= LABEL_H)) ticks.push({ value, y });
+  }
+  ticks.sort((a, b) => a.y - b.y);
 
   const pathOf = (points: StatsPoint[]): string =>
     points
@@ -231,25 +245,20 @@ export function TrophyChart({ series, instances, range }: TrophyChartProps) {
       ) : (
         <>
           <div className="flex gap-2">
-            <div className="relative w-[44px] shrink-0" style={{ height: `${PLOT_H}px` }}>
-              <span
-                className="absolute right-0 -translate-y-1/2 text-[11px] tabular-nums text-muted"
-                style={{ top: topPercent(yFor(rawHi)) }}
-              >
-                {rawHi}
-              </span>
-              <span
-                className="absolute right-0 -translate-y-1/2 text-[11px] tabular-nums text-muted"
-                style={{ top: topPercent(yFor(0)) }}
-              >
-                0
-              </span>
-              <span
-                className="absolute right-0 -translate-y-1/2 text-[11px] tabular-nums text-muted"
-                style={{ top: topPercent(yFor(rawLo)) }}
-              >
-                {rawLo}
-              </span>
+            <div
+              data-testid="chart-axis"
+              className="relative w-[44px] shrink-0"
+              style={{ height: `${PLOT_H}px` }}
+            >
+              {ticks.map((tick) => (
+                <span
+                  key={tick.value}
+                  className="absolute right-0 -translate-y-1/2 text-[11px] tabular-nums text-muted"
+                  style={{ top: topPercent(tick.y) }}
+                >
+                  {tick.value}
+                </span>
+              ))}
             </div>
 
             <div className="relative min-w-0 flex-1 pr-[72px]" style={{ height: `${PLOT_H}px` }}>
