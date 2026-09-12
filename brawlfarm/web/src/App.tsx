@@ -22,6 +22,7 @@ import { Fleet } from "./fleet/Fleet";
 import { Instance } from "./instance/Instance";
 import { onReconnect, subscribe } from "./live/useEvents";
 import { Settings } from "./settings/Settings";
+import { Setup } from "./setup/Setup";
 
 /** A burst of state changes (a tick touching five instances) is one refetch, not five. */
 const INSTANCE_DEBOUNCE_MS = 250;
@@ -95,7 +96,14 @@ function Panel() {
   useThemeBootstrap();
   useLiveHandlers();
 
-  return <ShellRoutes />;
+  // The wizard is deliberately outside ShellRoutes: it is the one page with no fleet
+  // behind it, so it carries its own chrome.
+  return (
+    <Routes>
+      <Route path="/setup" element={<Setup />} />
+      <Route path="*" element={<ShellRoutes />} />
+    </Routes>
+  );
 }
 
 export function App() {
