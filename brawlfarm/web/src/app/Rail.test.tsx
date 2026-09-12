@@ -1,5 +1,5 @@
-/** The rail: the wordmark, three sections with soon tags on the two that are not built,
- * and every instance with a dot in its state's colour. */
+/** The rail: the wordmark, three sections, none of them tagged as unbuilt any more, and
+ * every instance with a dot in its state's colour. */
 import { screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -25,13 +25,14 @@ function stubInstances(): void {
 }
 
 describe("Rail", () => {
-  it("shows the wordmark and tags the one section that is not built yet", async () => {
+  it("shows the wordmark and no longer tags any section as unbuilt", async () => {
     stubInstances();
     renderWithProviders(<Rail />);
     expect(screen.getByText("brawlfarm")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Fleet" })).toHaveAttribute("href", "/");
-    expect(screen.getByRole("link", { name: /Stats/ })).toHaveTextContent("Stats soon");
+    expect(screen.getByRole("link", { name: "Stats" })).toHaveAttribute("href", "/stats");
     expect(screen.getByRole("link", { name: "Settings" })).toHaveAttribute("href", "/settings");
+    expect(screen.queryByText("soon")).toBeNull();
     expect(await screen.findByText("Instances")).toBeInTheDocument();
   });
 

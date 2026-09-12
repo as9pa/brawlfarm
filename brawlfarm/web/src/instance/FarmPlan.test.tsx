@@ -6,7 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { FarmPlan } from "./FarmPlan";
 import { resetToasts, useToasts } from "../lib/toast";
-import { makePlan, makeRosterBrawler } from "../test/fixtures";
+import { makeConnection, makePlan, makeRosterBrawler } from "../test/fixtures";
 import { type FetchCall, jsonResponse, stubFetch } from "../test/http";
 import { renderWithProviders } from "../test/renderWithProviders";
 
@@ -27,6 +27,7 @@ function puts(calls: FetchCall[]): unknown[] {
  * route does: the same enriched shape, with the four stored keys replaced. */
 function mount(body = makePlan(), putStatus = 200): FetchCall[] {
   return stubFetch((url, init) => {
+    if (url === "/api/connection/check") return jsonResponse(makeConnection());
     if (url !== PLAN) throw new Error(`unstubbed request: ${url}`);
     if (init?.method !== "PUT") return jsonResponse(body);
     return putStatus === 200
@@ -232,6 +233,41 @@ describe("FarmPlan", () => {
     await userEvent.click(screen.getByRole("button", { name: "Show all brawlers" }));
     // Plus one per roster row.
     expect(screen.getAllByTestId("brawler-icon")).toHaveLength(5);
+  });
+
+  it("says the token was rejected when the connection check says so", async () => {
+    stubFetch((url) => {
+      if (url === "/api/connection/check") {
+        return jsonResponse(makeConnection({ status: "rejected" }));
+      }
+      if (url === PLAN) {
+        return jsonResponse(makePlan({ roster: null, queue: [], roster_status: "unavailable" }));
+      }
+      throw new Error(`unstubbed request: ${url}`);
+    });
+    renderWithProviders(<FarmPlan name="Pie64" />);
+    expect(
+      await screen.findByText(
+        /The Brawl Stars API rejected the token\. Check the token, and the IP address it was created for, in/,
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Settings, Connection" })).toHaveAttribute(
+      "href",
+      "/settings/connection",
+    );
+  });
+
+  it("keeps the plain unavailable note when the connection check does not say rejected", async () => {
+    stubFetch((url) => {
+      if (url === "/api/connection/check") return jsonResponse(makeConnection({ status: "ok" }));
+      if (url === PLAN) {
+        return jsonResponse(makePlan({ roster: null, queue: [], roster_status: "unavailable" }));
+      }
+      throw new Error(`unstubbed request: ${url}`);
+    });
+    renderWithProviders(<FarmPlan name="Pie64" />);
+    expect(await screen.findByText("Roster unavailable right now.")).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Settings, Connection" })).toBeNull();
   });
 });
 

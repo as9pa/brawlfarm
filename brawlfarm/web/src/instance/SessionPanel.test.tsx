@@ -4,7 +4,14 @@ import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
 import { SessionPanel } from "./SessionPanel";
-import { makeInstance } from "../test/fixtures";
+import { makeInstance, makeLastSession } from "../test/fixtures";
+import { renderWithProviders } from "../test/renderWithProviders";
+
+/** One <dd> by the label in the <dt> beside it. */
+function figure(label: string): HTMLElement {
+  const term = screen.getByText(label);
+  return term.parentElement?.querySelector("dd") as HTMLElement;
+}
 
 const SESSION = {
   minutes_elapsed: 72,
@@ -89,5 +96,71 @@ describe("SessionPanel", () => {
       <SessionPanel inst={stopped} avgRank={null} interrupts={0} stopAt="2026-09-11T14:15:40" />,
     );
     expect(screen.getByText("Session ended 14:15")).toBeInTheDocument();
+  });
+
+  it("seeds a cold load from last_session and captions when it ended", () => {
+    renderWithProviders(
+      <SessionPanel
+        inst={makeInstance({
+          state: "stopped",
+          games_played: 0,
+          session: null,
+          last_session: makeLastSession(),
+        })}
+        avgRank={null}
+        interrupts={0}
+        stopAt={null}
+      />,
+    );
+    expect(screen.getByText("Session ended 22:14")).toBeInTheDocument();
+    expect(figure("Games")).toHaveTextContent("12");
+    expect(figure("Trophies")).toHaveTextContent("+86");
+    expect(figure("Avg rank today")).toHaveTextContent("3.4");
+    expect(figure("Disconnects")).toHaveTextContent("1");
+    expect(figure("Duration")).toHaveTextContent("1 h 14 min");
+    expect(figure("Interrupts")).toHaveTextContent("2");
+  });
+
+  it("behaves exactly as it does today when last_session is null", () => {
+    renderWithProviders(
+      <SessionPanel
+        inst={makeInstance({
+          state: "stopped",
+          games_played: 0,
+          session: null,
+          last_session: null,
+        })}
+        avgRank={null}
+        interrupts={0}
+        stopAt={null}
+      />,
+    );
+    expect(figure("Games")).toHaveTextContent("0");
+    expect(figure("Trophies")).toHaveTextContent("0");
+    expect(figure("Avg rank today")).toHaveTextContent("none");
+    expect(figure("Duration")).toHaveTextContent("0 min");
+  });
+
+  it("follows a live worker and never reads last_session again for that mount", () => {
+    const live = makeInstance({
+      state: "farming",
+      games_played: 4,
+      last_session: makeLastSession({ games: 99 }),
+    });
+    const { rerender } = renderWithProviders(
+      <SessionPanel inst={live} avgRank={2.5} interrupts={1} stopAt={null} />,
+    );
+    expect(figure("Games")).toHaveTextContent("4");
+    rerender(
+      <SessionPanel
+        inst={{ ...live, state: "stopped" }}
+        avgRank={2.5}
+        interrupts={1}
+        stopAt="2026-09-12T23:05:00"
+      />,
+    );
+    // Frozen on what it saw live, not on the 99 games last_session carries.
+    expect(figure("Games")).toHaveTextContent("4");
+    expect(screen.getByText("Session ended 23:05")).toBeInTheDocument();
   });
 });
