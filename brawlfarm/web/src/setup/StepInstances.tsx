@@ -165,7 +165,13 @@ export function StepInstances({ setup }: StepProps) {
       ),
     },
     { key: "name", label: "Name", mono: true, render: (row) => row.name },
-    { key: "display", label: "Display name", render: (row) => row.display_name },
+    {
+      key: "display",
+      label: "Display name",
+      // A BlueStacks display name is whatever the owner typed and can be their own name, so
+      // the cell carries data-private and the screenshot pass blurs it.
+      render: (row) => <span data-private>{row.display_name}</span>,
+    },
     {
       key: "port",
       label: "ADB port",
