@@ -8,7 +8,7 @@ import { closeAlertsDrawer } from "./lib/alertsDrawer";
 import { closeEvents, setEventSourceFactory } from "./live/useEvents";
 import { resetToasts } from "./lib/toast";
 import { jpegResponse, jsonResponse, stubFetch } from "./test/http";
-import { makeAlert, makeInstance, makeSettings } from "./test/fixtures";
+import { makeAlert, makeConnection, makeInstance, makeSettings, makeStats } from "./test/fixtures";
 
 class FakeEventSource {
   static last: FakeEventSource | null = null;
@@ -59,6 +59,8 @@ function stubApi(theme: "system" | "dark" | "light" = "system"): { calls: { url:
     if (url === "/api/setup/scan") {
       return jsonResponse({ adb_path: "adb.exe", adb_found: true, conf_found: true, instances: [] });
     }
+    if (url === "/api/connection/check") return jsonResponse(makeConnection());
+    if (url.startsWith("/api/stats")) return jsonResponse(makeStats());
     throw new Error(`unstubbed request: ${url}`);
   });
 }
@@ -109,11 +111,13 @@ describe("App", () => {
     expect(screen.getByRole("heading", { level: 2, name: "Fleet" })).toBeInTheDocument();
   });
 
-  it("renders the stats placeholder with its copy", async () => {
+  it("renders the Stats page at /stats", async () => {
+    // "Stats" is on screen three times here: the rail link, the bar's own h1 and the
+    // page heading under it, so only a role query can pick out the one that matters.
     stubApi();
     window.history.pushState({}, "", "/stats");
     render(<App />);
-    expect(await screen.findByText("Stats arrive in phase 6.")).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { level: 2, name: "Stats" })).toBeInTheDocument();
   });
 
   it("applies the stored theme and never renders the API token", async () => {
