@@ -20,6 +20,7 @@ never returned. Only the exception type and, for the CDN, the HTTP status are lo
 
 from __future__ import annotations
 
+import hashlib
 import json
 import logging
 import os
@@ -47,9 +48,14 @@ PREWARM_SLEEP_S = 0.1
 # inverting the layering for them.
 PNG_MAGIC = b"\x89PNG\r\n\x1a\n"
 
-# When the catalog was last refreshed, successfully or not. Module level on purpose: a run
-# of unknown names costs one call an hour for the process, not one call each.
+# When the catalog last refreshed SUCCESSFULLY, and the sha256 of the token that did it.
+# Module level on purpose: a run of unknown names costs one call an hour for the process,
+# not one call each. A refresh that raised leaves both None, so a rejected token or a
+# dropped connection does not lock icons out for an hour, and a token corrected in settings
+# hashes differently and skips the throttle without a restart. Only the digest is kept: the
+# raw token is never stored here and never logged.
 _last_refresh_at: float | None = None
+_last_refresh_token: str | None = None
 
 
 class IconUnavailable(RuntimeError):
@@ -101,6 +107,12 @@ def fetch_icon_bytes(url: str) -> bytes:
     return resp.content
 
 
+def _token_digest(token: str) -> str:
+    """A sha256 hex digest of the token, the only form of it this module keeps. It says
+    whether the token changed and nothing else, so it is safe to hold between calls."""
+    return hashlib.sha256(token.encode("utf-8")).hexdigest()
+
+
 def resolve_id(
     home: Path,
     name: str,
@@ -112,11 +124,11 @@ def resolve_id(
     """This brawler's numeric id, or None.
 
     The cached catalog answers first. Only a miss refreshes, and only when REFRESH_S has
-    passed since the last refresh ATTEMPT, success or failure. A blank token, a fetch that
-    raises and a fetch that brings back nothing usable are all misses that leave the file
-    on disk exactly as it was.
+    passed since the last SUCCESSFUL refresh with this same token. A blank token, a fetch
+    that raises and a fetch that brings back nothing usable are all misses that leave the
+    file on disk exactly as it was.
     """
-    global _last_refresh_at
+    global _last_refresh_at, _last_refresh_token
     key = name.strip().upper()
     if not key:
         return None
@@ -126,15 +138,20 @@ def resolve_id(
     if not token.strip():
         return None
     stamp = now()
-    if _last_refresh_at is not None and stamp - _last_refresh_at < REFRESH_S:
+    digest = _token_digest(token)
+    if (
+        _last_refresh_at is not None
+        and digest == _last_refresh_token
+        and stamp - _last_refresh_at < REFRESH_S
+    ):
         return None
-    _last_refresh_at = stamp
     try:
         items = fetch(token)
     except Exception as exc:  # network, auth, rate limit, a shape we did not expect
         # str(exc) can carry the requested path and the token, so only the type is logged.
         log.warning("brawler catalog refresh failed (%s)", type(exc).__name__)
         return None
+    _last_refresh_at, _last_refresh_token = stamp, digest
     fresh: dict[str, int] = {}
     for item in items or []:
         if not isinstance(item, dict):
