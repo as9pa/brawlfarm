@@ -31,3 +31,10 @@ export function restartInstance(name: string): Promise<OkResponse> {
 export function retryInstance(name: string): Promise<OkResponse> {
   return api<OkResponse>(`/api/instances/${name}/retry`, { method: "POST" });
 }
+
+/** DELETE /api/instances/{name}/data. 204. This removes the instance's folder under the
+ * data home, not the instance: it stays in config.toml and in the fleet, with nothing in
+ * its folder. 409 when it is still running, which the caller shows in the row. */
+export function deleteInstanceData(name: string): Promise<void> {
+  return api<void>(`/api/instances/${name}/data`, { method: "DELETE" });
+}

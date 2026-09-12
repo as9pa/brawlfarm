@@ -16,7 +16,9 @@ import { useParams } from "react-router";
 import { About } from "./About";
 import { Behavior } from "./Behavior";
 import { Connection } from "./Connection";
+import { Data } from "./Data";
 import { Instances } from "./Instances";
+import { Notifications } from "./Notifications";
 import { Schedule } from "./Schedule";
 import { SETTINGS_SECTIONS, type SectionId, SettingsNav } from "./SettingsNav";
 import { type SettingsPatch, useSettingsPatch } from "./useSettingsPatch";
@@ -27,13 +29,15 @@ import { ErrorBlock } from "../components/ui/ErrorBlock";
  * nothing until the first GET lands, rather than a half-built row of empty controls. */
 type SectionView = (props: { settingsPatch: SettingsPatch }) => ReactElement | null;
 
-/** Partial while this branch is being built: task 7 fills Notifications and Data in and
- * makes this a total Record, so the compiler proves none is missing. */
-const SECTION_VIEWS: Partial<Record<SectionId, SectionView>> = {
+/** Total, not Partial: every id in SETTINGS_SECTIONS has a view, and the compiler is what
+ * says so. Adding a section to the nav without writing it now fails typecheck. */
+const SECTION_VIEWS: Record<SectionId, SectionView> = {
   instances: Instances,
   connection: Connection,
   behavior: Behavior,
   schedule: Schedule,
+  notifications: Notifications,
+  data: Data,
   about: About,
 };
 
