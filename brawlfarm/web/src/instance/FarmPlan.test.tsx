@@ -6,7 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { FarmPlan } from "./FarmPlan";
 import { resetToasts, useToasts } from "../lib/toast";
-import { makePlan } from "../test/fixtures";
+import { makePlan, makeRosterBrawler } from "../test/fixtures";
 import { type FetchCall, jsonResponse, stubFetch } from "../test/http";
 import { renderWithProviders } from "../test/renderWithProviders";
 
@@ -210,6 +210,28 @@ describe("FarmPlan", () => {
     });
     expect(screen.getByLabelText("Fallback brawler")).toHaveValue("NORI");
     expect(toastMessages()).toEqual([]);
+  });
+
+  it("puts an icon in front of the current brawler, every queue row and the full list", async () => {
+    mount(
+      makePlan({
+        current: { brawler: "NORI", trophies: 820, goal: 1000 },
+        queue: ["SHELLY", "COLT"],
+        roster: [
+          makeRosterBrawler({ id: 1, name: "NORI", trophies: 820 }),
+          makeRosterBrawler({ id: 2, name: "SHELLY", trophies: 740 }),
+        ],
+      }),
+    );
+    renderWithProviders(<FarmPlan name="Pie64" />);
+
+    await screen.findByText("SHELLY");
+    // One for the current brawler, one per queue row.
+    expect(screen.getAllByTestId("brawler-icon")).toHaveLength(3);
+
+    await userEvent.click(screen.getByRole("button", { name: "Show all brawlers" }));
+    // Plus one per roster row.
+    expect(screen.getAllByTestId("brawler-icon")).toHaveLength(5);
   });
 });
 
