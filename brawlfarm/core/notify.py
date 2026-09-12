@@ -260,3 +260,52 @@ def maybe_alert(kind: str, fields: dict) -> None:
             "[notify] alert send failed — check BRAWL_WEBHOOK_URL / NTFY_TOPIC",
             file=sys.stderr,
         )
+
+
+def send_test(
+    *,
+    webhook_url: str,
+    ntfy_server: str,
+    ntfy_topic: str,
+    healthchecks_url: str,
+) -> dict[str, bool]:
+    """Send one test alert to exactly the channels the caller passed in.
+
+    The control panel's "Send a test" button has four values on screen, and they are not
+    necessarily the ones the supervisor is running with, so nothing here reads _overrides,
+    calls configure(), consults configured() or touches the per-kind cooldown: a test the
+    user asked for must never be swallowed as a repeat of something else.
+
+    A channel whose value is empty gets no key at all, so the caller can tell "did not
+    answer" from "was never set up". A channel that raises counts as False: a test that
+    explodes tells the user less than a test that says no. requests is imported lazily, the
+    same way the rest of this module does it.
+    """
+    title = "brawlfarm test"
+    message = "This is a test alert from brawlfarm."
+    webhook = webhook_url.strip()
+    server = ntfy_server.strip().rstrip("/")
+    topic = ntfy_topic.strip()
+    ping = healthchecks_url.strip()
+    results: dict[str, bool] = {}
+    if not (webhook or topic or ping):
+        return results
+    try:
+        import requests
+    except Exception:  # without requests no channel can answer, and none is claimed to
+        for name, value in (("webhook", webhook), ("ntfy", topic), ("healthchecks", ping)):
+            if value:
+                results[name] = False
+        return results
+
+    if webhook:
+        results["webhook"] = _send_discord(requests, webhook, title, message, None)
+    if topic:
+        results["ntfy"] = _send_ntfy(requests, server, topic, title, message, None)
+    if ping:
+        try:
+            response = requests.get(ping, timeout=5)
+            results["healthchecks"] = int(getattr(response, "status_code", 0)) < 300
+        except Exception:
+            results["healthchecks"] = False
+    return results

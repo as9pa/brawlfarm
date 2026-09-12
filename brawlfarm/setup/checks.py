@@ -20,8 +20,8 @@ from brawlfarm.core import config
 PNG_SIGNATURE = b"\x89PNG\r\n\x1a\n"
 
 DISPLAY_HINT = (
-    "In BlueStacks open Settings > Display, choose Custom resolution 1600 x 900 and "
-    "DPI 240, then restart the instance."
+    "Set the display to 1600 x 900 and pixel density 240 in BlueStacks: Settings, Display, "
+    "then restart the instance."
 )
 
 # `wm size` / `wm density` answer with a Physical line and, when the user set a custom
