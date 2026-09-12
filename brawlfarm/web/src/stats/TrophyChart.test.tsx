@@ -168,6 +168,17 @@ describe("TrophyChart", () => {
     expect(screen.getByTestId("chart-empty")).toHaveTextContent("No games in this range.");
   });
 
+  it("says whether the table view is the one showing", async () => {
+    const user = userEvent.setup();
+    mount();
+    const toggle = screen.getByRole("button", { name: "Table" });
+    expect(toggle).toHaveAttribute("aria-pressed", "false");
+    await user.click(toggle);
+    expect(toggle).toHaveAttribute("aria-pressed", "true");
+    await user.click(toggle);
+    expect(toggle).toHaveAttribute("aria-pressed", "false");
+  });
+
   it("carries the day on a range wider than today and drops it on today", async () => {
     const user = userEvent.setup();
     const { unmount } = mount(SERIES, INSTANCES, "7d");
