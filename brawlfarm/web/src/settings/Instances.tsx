@@ -207,6 +207,23 @@ export function Instances({ settingsPatch }: { settingsPatch: SettingsPatch }) {
    * three boxes called "Player tag" are three boxes a screen reader cannot tell apart. */
   const tagLabel = (name: string) => `Player tag for ${name}`;
 
+  /** The row that does not exist yet is saved onto the end, so that is the index the API's
+   * 422 names it by. */
+  const rowIndex = (row: Row) =>
+    row.name === NEW_ROW
+      ? instances.length
+      : instances.findIndex((inst) => inst.name === row.name);
+
+  /** What the mapper put under this field, as the line that goes below its box. Every
+   * column shows it, in the edit form and in the cell alike: a refusal the reader cannot
+   * see is a save that looks like it did nothing. */
+  const fieldNote = (row: Row, field: string) => {
+    const message = fieldError(fieldErrors, `instances.${rowIndex(row)}.${field}`);
+    return message === undefined ? null : (
+      <p className="mt-1 font-sans text-[12px] whitespace-normal text-bad">{message}</p>
+    );
+  };
+
   const columns: readonly Column<Row>[] = [
     {
       key: "name",
@@ -227,6 +244,7 @@ export function Instances({ settingsPatch }: { settingsPatch: SettingsPatch }) {
           ) : (
             row.name
           )}
+          {fieldNote(row, "name")}
           {rowErrors[row.name] !== undefined && (
             <p className="mt-1 font-sans text-[12px] whitespace-normal text-bad">
               {rowErrors[row.name]}
@@ -240,21 +258,25 @@ export function Instances({ settingsPatch }: { settingsPatch: SettingsPatch }) {
       label: "ADB port",
       mono: true,
       width: "140px",
-      render: (row) =>
-        isEditing(row) ? (
-          <span className="[&_label]:sr-only">
-            <Field
-              label="ADB port"
-              id={`instance-port-${row.name}`}
-              value={draft.adb_port}
-              onChange={(value) => setDraft((current) => ({ ...current, adb_port: value }))}
-              type="number"
-              width="full"
-            />
-          </span>
-        ) : (
-          String(instances.find((inst) => inst.name === row.name)?.adb_port ?? "")
-        ),
+      render: (row) => (
+        <div>
+          {isEditing(row) ? (
+            <span className="[&_label]:sr-only">
+              <Field
+                label="ADB port"
+                id={`instance-port-${row.name}`}
+                value={draft.adb_port}
+                onChange={(value) => setDraft((current) => ({ ...current, adb_port: value }))}
+                type="number"
+                width="full"
+              />
+            </span>
+          ) : (
+            String(instances.find((inst) => inst.name === row.name)?.adb_port ?? "")
+          )}
+          {fieldNote(row, "adb_port")}
+        </div>
+      ),
     },
     {
       key: "player_tag",
@@ -262,20 +284,8 @@ export function Instances({ settingsPatch }: { settingsPatch: SettingsPatch }) {
       mono: true,
       width: "180px",
       render: (row) => {
-        // The row that does not exist yet is saved onto the end, so that is the index the
-        // API's 422 names it by.
-        const at =
-          row.name === NEW_ROW
-            ? instances.length
-            : instances.findIndex((inst) => inst.name === row.name);
-        const stored = instances[at]?.player_tag ?? "";
-        const message = fieldError(fieldErrors, `instances.${at}.player_tag`);
-        // The same line under either box: a tag the model refused is a tag the reader is
-        // about to fix, whether they are in the edit form or typing in the cell.
-        const note =
-          message === undefined ? null : (
-            <p className="mt-1 font-sans text-[12px] whitespace-normal text-bad">{message}</p>
-          );
+        const stored = instances[rowIndex(row)]?.player_tag ?? "";
+        const note = fieldNote(row, "player_tag");
         if (isEditing(row)) {
           return (
             <div>

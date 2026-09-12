@@ -225,6 +225,38 @@ describe("Settings > Instances", () => {
     expect(toastMessages()).toEqual([]);
   });
 
+  it("puts a bad port's message under the port box and leaves the row open", async () => {
+    server({ putStatus: 422, putDetail: "instances.0.adb_port: Input should be a valid integer" });
+    mount();
+    const [pie64] = await rows();
+    await userEvent.click(within(pie64).getByRole("button", { name: "Edit" }));
+    const form = screen.getAllByRole("row")[1];
+    await userEvent.clear(within(form).getByLabelText("ADB port"));
+    await userEvent.click(within(form).getByRole("button", { name: "Save" }));
+
+    const message = await screen.findByText("adb_port: Input should be a valid integer");
+    expect(within(screen.getAllByRole("row")[1]).getAllByRole("cell")[1]).toContainElement(message);
+    // The form stays open, because the value the API refused is the one being fixed.
+    expect(screen.getByRole("button", { name: "Save" })).toBeInTheDocument();
+    expect(toastMessages()).toEqual([]);
+  });
+
+  it("puts a bad name's message under the name box of the row being added", async () => {
+    server({ putStatus: 422, putDetail: "instances.3.name: instance name must not be blank" });
+    mount();
+    await rows();
+    await userEvent.click(screen.getByRole("button", { name: "Add instance" }));
+
+    const form = screen.getAllByRole("row")[4];
+    await userEvent.type(within(form).getByLabelText("ADB port"), "5595");
+    await userEvent.click(within(form).getByRole("button", { name: "Save" }));
+
+    // The new row is saved onto the end, so instances.3 is the row the reader is looking at.
+    const message = await screen.findByText("name: instance name must not be blank");
+    expect(within(screen.getAllByRole("row")[4]).getAllByRole("cell")[0]).toContainElement(message);
+    expect(toastMessages()).toEqual([]);
+  });
+
   it("adds what a scan found, and says so when it found nothing new", async () => {
     const first = server({
       scan: {
