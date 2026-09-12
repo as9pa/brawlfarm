@@ -7,11 +7,14 @@
 import type {
   Alert,
   AppSettings,
+  ConnectionCheck,
   FeedRecord,
   InstancePayload,
+  LastSession,
   PlanResponse,
   RosterBrawler,
   SchedulePayload,
+  StatsResponse,
 } from "../api/types";
 
 export function makeInstance(overrides: Partial<InstancePayload> = {}): InstancePayload {
@@ -39,6 +42,7 @@ export function makeInstance(overrides: Partial<InstancePayload> = {}): Instance
       session: "session-20260911-190540.jsonl",
     },
     today: { games: 12, trophies: 86 },
+    last_session: null,
     ...overrides,
   };
 }
@@ -152,6 +156,89 @@ export function makeSettings(overrides: Partial<AppSettings> = {}): AppSettings 
       events: ["crash", "recover", "offline", "wrong_mode", "recalibrate"],
     },
     instances: [{ name: "Pie64", adb_port: 5555, player_tag: "#2P0YLQ9" }],
+    ...overrides,
+  };
+}
+
+/** The whole stats aggregate for one range: two instances, four games, enough of every
+ * block that a component test never has to hand-write one. The tag-free names and the
+ * invented brawler names keep tools/scrub_check.py quiet. */
+export function makeStats(overrides: Partial<StatsResponse> = {}): StatsResponse {
+  return {
+    range: "7d",
+    instances: ["Pie64", "Pie64_1"],
+    summary: {
+      games: 4,
+      trophies: 37,
+      trophies_per_hour: 24.7,
+      avg_rank: 3.3,
+      top4_rate: 75,
+      hours_farmed: 1.5,
+    },
+    series: [
+      {
+        instance: "Pie64",
+        points: [
+          { t: "2026-09-12T21:00:00", cum: 12 },
+          { t: "2026-09-12T21:30:00", cum: 8 },
+          { t: "2026-09-12T22:00:00", cum: 25 },
+        ],
+      },
+      {
+        instance: "Pie64_1",
+        points: [
+          { t: "2026-09-12T21:10:00", cum: -3 },
+          { t: "2026-09-12T22:10:00", cum: 12 },
+        ],
+      },
+    ],
+    brawlers: [
+      { name: "NORI", games: 3, net: 29, avg_rank: 2.7, top4_rate: 100 },
+      { name: "SHELLY", games: 1, net: 8, avg_rank: 5, top4_rate: 0 },
+    ],
+    ranks: [
+      { rank: 1, games: 1 },
+      { rank: 2, games: 1 },
+      { rank: 4, games: 1 },
+      { rank: 5, games: 1 },
+    ],
+    recent: [
+      {
+        instance: "Pie64",
+        t: "2026-09-12T22:00:00",
+        brawler: "NORI",
+        rank: 1,
+        trophy_change: 17,
+        map: "Feast or Famine",
+        mode: "soloShowdown",
+      },
+      {
+        instance: "Pie64_1",
+        t: "2026-09-12T21:10:00",
+        brawler: "SHELLY",
+        rank: 5,
+        trophy_change: -3,
+        map: null,
+        mode: null,
+      },
+    ],
+    ...overrides,
+  };
+}
+
+export function makeConnection(overrides: Partial<ConnectionCheck> = {}): ConnectionCheck {
+  return { status: "ok", checked_at: "2026-09-12T22:14:07", ...overrides };
+}
+
+export function makeLastSession(overrides: Partial<LastSession> = {}): LastSession {
+  return {
+    games: 12,
+    trophies: 86,
+    avg_rank: 3.4,
+    disconnects: 1,
+    duration_s: 4447,
+    interrupts: 2,
+    ended_at: "2026-09-12T22:14:07",
     ...overrides,
   };
 }
