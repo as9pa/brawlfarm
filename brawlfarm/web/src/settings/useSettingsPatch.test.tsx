@@ -372,6 +372,47 @@ describe("useDebouncedSave", () => {
     expect(saved).toEqual(["90", "900"]);
   });
 
+  it("keeps a keystroke that arrived while the save before it was still in flight", async () => {
+    const saved: string[] = [];
+    let land: () => void = () => undefined;
+    const save = (value: string): Promise<void> => {
+      saved.push(value);
+      return new Promise<void>((resolve) => {
+        land = () => resolve();
+      });
+    };
+    const { result } = renderHook(() => useDebouncedSave("1600", save));
+
+    act(() => {
+      result.current.onChange("90");
+    });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(500);
+    });
+    expect(saved).toEqual(["90"]);
+
+    // The next keystroke arrives before the PUT for "90" has answered.
+    act(() => {
+      result.current.onChange("900");
+    });
+    await act(async () => {
+      land();
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    // What landed is not what is in the box any more, so the box keeps the newer text
+    // rather than snapping back to what is on disk.
+    expect(result.current.value).toBe("900");
+
+    await act(async () => {
+      result.current.onBlur();
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    // Blurring saves the newest text. Re-saving "1600" here would throw the keystroke
+    // away silently, with nothing on screen to say it had happened.
+    expect(saved).toEqual(["90", "900"]);
+    expect(result.current.value).toBe("900");
+  });
+
   it("does nothing on a blur with nothing pending", () => {
     const saved: string[] = [];
     const { result } = renderHook(() =>

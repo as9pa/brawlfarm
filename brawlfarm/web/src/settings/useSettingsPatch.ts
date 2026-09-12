@@ -116,6 +116,14 @@ export function saveSetting(
  * player tag and puts its # back). A save that failed leaves the typed text alone, so
  * nothing the reader is still fixing is thrown away under them.
  *
+ * A keystroke can arrive while the save before it is still in flight, so the box is only
+ * handed back to `stored` when what landed is still the newest thing typed. Every keystroke
+ * takes the next edit number and the save carries the one it was started for; a save that
+ * comes back stale leaves the text alone, and the timer it scheduled, or the blur that beats
+ * the timer, saves the newer value instead. Clearing unconditionally would show what is on
+ * disk over text the reader is still typing, and the blur after it would then save `stored`
+ * back over the newer value, losing the keystroke with nothing on screen to say so.
+ *
  * `save` returns the patch promise and is expected to have reported its own failure already,
  * which is what saveSetting does.
  */
@@ -125,6 +133,10 @@ export function useDebouncedSave(
 ): { value: string; onChange: (next: string) => void; onBlur: () => void } {
   const [text, setText] = useState<string | null>(null);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  /** The newest text typed, which a blur reads rather than the value this render closed
+   * over: the two can differ for the keystroke that has not re-rendered yet. */
+  const typed = useRef<string | null>(null);
+  const edit = useRef(0);
 
   // A navigation away must not let a pending debounce write into a screen that is gone.
   useEffect(
@@ -134,24 +146,31 @@ export function useDebouncedSave(
     [],
   );
 
-  const flush = (next: string): void => {
+  const flush = (next: string, at: number): void => {
     timer.current = null;
     void save(next)
-      .then(() => setText(null))
+      .then(() => {
+        if (edit.current !== at) return; // something newer was typed while this was in flight
+        typed.current = null;
+        setText(null);
+      })
       .catch(() => undefined);
   };
 
   return {
     value: text ?? stored,
     onChange: (next: string) => {
+      edit.current += 1;
+      const at = edit.current;
+      typed.current = next;
       setText(next);
       if (timer.current !== null) clearTimeout(timer.current);
-      timer.current = setTimeout(() => flush(next), DEBOUNCE_MS);
+      timer.current = setTimeout(() => flush(next, at), DEBOUNCE_MS);
     },
     onBlur: () => {
       if (timer.current === null) return; // nothing was typed, so there is nothing to flush
       clearTimeout(timer.current);
-      flush(text ?? stored);
+      flush(typed.current ?? stored, edit.current);
     },
   };
 }
