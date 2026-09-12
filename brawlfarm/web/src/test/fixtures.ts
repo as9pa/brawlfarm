@@ -123,7 +123,7 @@ export function makeSettings(overrides: Partial<AppSettings> = {}): AppSettings 
   return {
     app: { port: 8765, theme: "system" },
     connection: {
-      adb_path: "C:\Program Files\BlueStacks_nxt\HD-Adb.exe",
+      adb_path: "C:\\Program Files\\BlueStacks_nxt\\HD-Adb.exe",
       brawl_api_token: "",
     },
     behavior: {
