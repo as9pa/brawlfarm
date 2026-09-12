@@ -2,7 +2,7 @@
 
 An open-source Brawl Stars trophy farmer for BlueStacks on Windows, with a local control panel in your browser.
 
-Status: under construction. Phase 4 of 8 (the control panel: shell, Fleet and Instance). The setup wizard and the stats screens arrive in later phases; see `docs/PLAN.md`.
+Status: under construction. Phase 5 of 8 (the setup wizard and the Settings screens). The stats screens arrive in phase 6; see `docs/PLAN.md`.
 
 ## What it does
 
@@ -23,7 +23,13 @@ These are absolute and are enforced in code and in review:
 
 ## Requirements
 
-Windows 11, BlueStacks 5 with Android Debug Bridge enabled, an instance display of 1600 x 900 at DPI 240, Python 3.13 and [uv](https://docs.astral.sh/uv/). Setup steps arrive with the wizard in phase 5 and in `docs/setup.md` in phase 7.
+Windows 11, BlueStacks 5 with Android Debug Bridge enabled, an instance display of 1600 x 900 at pixel density 240, Python 3.13 and [uv](https://docs.astral.sh/uv/).
+
+## Setup
+
+Start brawlfarm and open `http://127.0.0.1:8765/setup`. The wizard finds adb, lists your BlueStacks instances and their ports, checks each one is 1600 x 900 at pixel density 240, and optionally takes a Brawl Stars API token and your player tags. Every step writes straight to `config.toml`, so you can close it and come back. With nothing configured yet, the Fleet page offers the same wizard behind an Open setup button, and Settings, Connection has a Run setup again link once you are past it.
+
+To change the display: BlueStacks, Settings, Display, set 1600 x 900 and pixel density 240, then restart the instance. A prose walkthrough with pictures joins `docs/setup.md` in phase 7.
 
 ## Development
 
@@ -68,6 +74,7 @@ The API binds 127.0.0.1 only and has no authentication: anything that can reach 
 | POST | `/api/instances/{name}/stop-now` | kill the worker by its PID, only while a stop is pending |
 | POST | `/api/instances/{name}/restart` | stop now, relaunch on the next tick |
 | POST | `/api/instances/{name}/retry` | clear the offline backoff and probe again |
+| DELETE | `/api/instances/{name}/data` | delete that instance's folder; the instance stays in `config.toml` |
 | GET | `/api/instances/{name}/screenshot.png` | a live adb screencap |
 | GET | `/api/instances/{name}/preview.jpg` | the small frame the worker writes every second, or one throttled live capture when it is stopped |
 | GET, PUT | `/api/instances/{name}/plan` | the farm plan, plus the owned roster, the queue and the current brawler |
@@ -76,6 +83,9 @@ The API binds 127.0.0.1 only and has no authentication: anything that can reach 
 | GET | `/api/stats` | `range=today\|7d\|30d\|all`, `instances=a,b` |
 | GET | `/api/stats/export.csv` | the same selection as a CSV download |
 | GET, PUT | `/api/settings` | the whole `config.toml` document |
+| POST | `/api/settings/reset` | every section back to its default; instances and their folders are kept |
+| POST | `/api/settings/open-data-folder` | open the data folder in Explorer; 501 anywhere but Windows |
+| POST | `/api/notifications/test` | send one test alert to every configured channel |
 | POST | `/api/setup/scan` | find adb and the BlueStacks instances |
 | POST | `/api/setup/test` | can adb reach this port |
 | POST | `/api/setup/display-check` | is this instance 1600 x 900 at DPI 240 |
