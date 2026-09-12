@@ -91,7 +91,9 @@ def apply(ns: dict[str, object], path: Path) -> Report:
         with path.open("rb") as fh:
             data = tomllib.load(fh)
     except (OSError, tomllib.TOMLDecodeError) as exc:
-        return Report(path, True, None, {}, (f"calibration.toml could not be read: {exc}",), defaults)
+        return Report(
+            path, True, None, {}, (f"calibration.toml could not be read: {exc}",), defaults
+        )
 
     applied: dict[str, object] = {}
     problems: list[str] = []
