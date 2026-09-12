@@ -223,3 +223,28 @@ def test_the_route_body_never_carries_the_token_or_the_tag(tmp_path: Path) -> No
         assert "2P0YLQ9" not in text
     finally:
         client.__exit__(None, None, None)
+
+
+def test_a_corrected_token_is_rechecked_inside_the_ttl(tmp_path: Path) -> None:
+    """The cached answer belongs to the credentials it was fetched with: fix the token and
+    the next call checks again rather than repeating "rejected" for five minutes."""
+    client, sup, _home = route_client(tmp_path, token="wrong-token-not-a-real-one")
+    try:
+        calls: list[str] = []
+
+        def fetch(tag: str, token: str) -> dict:
+            calls.append(token)
+            if token != TOKEN:
+                err = ApiError("/players/x -> HTTP 403: nope")
+                err.status = 403
+                raise err
+            return {"tag": tag}
+
+        # now() is frozen, so the second call is well inside TTL_S.
+        client.app.state.connection = cache(fetch)
+        assert client.get("/api/connection/check").json()["status"] == "rejected"
+        sup.settings.connection.brawl_api_token = TOKEN
+        assert client.get("/api/connection/check").json()["status"] == "ok"
+        assert len(calls) == 2
+    finally:
+        client.__exit__(None, None, None)

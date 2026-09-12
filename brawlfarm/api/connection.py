@@ -16,6 +16,7 @@ exception type reaches the log.
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import logging
 import time
 from collections.abc import Callable
@@ -44,6 +45,16 @@ def credential_status(token: str, tag: str) -> str | None:
     return None
 
 
+def _credentials_hash(token: str, tag: str) -> str:
+    """A fingerprint of the pair the cached answer belongs to.
+
+    A hash rather than the values themselves: the cache outlives the request, and neither
+    the token nor the tag may sit in memory, in a repr or in a log line a moment longer
+    than the call that used them.
+    """
+    return hashlib.sha256(f"{token}\0{tag}".encode()).hexdigest()
+
+
 class ConnectionCache:
     """One process-wide answer about the token, with a TTL and one lock.
 
@@ -65,6 +76,7 @@ class ConnectionCache:
         self._clock = clock
         self._fetch = fetch
         self._status: str | None = None
+        self._credentials = ""
         self._checked_at = ""
         self._fetched_at = 0.0
         self._lock: asyncio.Lock | None = None
@@ -82,9 +94,15 @@ class ConnectionCache:
         401 and 403 are "rejected": the token is wrong, or the IP it was made for is not
         this one. Everything else, including a connection error, a timeout and a 5xx, is
         "unreachable", because the difference does not change what the reader should do.
+
+        The answer belongs to the credentials it was fetched with: a corrected token or
+        tag discards it and checks again at once, rather than repeating "rejected" until
+        the TTL runs out.
         """
+        credentials = _credentials_hash(token, tag)
         async with self._get_lock():
-            if self._status is not None and self._now() - self._fetched_at < self._ttl_s:
+            fresh = self._now() - self._fetched_at < self._ttl_s
+            if self._status is not None and credentials == self._credentials and fresh:
                 return self._status, self._checked_at
             try:
                 await asyncio.to_thread(self._fetch, tag, token)
@@ -97,6 +115,7 @@ class ConnectionCache:
                 status = "unreachable"
                 log.warning("connection check failed (%s)", type(exc).__name__)
             self._status = status
+            self._credentials = credentials
             self._fetched_at = self._now()
             self._checked_at = self._clock().isoformat(timespec="seconds")
             return status, self._checked_at
