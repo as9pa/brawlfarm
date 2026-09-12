@@ -1,6 +1,7 @@
 /** A radio group that looks like chips. Radio semantics rather than buttons, so the
  * "one of these is selected" relationship survives in a screen reader, and the radio
- * group's keyboard comes with them: one tab stop, arrows between the options. */
+ * group's keyboard comes with them: one tab stop, arrows between the options, and Home
+ * and End to the two ends. */
 import { type KeyboardEvent, useRef } from "react";
 
 /** Generic over the option values, so a caller whose values are a union gets that union
@@ -14,7 +15,8 @@ export interface SegmentedProps<T extends string> {
 
 /** Which way each arrow moves along the group. The group is drawn as a row, so Left and
  * Right are the obvious pair, and Up and Down are the ones a screen reader user is told
- * to try; both ends wrap. */
+ * to try; both ends wrap. Home and End are not in here: they land on an end rather than
+ * stepping, so they have no direction to hold. */
 const ARROW_STEP: Record<string, number> = {
   ArrowLeft: -1,
   ArrowUp: -1,
@@ -39,9 +41,12 @@ export function Segmented<T extends string>({
    * the re-render, so the key press lands on one frame. */
   const onKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
     const step = ARROW_STEP[event.key];
-    if (step === undefined) return;
+    let to: number;
+    if (event.key === "Home") to = 0;
+    else if (event.key === "End") to = options.length - 1;
+    else if (step !== undefined) to = at < 0 ? 0 : (at + step + options.length) % options.length;
+    else return;
     event.preventDefault();
-    const to = at < 0 ? 0 : (at + step + options.length) % options.length;
     onChange(options[to].value);
     group.current?.querySelectorAll<HTMLButtonElement>('[role="radio"]')[to]?.focus();
   };

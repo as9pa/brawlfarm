@@ -21,6 +21,7 @@ from typing import Literal
 from fastapi import APIRouter, Request
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator
 
+from brawlfarm.api.connection import credential_status
 from brawlfarm.api.deps import get_sup, resolve_instance
 from brawlfarm.core import farmplan
 
@@ -76,11 +77,8 @@ async def enrich_plan(request: Request, name: str, plan: dict) -> dict:
     brawler = view.farm_brawler if view is not None else None
 
     roster: list[dict] | None = None
-    if not token:
-        status = "no_token"
-    elif not tag:
-        status = "no_tag"
-    else:
+    status = credential_status(token, tag)
+    if status is None:
         roster, status = await request.app.state.roster.get(inst.name, tag, token)
 
     trophies = None

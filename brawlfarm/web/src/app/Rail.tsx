@@ -12,7 +12,7 @@ import { TONE_DOT, stateTone } from "../lib/states";
 
 const SECTIONS: { to: string; label: string; soon: boolean }[] = [
   { to: "/", label: "Fleet", soon: false },
-  { to: "/stats", label: "Stats", soon: true },
+  { to: "/stats", label: "Stats", soon: false },
   { to: "/settings", label: "Settings", soon: false },
 ];
 

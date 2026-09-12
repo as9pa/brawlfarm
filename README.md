@@ -2,7 +2,7 @@
 
 An open-source Brawl Stars trophy farmer for BlueStacks on Windows, with a local control panel in your browser.
 
-Status: under construction. Phase 5 of 8 (the setup wizard and the Settings screens). The stats screens arrive in phase 6; see `docs/PLAN.md`.
+Status: under construction. Phase 6 of 8 (the Stats screen and brawler icons). Docs and publishing come in phase 7; see `docs/PLAN.md`.
 
 ## What it does
 
@@ -68,7 +68,7 @@ The API binds 127.0.0.1 only and has no authentication: anything that can reach 
 | Method | Path | What it does |
 | --- | --- | --- |
 | GET | `/api/health` | version, data directory, instance count, uptime |
-| GET | `/api/instances` | one payload per instance: state, phase, session, today's games and trophies |
+| GET | `/api/instances` | one payload per instance: state, phase, session, today's games and trophies, and the last finished session |
 | POST | `/api/instances/{name}/start` | start, or run for `{"hours": N}` |
 | POST | `/api/instances/{name}/stop` | stop after the current match |
 | POST | `/api/instances/{name}/stop-now` | kill the worker by its PID, only while a stop is pending |
@@ -82,6 +82,8 @@ The API binds 127.0.0.1 only and has no authentication: anything that can reach 
 | GET | `/api/instances/{name}/feed` | session narration with a `seq` on every record, `kind=all\|matches\|interrupts\|errors` |
 | GET | `/api/stats` | `range=today\|7d\|30d\|all`, `instances=a,b` |
 | GET | `/api/stats/export.csv` | the same selection as a CSV download |
+| GET | `/api/brawlers/{name}/icon.png` | the brawler's portrait from a local cache, fetched once from the Brawlify CDN |
+| GET | `/api/connection/check` | whether the Brawl Stars token works: `ok`, `no_token`, `no_tag`, `rejected` or `unreachable` |
 | GET, PUT | `/api/settings` | the whole `config.toml` document |
 | POST | `/api/settings/reset` | every section back to its default; instances and their folders are kept |
 | POST | `/api/settings/open-data-folder` | open the data folder in Explorer; 501 anywhere but Windows |
@@ -104,4 +106,4 @@ The API binds 127.0.0.1 only and has no authentication: anything that can reach 
 
 ## Legal
 
-brawlfarm is not affiliated with or endorsed by Supercell. Brawl Stars and its art belong to Supercell; brawler icons are fetched at runtime from the Brawlify CDN and cached locally under Supercell's fan content policy. Automating the game may violate its terms of service; use at your own risk. MIT licensed.
+brawlfarm is not affiliated with or endorsed by Supercell. Brawler art is served from the Brawlify CDN and belongs to Supercell under its fan content policy. Automating the game may violate its terms of service; use at your own risk. MIT licensed.
