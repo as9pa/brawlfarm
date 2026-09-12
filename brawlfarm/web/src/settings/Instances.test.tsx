@@ -88,7 +88,7 @@ describe("Settings > Instances", () => {
   it("shows every instance with its port, its tag, its folder and its status", async () => {
     server();
     mount();
-    const [pie64, pie64_1, pie64_3] = await rows();
+    const [pie64, pie64_1] = await rows();
 
     const cells = within(pie64_1).getAllByRole("cell");
     expect(cells[0]).toHaveTextContent("Pie64_1");
@@ -97,13 +97,22 @@ describe("Settings > Instances", () => {
     expect(cells[3]).toHaveTextContent("instances/Pie64_1");
     expect(within(pie64_1).getByText("Offline")).toBeInTheDocument();
     expect(within(pie64).getByText("Farming")).toBeInTheDocument();
-    // The supervisor has no view for Pie64_3 yet, and an invented state would be a lie.
-    expect(within(pie64_3).getByText("No status yet")).toBeInTheDocument();
 
     const tag = within(pie64).getByDisplayValue("#2P0YLQ9");
     expect(tag).toHaveAttribute("id", "instance-tag-Pie64");
     // The screenshot pass blurs it before the shot.
     expect(within(pie64).getAllByRole("cell")[2].querySelector("[data-private]")).not.toBeNull();
+  });
+
+  it("shows an instance the supervisor has not listed yet as Stopped", async () => {
+    server();
+    mount();
+    const [, , pie64_3] = await rows();
+
+    // Pie64_3 was added by hand a moment ago and the supervisor has no view for it. It is
+    // not running, so it gets the chip a stopped instance gets, not an invented break.
+    expect(within(pie64_3).getByText("Stopped")).toBeInTheDocument();
+    expect(within(pie64_3).queryByText("Scheduled break")).toBeNull();
   });
 
   it("says what to do when there are no instances yet", async () => {
