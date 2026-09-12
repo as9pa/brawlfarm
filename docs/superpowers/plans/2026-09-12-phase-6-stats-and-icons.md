@@ -50,7 +50,7 @@ Copied verbatim from section 11 of the design brief. Every task's requirements i
   Pie64_3, ports 5555 / 5565 / 5585, and the made-up tag `#2P0YLQ9`. Docs show a data
   folder as `instances/Pie64`, never as an absolute path.
 - Every commit carries a conventional message plus these two trailer lines exactly:
-  `Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>` and
+  `Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>` and
   `Claude-Session: https://claude.ai/code/session_01CQ1GimQ3uiR2sXPzfZLNWV`.
   `git config user.name` is `as9pa`.
 - Green before every commit: `pnpm typecheck`, `pnpm test`, `pnpm build`,
@@ -649,7 +649,7 @@ A non-PNG body, a body over 512 KiB and a non-200 all write nothing.
 
 Only the API process imports this. No worker path reaches the CDN.
 
-Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>
+Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>
 Claude-Session: https://claude.ai/code/session_01CQ1GimQ3uiR2sXPzfZLNWV"
 ```
 
@@ -1120,7 +1120,7 @@ CDN cannot delay the first request.
 RosterCache gains cached_names(), a read-only list of the brawler names the
 process already has, which is the only thing the prewarm has to work from.
 
-Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>
+Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>
 Claude-Session: https://claude.ai/code/session_01CQ1GimQ3uiR2sXPzfZLNWV"
 ```
 
@@ -1708,7 +1708,7 @@ therefore the player tag, and nothing may parse or log it.
 plans.py now asks credential_status for its first two branches, so the plan
 route's four statuses cannot drift from this route's five.
 
-Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>
+Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>
 Claude-Session: https://claude.ai/code/session_01CQ1GimQ3uiR2sXPzfZLNWV"
 ```
 
@@ -2213,7 +2213,7 @@ must never break a Fleet card.
 It sits beside the other route-side readers, not in the supervisor, so a tick
 never grows a per-status disk walk.
 
-Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>
+Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>
 Claude-Session: https://claude.ai/code/session_01CQ1GimQ3uiR2sXPzfZLNWV"
 ```
 
@@ -2376,7 +2376,7 @@ sessions and one.
 This is the phase 3 deferral. aggregate keeps its shape, both routes keep
 their query params and their 404, and RECENT_LIMIT stays 20.
 
-Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>
+Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>
 Claude-Session: https://claude.ai/code/session_01CQ1GimQ3uiR2sXPzfZLNWV"
 ```
 
@@ -2721,7 +2721,7 @@ week-long Cache-Control is the cache.
 The farm plan's current brawler, its queue rows and its full roster list each
 gain one, inside the flex row they already had. Every row keeps its height.
 
-Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>
+Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>
 Claude-Session: https://claude.ai/code/session_01CQ1GimQ3uiR2sXPzfZLNWV"
 ```
 
@@ -4055,7 +4055,7 @@ token is what explains an empty page.
 Export CSV is an anchor with download, not a fetch: the browser's own
 download is the feedback.
 
-Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>
+Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>
 Claude-Session: https://claude.ai/code/session_01CQ1GimQ3uiR2sXPzfZLNWV"
 ```
 
@@ -4712,7 +4712,7 @@ The series colours are only tokens that exist: accent, ok, warn and the three
 series tones. The proposal named an --info tone, which theme.css does not
 have.
 
-Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>
+Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>
 Claude-Session: https://claude.ai/code/session_01CQ1GimQ3uiR2sXPzfZLNWV"
 ```
 
@@ -5660,7 +5660,7 @@ there is no axis to read across.
 
 RecentGames keeps the API's order and says none where the API had nothing.
 
-Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>
+Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>
 Claude-Session: https://claude.ai/code/session_01CQ1GimQ3uiR2sXPzfZLNWV"
 ```
 
@@ -6165,7 +6165,7 @@ as it does on Stats, with the same link.
 The rail drops the soon tag from Stats. The field and its span stay: phase 7
 and phase 8 add sections, and the tag is what will mark them.
 
-Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>
+Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>
 Claude-Session: https://claude.ai/code/session_01CQ1GimQ3uiR2sXPzfZLNWV"
 ```
 
@@ -6399,7 +6399,7 @@ Brawlify CDN is now a thing this program actually calls.
 docs/PLAN.md is left alone: the board is updated on main after the merge, as
 in every phase.
 
-Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>
+Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>
 Claude-Session: https://claude.ai/code/session_01CQ1GimQ3uiR2sXPzfZLNWV"
 ```
 
@@ -6432,7 +6432,7 @@ Fix anything that differs, then:
 ```bash
 uv run python tools/scrub_check.py && git add -A && git commit -m "fix(stats): copy corrections from the section 8 sweep
 
-Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>
+Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>
 Claude-Session: https://claude.ai/code/session_01CQ1GimQ3uiR2sXPzfZLNWV"
 ```
 
@@ -6520,7 +6520,7 @@ CI run URL from that PR's checks tab, and the two test counts written down in st
 ```bash
 uv run python tools/scrub_check.py && git add docs/PLAN.md && git commit -m "docs(board): phase 6 shipped
 
-Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>
+Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>
 Claude-Session: https://claude.ai/code/session_01CQ1GimQ3uiR2sXPzfZLNWV" && git push
 ```
 
