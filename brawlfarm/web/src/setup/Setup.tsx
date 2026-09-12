@@ -10,25 +10,28 @@
  * left edge from 1000 px up rather than sitting in the row, so the column stays in the
  * middle of the screen instead of being pushed off it by the rail. Below 1000 px the rail
  * is a row of numbers above the column.
- *
- * STEP_VIEWS is Partial while the branch is being built. Task 10 fills the last of it in
- * and makes it a total Record, which is what then proves no step is missing.
  */
 import type { ReactElement } from "react";
 
 import { StepBlueStacks } from "./StepBlueStacks";
 import { StepDisplay } from "./StepDisplay";
+import { StepDone } from "./StepDone";
 import { StepInstances } from "./StepInstances";
 import { StepRail } from "./StepRail";
+import { StepStats } from "./StepStats";
 import { type StepId, type StepProps, useSetupState } from "./useSetupState";
 import { useSettingsPatch } from "../settings/useSettingsPatch";
 
 type StepView = (props: StepProps) => ReactElement;
 
-const STEP_VIEWS: Partial<Record<StepId, StepView>> = {
+/** Total, not Partial: every id in SETUP_STEPS has a view, and the compiler is what says
+ * so. Adding a step to the rail without writing it now fails typecheck. */
+const STEP_VIEWS: Record<StepId, StepView> = {
   bluestacks: StepBlueStacks,
   instances: StepInstances,
   display: StepDisplay,
+  stats: StepStats,
+  done: StepDone,
 };
 
 export function Setup() {
@@ -53,7 +56,7 @@ export function Setup() {
               {line}
             </p>
           ))}
-          {setup.ready && View !== undefined && <View setup={setup} />}
+          {setup.ready && <View setup={setup} />}
         </section>
       </main>
     </div>
