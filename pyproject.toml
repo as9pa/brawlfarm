@@ -24,6 +24,7 @@ brawlfarm = "brawlfarm.__main__:main"
 
 [dependency-groups]
 dev = ["pytest>=8.3", "pytest-asyncio>=0.24", "ruff>=0.12", "httpx>=0.27"]
+desktop = ["pywebview>=5.3", "pystray>=0.19", "pillow>=10"]
 
 [build-system]
 requires = ["hatchling"]
