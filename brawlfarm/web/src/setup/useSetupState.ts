@@ -7,8 +7,11 @@
  *
  * Where it opens is derived from what is on disk, not from the scan: the scan has not
  * answered when the wizard mounts, and a wizard that jumped a step half a second after it
- * appeared would be worse than one that always starts at the top. The done table below is
- * the other question, what the rail may tick, and that one does wait for the scan.
+ * appeared would be worse than one that always starts at the top. A fleet on disk is what
+ * says setup has been through here before, so no adb path or no instances both open on
+ * BlueStacks and the fresh install walks the wizard from its first step; anything else
+ * opens on Display. The done table below is the other question, what the rail may tick,
+ * and that one does wait for the scan.
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
@@ -102,8 +105,8 @@ export function useSetupState(settingsPatch: SettingsPatch): SetupState {
   useEffect(() => {
     if (landed.current || settings === undefined) return;
     landed.current = true;
-    if (settings.connection.adb_path === "") setStep("bluestacks");
-    else if (settings.instances.length === 0) setStep("instances");
+    if (settings.connection.adb_path === "" || settings.instances.length === 0)
+      setStep("bluestacks");
     else setStep("display");
   }, [settings]);
 
