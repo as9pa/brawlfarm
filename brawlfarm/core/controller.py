@@ -33,6 +33,7 @@ import cv2
 from brawlfarm.core import (
     adb,
     brawlers,
+    captures,
     config,
     farmplan,
     match_vision,
@@ -218,11 +219,9 @@ class Controller:
 
     def event_shot(self, screen, tag: str) -> None:
         """Always-on snapshot of a notable event (recover/disconnect/stuck) so we
-        can diagnose anything novel in the morning, even without --debug-shots."""
-        d = config.CAPTURES_DIR / "events"
-        d.mkdir(parents=True, exist_ok=True)
-        ts = time.strftime("%H%M%S")
-        cv2.imwrite(str(d / f"{ts}_{tag}.png"), screen)
+        can diagnose anything novel in the morning, even without --debug-shots.
+        Capped by captures.py: one frame per tag per 10 minutes, newest 100 kept."""
+        captures.write_event(screen, tag)
 
     # --- API snapshots (throttled) ------------------------------------------
 
