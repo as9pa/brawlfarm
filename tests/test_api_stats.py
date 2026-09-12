@@ -13,7 +13,14 @@ from pathlib import Path
 import pytest
 
 from brawlfarm import settings as S
-from brawlfarm.api.stats import aggregate, export_csv, load_games_for, range_start, sessions_hours
+from brawlfarm.api.stats import (
+    MIN_HOURS,
+    aggregate,
+    export_csv,
+    load_games_for,
+    range_start,
+    sessions_hours,
+)
 from brawlfarm.core import datalog
 from tests.apihelpers import make_client
 
@@ -100,14 +107,15 @@ def test_today_summary_across_two_instances(tmp_path: Path) -> None:
     assert out["range"] == "today"
     assert out["instances"] == ["alpha", "bravo"]
     # 5 games today (yesterday's is excluded); 7+3+9-3+5 = 21 trophies; ranks 2,4,1,8,3;
-    # sessions 16:00-16:10 (+150 s), 17:40 alone, bravo 17:00 alone = 17.5 min = 0.29 h.
+    # sessions 16:00-16:10 (+150 s), 17:40 alone, bravo 17:00 alone = 17.5 min = 0.29 h,
+    # which is below MIN_HOURS, so trophies per hour is null.
     assert out["summary"] == {
         "games": 5,
         "trophies": 21,
-        "trophies_per_hour": 72.0,
+        "trophies_per_hour": None,
         "avg_rank": 3.6,
         "top4_rate": 80.0,
-        "hours_farmed": 0.3,
+        "hours_farmed": 0.29,
     }
 
 
@@ -232,3 +240,41 @@ def test_one_unreadable_games_csv_still_exports_the_others(api) -> None:
     rows = list(csv.DictReader(export.text.splitlines()))
     assert [r["instance"] for r in rows] == ["alpha"]
     assert [r["brawler"] for r in rows] == ["NITA"]
+
+
+def test_trophies_per_hour_is_null_below_half_an_hour(tmp_path: Path) -> None:
+    """Two games nine minutes apart must not read as hundreds of trophies an hour. The
+    guard is MIN_HOURS, not "any positive number of hours" (the phase 3 deferral)."""
+    _write_games(
+        tmp_path,
+        "alpha",
+        [_game(9, "NORI", 2, 12), _game(0, "NORI", 3, 9)],
+    )
+    summary = aggregate(tmp_path, ["alpha"], "all", NOW)["summary"]
+    assert summary["hours_farmed"] < MIN_HOURS
+    assert summary["trophies_per_hour"] is None
+    assert summary["games"] == 2
+    assert summary["trophies"] == 21
+
+
+def test_trophies_per_hour_is_a_number_above_half_an_hour(tmp_path: Path) -> None:
+    _write_games(
+        tmp_path,
+        "alpha",
+        [_game(29, "NORI", 2, 12), _game(0, "NORI", 3, 9)],
+    )
+    summary = aggregate(tmp_path, ["alpha"], "all", NOW)["summary"]
+    assert summary["hours_farmed"] >= MIN_HOURS
+    assert summary["trophies_per_hour"] == 40.0
+
+
+def test_hours_farmed_carries_two_decimals(tmp_path: Path) -> None:
+    """ "3.2 h" hides the difference between two short sessions and one."""
+    _write_games(
+        tmp_path,
+        "alpha",
+        [_game(29, "NORI", 2, 12), _game(0, "NORI", 3, 9)],
+    )
+    hours = aggregate(tmp_path, ["alpha"], "all", NOW)["summary"]["hours_farmed"]
+    assert hours == 0.53  # 29 min plus the last game's 150 s, to two digits
+    assert hours != round(hours, 1)
