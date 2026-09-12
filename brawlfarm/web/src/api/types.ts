@@ -2,8 +2,7 @@
  * The API's payloads as TypeScript.
  *
  * Mirrors brawlfarm/api/*.py exactly: optional in Python means `| null` here, never `?`,
- * because the API always sends the key. The stats series is the only payload still left
- * out, and it arrives with the Stats page in phase 6.
+ * because the API always sends the key.
  */
 
 export type InstanceState =
@@ -51,6 +50,9 @@ export interface InstancePayload {
   player_tag: string;
   session: InstanceSession | null;
   today: Today;
+  /** The newest finished session in the instance folder, so a stopped card is not all
+   * zeros on a cold load. Null when that instance has never written one. */
+  last_session: LastSession | null;
 }
 
 export interface InstancesResponse {
@@ -165,10 +167,69 @@ export interface StatsSummary {
   hours_farmed: number;
 }
 
+export type StatsRange = "today" | "7d" | "30d" | "all";
+
+export interface StatsPoint {
+  t: string;
+  cum: number;
+}
+
+export interface StatsSeries {
+  instance: string;
+  points: StatsPoint[];
+}
+
+export interface StatsBrawler {
+  name: string;
+  games: number;
+  net: number;
+  avg_rank: number | null;
+  top4_rate: number | null;
+}
+
+export interface StatsRank {
+  rank: number;
+  games: number;
+}
+
+export interface StatsGame {
+  instance: string | null;
+  t: string;
+  brawler: string | null;
+  rank: number | null;
+  trophy_change: number | null;
+  map: string | null;
+  mode: string | null;
+}
+
+/** StatsResponse grows from the summary-only phase 4 shape to the whole aggregate. */
 export interface StatsResponse {
   range: string;
   instances: string[];
   summary: StatsSummary;
+  series: StatsSeries[];
+  brawlers: StatsBrawler[];
+  ranks: StatsRank[];
+  recent: StatsGame[];
+}
+
+/** GET /api/connection/check. RosterStatus deliberately stays four values, because the
+ * plan route still answers with those four; "rejected" and "unreachable" live only here. */
+export type ConnectionStatus = "ok" | "no_token" | "no_tag" | "rejected" | "unreachable";
+
+export interface ConnectionCheck {
+  status: ConnectionStatus;
+  checked_at: string;
+}
+
+export interface LastSession {
+  games: number;
+  trophies: number;
+  avg_rank: number | null;
+  disconnects: number;
+  duration_s: number;
+  interrupts: number;
+  ended_at: string;
 }
 
 /**

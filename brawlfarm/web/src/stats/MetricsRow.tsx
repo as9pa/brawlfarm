@@ -1,0 +1,74 @@
+/**
+ * Six figures on one line: the value at 18 px and its label at 11 px muted under it,
+ * separated by a 1 px rule. No tiles, no big numbers, no sparkline. The row is the
+ * summary, so it is the one thing on the page that is always readable at a glance.
+ *
+ * Nothing here truncates. A cell keeps a floor of 104 px and the row wraps under it, so a
+ * phone gets two or three columns of readable figures rather than six cells of "37...".
+ *
+ * Two placeholders stand in for numbers that would be a lie: "after 30 min" while the
+ * range is too short for a rate to mean anything, and "none" when there is nothing at all
+ * to average.
+ */
+import type { StatsSummary } from "../api/types";
+import { signed } from "../lib/format";
+
+export interface MetricsRowProps {
+  summary: StatsSummary;
+}
+
+const NONE = "none";
+const TOO_SHORT = "after 30 min";
+
+function trophyTone(trophies: number): string {
+  if (trophies > 0) return "text-accent";
+  if (trophies < 0) return "text-bad";
+  return "text-muted";
+}
+
+function rateText(summary: StatsSummary): string {
+  if (summary.trophies_per_hour !== null) return String(summary.trophies_per_hour);
+  return summary.games > 0 ? TOO_SHORT : NONE;
+}
+
+function Figure({ label, value, tone }: { label: string; value: string; tone?: string }) {
+  return (
+    <div
+      data-testid={`metric-${label}`}
+      className="flex min-w-[104px] flex-1 flex-col gap-0.5 border-l border-line px-3 first:border-l-0 first:pl-0"
+    >
+      <span
+        data-testid="metric-value"
+        className={`font-mono text-[18px] tabular-nums ${tone ?? "text-text"}`}
+      >
+        {value}
+      </span>
+      <span data-label="" className="text-[11px] text-muted">
+        {label}
+      </span>
+    </div>
+  );
+}
+
+export function MetricsRow({ summary }: MetricsRowProps) {
+  return (
+    <div className="flex flex-wrap items-start rounded-[10px] border border-line bg-panel px-3 py-2">
+      <Figure label="games" value={String(summary.games)} />
+      <Figure
+        label="trophies"
+        value={signed(summary.trophies)}
+        tone={trophyTone(summary.trophies)}
+      />
+      <Figure label="trophies per hour" value={rateText(summary)} />
+      <Figure
+        label="average rank"
+        value={summary.avg_rank === null ? NONE : summary.avg_rank.toFixed(1)}
+      />
+      <Figure
+        label="top-4 rate"
+        value={summary.top4_rate === null ? NONE : `${Math.round(summary.top4_rate)}%`}
+      />
+      <Figure label="time farmed" value={`${summary.hours_farmed.toFixed(2)} h`} />
+    </div>
+  );
+}

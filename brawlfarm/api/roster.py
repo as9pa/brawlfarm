@@ -94,6 +94,18 @@ class RosterCache:
             entry = self._entries[name] = Entry()
         return entry
 
+    def cached_names(self) -> list[str]:
+        """Every brawler name in every cached roster, once each, in insertion order. The
+        icon prewarm is the only caller: it wants something to warm, and this is the only
+        list of brawler names the API process has without reading a file."""
+        seen: dict[str, None] = {}
+        for entry in self._entries.values():
+            for brawler in entry.brawlers or []:
+                name = brawler.get("name")
+                if isinstance(name, str) and name:
+                    seen.setdefault(name, None)
+        return list(seen)
+
     async def get(self, name: str, tag: str, token: str) -> tuple[list[dict] | None, str]:
         """This instance's owned brawlers sorted by trophies descending, and a status.
 

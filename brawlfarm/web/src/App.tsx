@@ -13,7 +13,6 @@ import { QueryClientProvider, useQuery, useQueryClient } from "@tanstack/react-q
 import { useEffect, useState } from "react";
 import { BrowserRouter, Navigate, Route, Routes } from "react-router";
 
-import { Placeholder } from "./app/Placeholder";
 import { Shell } from "./app/Shell";
 import { createQueryClient, queryKeys } from "./api/queries";
 import { getSettings } from "./api/settings";
@@ -23,6 +22,7 @@ import { Instance } from "./instance/Instance";
 import { onReconnect, subscribe } from "./live/useEvents";
 import { Settings } from "./settings/Settings";
 import { Setup } from "./setup/Setup";
+import { Stats } from "./stats/Stats";
 
 /** A burst of state changes (a tick touching five instances) is one refetch, not five. */
 const INSTANCE_DEBOUNCE_MS = 250;
@@ -84,7 +84,7 @@ function ShellRoutes() {
       <Routes>
         <Route path="/" element={<Fleet />} />
         <Route path="/instances/:name" element={<Instance />} />
-        <Route path="/stats" element={<Placeholder title="Stats" body="Stats arrive in phase 6." />} />
+        <Route path="/stats" element={<Stats />} />
         <Route path="/settings" element={<Navigate to="/settings/instances" replace />} />
         <Route path="/settings/:section" element={<Settings />} />
       </Routes>

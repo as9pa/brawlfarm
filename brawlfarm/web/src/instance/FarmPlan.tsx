@@ -7,10 +7,13 @@
  */
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
+import { Link } from "react-router";
 
+import { getConnection } from "../api/connection";
 import { getPlan, putPlan } from "../api/plans";
 import { queryKeys } from "../api/queries";
-import type { FarmPlan as FarmPlanBody, PlanResponse } from "../api/types";
+import type { ConnectionStatus, FarmPlan as FarmPlanBody, PlanResponse } from "../api/types";
+import { BrawlerIcon } from "../components/ui/BrawlerIcon";
 import { Button } from "../components/ui/Button";
 import { ErrorBlock } from "../components/ui/ErrorBlock";
 import { Field } from "../components/ui/Field";
@@ -32,25 +35,62 @@ function planOf(response: PlanResponse): FarmPlanBody {
   };
 }
 
-/** Why there is no roster, in words that say what to do about it (brief section 5). */
-function rosterNote(plan: PlanResponse): string | null {
-  switch (plan.roster_status) {
-    case "no_token":
-      return "Add a Brawl Stars API token in Settings to see the roster.";
-    case "no_tag":
-      return "Set this instance's player tag in Settings to see the roster.";
-    case "unavailable":
-      return plan.roster === null
-        ? "Roster unavailable right now."
-        : "Roster unavailable right now; showing the last known list.";
-    default:
-      return null;
+/** Why there is no roster, in words that say what to do about it (phase 5 brief section
+ * 5). The rejected branch is the same sentence Stats shows, because it is the same
+ * problem: the plan route only ever says "unavailable", and the connection route is what
+ * knows the token itself was refused. */
+function RosterNote({
+  plan,
+  connection,
+}: {
+  plan: PlanResponse;
+  connection: ConnectionStatus | undefined;
+}) {
+  if (plan.roster_status === "no_token") {
+    return (
+      <p className="text-[12px] text-muted">
+        Add a Brawl Stars API token in Settings to see the roster.
+      </p>
+    );
   }
+  if (plan.roster_status === "no_tag") {
+    return (
+      <p className="text-[12px] text-muted">
+        Set this instance's player tag in Settings to see the roster.
+      </p>
+    );
+  }
+  if (plan.roster_status !== "unavailable") return null;
+  if (connection === "rejected") {
+    return (
+      <p className="text-[12px] text-muted">
+        The Brawl Stars API rejected the token. Check the token, and the IP address it was
+        created for, in{" "}
+        <Link to="/settings/connection" className="underline">
+          Settings, Connection
+        </Link>
+        .
+      </p>
+    );
+  }
+  return (
+    <p className="text-[12px] text-muted">
+      {plan.roster === null
+        ? "Roster unavailable right now."
+        : "Roster unavailable right now; showing the last known list."}
+    </p>
+  );
 }
 
 export function FarmPlan({ name }: { name: string }) {
   const client = useQueryClient();
   const query = useQuery({ queryKey: queryKeys.plan(name), queryFn: () => getPlan(name) });
+  const connection = useQuery({
+    queryKey: queryKeys.connection(),
+    queryFn: getConnection,
+    staleTime: 300_000,
+    refetchOnWindowFocus: false,
+  });
   const [savedAt, setSavedAt] = useState<string | null>(null);
   const [failure, setFailure] = useState<unknown>(null);
   const [showAll, setShowAll] = useState(false);
@@ -165,7 +205,6 @@ export function FarmPlan({ name }: { name: string }) {
       : Math.min(100, Math.round((plan.current.trophies / goal) * 100));
   const showFallback = fallbackOn ?? plan.maxed_fallback !== null;
   const listId = `${name}-roster`;
-  const note = rosterNote(plan);
 
   return (
     <section className="flex flex-col gap-3 rounded-[10px] border border-line bg-panel p-3">
@@ -251,7 +290,8 @@ export function FarmPlan({ name }: { name: string }) {
 
       <div className="flex flex-col gap-1">
         <span className="text-[12px] text-muted">Current brawler</span>
-        <div className="flex items-baseline gap-2">
+        <div className="flex items-center gap-2">
+          <BrawlerIcon name={plan.current.brawler} />
           <span className="font-mono text-[13px]">{plan.current.brawler ?? "none"}</span>
           <span className="ml-auto font-mono text-[12px] tabular-nums text-muted">
             {plan.current.trophies === null ? "none" : plan.current.trophies} / {goal}
@@ -278,7 +318,8 @@ export function FarmPlan({ name }: { name: string }) {
         ) : (
           <ul>
             {plan.queue.map((brawler) => (
-              <li key={brawler} className="flex items-baseline gap-2 text-[13px]">
+              <li key={brawler} className="flex items-center gap-2 text-[13px]">
+                <BrawlerIcon name={brawler} />
                 <span className="font-mono">{brawler}</span>
                 <span className="ml-auto font-mono text-[12px] tabular-nums text-muted">
                   {trophiesOf.get(brawler.toUpperCase()) ?? "none"}
@@ -298,7 +339,8 @@ export function FarmPlan({ name }: { name: string }) {
           {showAll ? (
             <ul data-testid="plan-roster">
               {roster.map((b) => (
-                <li key={b.id} className="flex items-baseline gap-2 text-[13px]">
+                <li key={b.id} className="flex items-center gap-2 text-[13px]">
+                  <BrawlerIcon name={b.name} />
                   <span className="font-mono">{b.name}</span>
                   <span className="ml-auto font-mono text-[12px] tabular-nums text-muted">
                     {b.trophies}
@@ -310,7 +352,7 @@ export function FarmPlan({ name }: { name: string }) {
         </div>
       )}
 
-      {note === null ? null : <p className="text-[12px] text-muted">{note}</p>}
+      <RosterNote plan={plan} connection={connection.data?.status} />
     </section>
   );
 }
