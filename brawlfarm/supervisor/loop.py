@@ -84,7 +84,12 @@ class Supervisor:
         self.settings = settings
         config.set_home(self.home)
         config.set_instances(S.instances_table(settings))
-        config.API_TOKEN = settings.connection.brawl_api_token or config.API_TOKEN
+        # Blank means blank: a token cleared in Settings has to clear the applied one, not
+        # leave the last non-blank value in place for the life of the process. The
+        # environment stays the developer override the spec promises.
+        config.API_TOKEN = settings.connection.brawl_api_token or os.environ.get(
+            "BRAWL_API_TOKEN", ""
+        )
         scheduler.set_default_enabled(settings.scheduler.default_enabled)
         n = settings.notifications
         notify.configure(

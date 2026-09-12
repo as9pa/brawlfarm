@@ -24,6 +24,7 @@ describe("pageTitle", () => {
     expect(pageTitle("/")).toBe("Fleet");
     expect(pageTitle("/stats")).toBe("Stats");
     expect(pageTitle("/settings")).toBe("Settings");
+    expect(pageTitle("/settings/notifications")).toBe("Settings");
     expect(pageTitle("/instances/Pie64_1")).toBe("Pie64_1");
   });
 });

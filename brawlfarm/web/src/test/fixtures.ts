@@ -6,6 +6,7 @@
  */
 import type {
   Alert,
+  AppSettings,
   FeedRecord,
   InstancePayload,
   PlanResponse,
@@ -110,6 +111,47 @@ export function makeSchedule(overrides: Partial<SchedulePayload> = {}): Schedule
     desired: null,
     games_played_today: 12,
     now: "2026-09-11T14:15:00",
+    ...overrides,
+  };
+}
+
+/** The whole settings document at its model defaults, with one instance. Every settings
+ * and wizard test starts from here, so a field that changes shape breaks one file rather
+ * than twenty. The defaults mirror brawlfarm/settings.py exactly, including the empty
+ * token: a fixture that carried a real one would be a leak waiting to happen. */
+export function makeSettings(overrides: Partial<AppSettings> = {}): AppSettings {
+  return {
+    app: { port: 8765, theme: "system" },
+    connection: {
+      adb_path: "C:\\Program Files\\BlueStacks_nxt\\HD-Adb.exe",
+      brawl_api_token: "",
+    },
+    behavior: {
+      winrate_aware: true,
+      opportunity_cost: false,
+      gas_aware: true,
+      bush_hide: false,
+      close_game_on_stop: true,
+      dnd_at_start: true,
+    },
+    advanced: {
+      fast_input: true,
+      raw_cap: true,
+      gray_match: true,
+      phase_classify: true,
+      ability_buttons: true,
+      recalib_tripwire: true,
+      dnd_off_on_stop: true,
+    },
+    scheduler: { default_enabled: true },
+    notifications: {
+      webhook_url: "",
+      ntfy_topic: "",
+      ntfy_server: "https://ntfy.sh",
+      healthchecks_url: "",
+      events: ["crash", "recover", "offline", "wrong_mode", "recalibrate"],
+    },
+    instances: [{ name: "Pie64", adb_port: 5555, player_tag: "#2P0YLQ9" }],
     ...overrides,
   };
 }

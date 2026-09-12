@@ -8,7 +8,7 @@ import { closeAlertsDrawer } from "./lib/alertsDrawer";
 import { closeEvents, setEventSourceFactory } from "./live/useEvents";
 import { resetToasts } from "./lib/toast";
 import { jpegResponse, jsonResponse, stubFetch } from "./test/http";
-import { makeAlert, makeInstance } from "./test/fixtures";
+import { makeAlert, makeInstance, makeSettings } from "./test/fixtures";
 
 class FakeEventSource {
   static last: FakeEventSource | null = null;
@@ -46,14 +46,19 @@ class FakeEventSource {
 function stubApi(theme: "system" | "dark" | "light" = "system"): { calls: { url: string }[] } {
   return stubFetch((url) => {
     if (url === "/api/settings") {
-      return jsonResponse({
-        app: { port: 8765, theme },
-        connection: { adb_path: "adb.exe", brawl_api_token: "never-render-me" },
-      });
+      return jsonResponse(
+        makeSettings({
+          app: { port: 8765, theme },
+          connection: { adb_path: "adb.exe", brawl_api_token: "never-render-me" },
+        }),
+      );
     }
     if (url === "/api/instances") return jsonResponse({ instances: [makeInstance()] });
     if (url === "/api/alerts") return jsonResponse({ alerts: [makeAlert()], unread: 1 });
     if (url.endsWith("preview.jpg")) return jpegResponse();
+    if (url === "/api/setup/scan") {
+      return jsonResponse({ adb_path: "adb.exe", adb_found: true, conf_found: true, instances: [] });
+    }
     throw new Error(`unstubbed request: ${url}`);
   });
 }
@@ -104,7 +109,7 @@ describe("App", () => {
     expect(screen.getByRole("heading", { level: 2, name: "Fleet" })).toBeInTheDocument();
   });
 
-  it("renders the two placeholder pages with their copy", async () => {
+  it("renders the stats placeholder with its copy", async () => {
     stubApi();
     window.history.pushState({}, "", "/stats");
     render(<App />);
@@ -161,5 +166,28 @@ describe("App", () => {
     await vi.waitFor(() => {
       expect(calls.filter((call) => call.url === "/api/alerts").length).toBeGreaterThan(1);
     });
+  });
+
+  it("sends /settings to the first section and keeps one title across them", async () => {
+    stubApi();
+    window.history.pushState({}, "", "/settings");
+    render(<App />);
+    expect(await screen.findByRole("heading", { level: 2, name: "Instances" })).toBeInTheDocument();
+    expect(window.location.pathname).toBe("/settings/instances");
+    // Every section is one page as far as the top bar is concerned.
+    expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Settings");
+  });
+
+  it("puts the wizard on its own page, outside the shell", async () => {
+    stubApi();
+    window.history.pushState({}, "", "/setup");
+    render(<App />);
+    // The wizard's step rail, which no other page has. This document already names an adb
+    // path and an instance, so the wizard opens further along than step 1.
+    expect(await screen.findByRole("button", { name: "BlueStacks" })).toBeInTheDocument();
+    // No rail, no top bar, no alerts drawer: there is no fleet to frame yet.
+    expect(screen.queryByRole("link", { name: "Fleet" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Alerts/ })).not.toBeInTheDocument();
+    window.history.pushState({}, "", "/");
   });
 });

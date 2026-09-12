@@ -142,10 +142,9 @@ describe("Fleet", () => {
     renderWithProviders(<Fleet />);
     expect(await screen.findByText("No instances yet.")).toBeInTheDocument();
     expect(
-      screen.getByText(
-        "Setup arrives in the next phase; until then add an [[instances]] table to config.toml and restart brawlfarm.",
-      ),
+      screen.getByText("Open setup to find your BlueStacks instances."),
     ).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Open setup" })).toHaveAttribute("href", "/setup");
     expect(screen.queryByRole("button", { name: "Start all" })).not.toBeInTheDocument();
   });
 

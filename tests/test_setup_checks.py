@@ -153,4 +153,4 @@ def test_display_check_explains_a_mismatch_and_where_to_fix_it() -> None:
     assert (result.width, result.height, result.dpi) == (1280, 720, 320)
     assert "1600 x 900 at DPI 240" in result.detail
     assert result.hint == checks.DISPLAY_HINT
-    assert "Settings > Display" in result.hint
+    assert "Settings, Display" in result.hint

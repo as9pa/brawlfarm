@@ -15,6 +15,19 @@ from fastapi import HTTPException, Request
 
 from brawlfarm import settings as S
 from brawlfarm.supervisor import Supervisor
+from brawlfarm.supervisor.state import InstanceState
+
+# States that mean a worker process is running, or is about to be. Two routers need it now:
+# PUT /api/settings refuses to drop a live instance, and DELETE /api/instances/{name}/data
+# refuses to empty a live instance's folder out from under it.
+LIVE_STATES = frozenset(
+    {
+        InstanceState.FARMING,
+        InstanceState.STARTING,
+        InstanceState.STOPPING,
+        InstanceState.RECONNECTING,
+    }
+)
 
 
 def get_sup(request: Request) -> Supervisor:
