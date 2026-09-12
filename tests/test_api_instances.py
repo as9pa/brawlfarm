@@ -72,6 +72,7 @@ def test_list_returns_one_payload_per_instance_in_settings_order(api) -> None:
         "player_tag",
         "session",
         "today",
+        "last_session",
     }
     assert first["adb_port"] == 5555
     assert first["state"] == "starting"  # the startup tick launched it

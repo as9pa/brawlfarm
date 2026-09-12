@@ -23,6 +23,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from brawlfarm import settings as S
 from brawlfarm.api.deps import LIVE_STATES, get_home, get_sup, resolve_instance
+from brawlfarm.api.sessions import last_session
 from brawlfarm.core import status
 from brawlfarm.supervisor.state import InstanceView
 
@@ -89,12 +90,13 @@ def today_counts(inst_dir: Path, now: datetime) -> dict:
 def instance_payload(
     view: InstanceView, inst: S.InstanceSettings, inst_dir: Path, now: datetime
 ) -> dict:
-    """One Fleet card's whole row: the view, the tag from settings, the live session and
-    today's totals."""
+    """One Fleet card's whole row: the view, the tag from settings, the live session,
+    today's totals, and the last finished session so a stopped card is not all zeros."""
     payload = view_to_dict(view)
     payload["player_tag"] = inst.player_tag
     payload["session"] = _session(status.read_status(inst_dir))
     payload["today"] = today_counts(inst_dir, now)
+    payload["last_session"] = last_session(inst_dir)
     return payload
 
 
