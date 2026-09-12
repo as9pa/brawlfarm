@@ -37,6 +37,9 @@ RANGES = ("today", "7d", "30d", "all")
 RangeName = Literal["today", "7d", "30d", "all"]
 SESSION_GAP_S = 1800.0  # more than 30 min between games ends a farming session
 RECENT_LIMIT = 20
+# Below half an hour, "trophies per hour" is an extrapolation from noise: two games in
+# ninety seconds would read as hundreds an hour. The screen says "after 30 min" instead.
+MIN_HOURS = 0.5
 _BATTLETIME_FMT = "%Y%m%dT%H%M%S.%fZ"  # the API's format, as written by core/datalog.py
 
 
@@ -153,10 +156,10 @@ def aggregate(home: Path, names: Sequence[str], range_: str, now: datetime) -> d
         "summary": {
             "games": int(len(games)),
             "trophies": net,
-            "trophies_per_hour": _num(net / hours) if hours > 0 else None,
+            "trophies_per_hour": _num(net / hours) if hours >= MIN_HOURS else None,
             "avg_rank": _num(ranks.mean()) if len(ranks) else None,
             "top4_rate": _num(float((ranks <= 4).mean()) * 100) if len(ranks) else None,
-            "hours_farmed": _num(hours),
+            "hours_farmed": _num(hours, 2),
         },
         "series": _series(games, names),
         "brawlers": _brawlers(games),
