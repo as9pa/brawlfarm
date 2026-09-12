@@ -56,6 +56,9 @@ function stubApi(theme: "system" | "dark" | "light" = "system"): { calls: { url:
     if (url === "/api/instances") return jsonResponse({ instances: [makeInstance()] });
     if (url === "/api/alerts") return jsonResponse({ alerts: [makeAlert()], unread: 1 });
     if (url.endsWith("preview.jpg")) return jpegResponse();
+    if (url === "/api/setup/scan") {
+      return jsonResponse({ adb_path: "adb.exe", adb_found: true, conf_found: true, instances: [] });
+    }
     throw new Error(`unstubbed request: ${url}`);
   });
 }
@@ -173,5 +176,18 @@ describe("App", () => {
     expect(window.location.pathname).toBe("/settings/instances");
     // Every section is one page as far as the top bar is concerned.
     expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Settings");
+  });
+
+  it("puts the wizard on its own page, outside the shell", async () => {
+    stubApi();
+    window.history.pushState({}, "", "/setup");
+    render(<App />);
+    // The wizard's step rail, which no other page has. This document already names an adb
+    // path and an instance, so the wizard opens further along than step 1.
+    expect(await screen.findByRole("button", { name: "BlueStacks" })).toBeInTheDocument();
+    // No rail, no top bar, no alerts drawer: there is no fleet to frame yet.
+    expect(screen.queryByRole("link", { name: "Fleet" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Alerts/ })).not.toBeInTheDocument();
+    window.history.pushState({}, "", "/");
   });
 });
