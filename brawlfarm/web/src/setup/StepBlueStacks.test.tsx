@@ -105,6 +105,21 @@ describe("Setup step 1: BlueStacks", () => {
     expect(scanBodies(calls)).toEqual([{}]);
   });
 
+  it("keeps Continue shut while the path it found could not be saved", async () => {
+    const blank = makeSettings({ instances: [] });
+    blank.connection.adb_path = "";
+    stubFetch((url, init) => {
+      if (url === SCAN) return jsonResponse(FOUND);
+      if (url !== "/api/settings") throw new Error(`unstubbed request: ${url}`);
+      if (init?.method !== "PUT") return jsonResponse(blank);
+      return jsonResponse({ detail: "config.toml is read only" }, 500);
+    });
+    renderWithProviders(<Setup />, { route: "/setup" });
+    expect(await screen.findByText("config.toml is read only")).toBeInTheDocument();
+    // Found, but not stored: walking on would carry a path the next step cannot read back.
+    expect(screen.getByRole("button", { name: "Continue" })).toBeDisabled();
+  });
+
   it("asks where BlueStacks is when no adb was found, and re-scans with what was typed", async () => {
     const { calls } = server([MISSING, FOUND]);
     renderWithProviders(<Setup />, { route: "/setup" });

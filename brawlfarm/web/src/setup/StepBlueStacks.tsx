@@ -116,7 +116,7 @@ export function StepBlueStacks({ setup }: StepProps) {
         </Button>
         <Button
           variant="primary"
-          disabled={foundPath === null}
+          disabled={foundPath === null || failure !== null}
           disabledReason="Find HD-Adb.exe first"
           onClick={next}
         >
