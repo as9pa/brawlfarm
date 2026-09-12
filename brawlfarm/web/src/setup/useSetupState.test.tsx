@@ -53,13 +53,14 @@ describe("useSetupState", () => {
     expect(result.current.done.instances).toBe(false);
   });
 
-  it("opens on Instances with a path but no fleet, and on Display once there is one", async () => {
+  it("opens on BlueStacks with no fleet yet, and on Display once there is one", async () => {
     const noFleet = makeSettings({ instances: [] });
     const first = mount(noFleet);
     await waitFor(() => {
       expect(first.result.current.ready).toBe(true);
     });
-    expect(first.result.current.step).toBe("instances");
+    // Nothing on disk names a fleet, so this is a fresh install and it starts at step 1.
+    expect(first.result.current.step).toBe("bluestacks");
     first.unmount();
     vi.unstubAllGlobals();
 

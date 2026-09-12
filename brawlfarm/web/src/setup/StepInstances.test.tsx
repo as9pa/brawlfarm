@@ -14,8 +14,11 @@ import { renderWithProviders } from "../test/renderWithProviders";
 const SCAN = "/api/setup/scan";
 const TEST = "/api/setup/test";
 
+/** The path config.toml already names, so walking through step 1 saves nothing. */
+const ADB = makeSettings().connection.adb_path;
+
 const TWO: ScanResponse = {
-  adb_path: "adb.exe",
+  adb_path: ADB,
   adb_found: true,
   conf_found: true,
   instances: [
@@ -41,13 +44,14 @@ const TWO: ScanResponse = {
 };
 
 const NONE: ScanResponse = {
-  adb_path: "adb.exe",
+  adb_path: ADB,
   adb_found: true,
   conf_found: false,
   instances: [],
 };
 
-/** A settings document that lands the wizard on step 2: an adb path, and no fleet yet. */
+/** A settings document with an adb path and no fleet yet, which opens the wizard on step
+ * 1; landOnInstances walks it from there to step 2. */
 function server(options: { scan?: ScanResponse; test?: { ok: boolean; detail: string } } = {}) {
   let stored = makeSettings({ instances: [] });
   const { calls } = stubFetch((url, init) => {
@@ -91,6 +95,20 @@ function toastMessages(): string[] {
   return renderHook(() => useToasts()).result.current.map((item) => item.message);
 }
 
+/** The wizard opens on its first step, so every case here walks through it. The scan has
+ * already found adb at the path on disk, so Continue writes nothing and step 2 arrives with
+ * that scan in hand rather than running its own. */
+async function landOnInstances(): Promise<void> {
+  renderWithProviders(<Setup />, { route: "/setup" });
+  const user = userEvent.setup();
+  const go = await screen.findByRole("button", { name: "Continue" });
+  await waitFor(() => {
+    expect(go).toBeEnabled();
+  });
+  await user.click(go);
+  await screen.findByRole("heading", { name: "Instances" });
+}
+
 /** The <tr> an instance sits in, found by its checkbox: a hand-added row is named after
  * its port, so its name appears in two cells and getByText would be ambiguous. */
 function row(name: string): HTMLElement {
@@ -107,7 +125,7 @@ afterEach(() => {
 describe("Setup step 2: Instances", () => {
   it("lists what the scan found, with its columns and the status it starts from", async () => {
     server();
-    renderWithProviders(<Setup />, { route: "/setup" });
+    await landOnInstances();
     // By heading, because the step rail beside it carries the same word as a button.
     expect(await screen.findByRole("heading", { name: "Instances" })).toBeInTheDocument();
     expect(
@@ -132,7 +150,7 @@ describe("Setup step 2: Instances", () => {
 
   it("tests one row and says what happened, with that row's own port", async () => {
     const { calls } = server({ test: { ok: false, detail: "127.0.0.1:5585: no answer" } });
-    renderWithProviders(<Setup />, { route: "/setup" });
+    await landOnInstances();
     expect(await screen.findByText("Pie64_3")).toBeInTheDocument();
 
     await userEvent.click(within(row("Pie64_3")).getByRole("button", { name: "Test" }));
@@ -149,7 +167,7 @@ describe("Setup step 2: Instances", () => {
 
   it("adds a port by hand and lets it be picked", async () => {
     const { calls } = server({ scan: NONE });
-    renderWithProviders(<Setup />, { route: "/setup" });
+    await landOnInstances();
     expect(
       await screen.findByText(
         "No instances found. Start a BlueStacks instance, enable ADB, then Scan again.",
@@ -173,7 +191,7 @@ describe("Setup step 2: Instances", () => {
 
   it("keeps Continue shut until a row is ticked, then writes the ticked rows", async () => {
     const { calls, current } = server();
-    renderWithProviders(<Setup />, { route: "/setup" });
+    await landOnInstances();
     expect(await screen.findByText("Pie64")).toBeInTheDocument();
     const forward = screen.getByRole("button", { name: "Continue" });
     expect(forward).toBeDisabled();
@@ -200,7 +218,7 @@ describe("Setup step 2: Instances", () => {
 
   it("re-scans on demand and goes back a step", async () => {
     const { calls } = server();
-    renderWithProviders(<Setup />, { route: "/setup" });
+    await landOnInstances();
     expect(await screen.findByText("Pie64")).toBeInTheDocument();
     expect(calls.filter((call) => call.url === SCAN)).toHaveLength(1);
 
