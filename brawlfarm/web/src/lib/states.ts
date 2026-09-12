@@ -83,6 +83,14 @@ export function stateTone(state: InstanceState): Tone {
   return STATE_TONES[state];
 }
 
+/** The state to show for an instance the supervisor has not listed yet, or one whose state
+ * is a word we do not have: neither is running, and "stopped" is the honest reading of
+ * that. Falling through to the first key of the table would say "Scheduled break", which
+ * claims a reason nobody gave. */
+export function knownState(state: string | undefined): InstanceState {
+  return state !== undefined && state in STATE_LABELS ? (state as InstanceState) : "stopped";
+}
+
 /** The worker writes its own phase strings; one it has not taught us is shown as it
  * arrived, because "no status yet" would be a lie. */
 export function phaseLabel(phase: string | null): string {

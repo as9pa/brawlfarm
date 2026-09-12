@@ -3,8 +3,8 @@
  *
  * The table joins two sources on the name. settings.instances is what is on disk and what
  * this screen edits; useInstances() is the supervisor's live view, which an instance it has
- * not derived yet simply does not have, so that row says "No status yet" rather than
- * inventing a state.
+ * not derived yet simply does not have. That row is shown as stopped, because for the few
+ * seconds between adding it by hand and the supervisor picking it up it is not running.
  *
  * The player tag is editable in place, on a 500 ms debounce and at once on blur, because a
  * tag is the one field people come here to fix and opening an edit row for it is three
@@ -23,13 +23,13 @@ import { scanSetup } from "../api/setup";
 import type { ScanInstance } from "../api/types";
 import { useInstances } from "../api/useInstances";
 import { Button } from "../components/ui/Button";
-import { Chip } from "../components/ui/Chip";
 import { ConfirmDialog } from "../components/ui/ConfirmDialog";
 import { ErrorBlock } from "../components/ui/ErrorBlock";
 import { Field } from "../components/ui/Field";
 import { StateChip } from "../components/ui/StateChip";
 import { type Column, Table } from "../components/ui/Table";
 import { plural } from "../lib/format";
+import { knownState } from "../lib/states";
 import { toast } from "../lib/toast";
 
 /** The key of the row that does not exist yet. An instance name can never be empty. */
@@ -335,11 +335,7 @@ export function Instances({ settingsPatch }: { settingsPatch: SettingsPatch }) {
       render: (row) => {
         if (row.name === NEW_ROW) return null;
         const view = (views ?? []).find((entry) => entry.name === row.name);
-        return view === undefined ? (
-          <Chip tone="idle">No status yet</Chip>
-        ) : (
-          <StateChip state={view.state} />
-        );
+        return <StateChip state={knownState(view?.state)} />;
       },
     },
     {
