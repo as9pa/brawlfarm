@@ -209,4 +209,13 @@ describe("Stats", () => {
       "Pie64_1",
     ]);
   });
+
+  it("shows the brawler table, the rank bars and the recent games", async () => {
+    server();
+    mount();
+    expect(await screen.findByRole("heading", { name: "Brawlers" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Rank distribution" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Recent games" })).toBeInTheDocument();
+    expect(screen.getAllByRole("row", { name: /NORI/ }).length).toBeGreaterThan(0);
+  });
 });

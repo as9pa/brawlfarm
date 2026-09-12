@@ -13,8 +13,11 @@
 import { useQuery } from "@tanstack/react-query";
 import { useSearchParams } from "react-router";
 
+import { BrawlerTable } from "./BrawlerTable";
 import { ConnectionStrip } from "./ConnectionStrip";
 import { MetricsRow } from "./MetricsRow";
+import { RankBars } from "./RankBars";
+import { RecentGames } from "./RecentGames";
 import { StatsToolbar } from "./StatsToolbar";
 import { TrophyChart } from "./TrophyChart";
 import { getConnection } from "../api/connection";
@@ -151,7 +154,14 @@ export function Stats() {
             <MetricsRow summary={stats.data.summary} />
           </div>
           <TrophyChart series={stats.data.series} instances={selected} />
-          {/* task 8 puts the BrawlerTable / RankBars band and RecentGames here */}
+          <div className="grid gap-3 min-[900px]:grid-cols-[1fr_320px]">
+            <section className="flex flex-col gap-2 rounded-[10px] border border-line bg-panel p-3">
+              <h2 className="text-[13px] font-semibold">Brawlers</h2>
+              <BrawlerTable rows={stats.data.brawlers} />
+            </section>
+            <RankBars rows={stats.data.ranks} />
+          </div>
+          <RecentGames rows={stats.data.recent} />
         </>
       )}
     </section>
