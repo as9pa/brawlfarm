@@ -3,8 +3,10 @@
  *
  * Toaster shows the head of the queue in lib/toast.ts, so exactly one is visible and the
  * rest wait their turn. The hairline bar drains over the toast's own duration, which is
- * longer when an Undo is on offer because the user has a decision to make. A reader who
- * asked for less motion gets the same bar standing still rather than a sweep.
+ * longer when an Undo is on offer because the user has a decision to make. The drain is a
+ * single CSS width transition rather than a repainting timer, so the compositor sweeps it
+ * smoothly instead of stepping it. A reader who asked for less motion never starts it and
+ * gets the same bar standing still.
  *
  * An Undo is usually an API call, so a failed one has to land somewhere: it becomes a
  * second toast carrying the API's own sentence, never a silent unhandled rejection and
@@ -16,7 +18,6 @@ import { Button } from "./Button";
 import { ApiError } from "../../api/client";
 import { type ToastItem, dismissToast, toast, useToasts } from "../../lib/toast";
 
-const TICK_MS = 100;
 const UNDO_FAILED = "Undo failed";
 
 /** jsdom and any non-browser render have no matchMedia; no implementation means the
@@ -30,23 +31,31 @@ export interface ToastProps {
 }
 
 export function Toast({ item }: ToastProps) {
-  const [remaining, setRemaining] = useState(item.durationMs);
+  const [drained, setDrained] = useState(false);
 
   useEffect(() => {
-    const startedAt = Date.now();
-    setRemaining(item.durationMs);
-    // The drain is decoration, so under reduced motion it is simply not run: the bar stays
-    // at its full width and only the dismissal timer keeps its own schedule.
-    const drain = prefersReducedMotion()
-      ? null
-      : setInterval(() => {
-          setRemaining(Math.max(0, item.durationMs - (Date.now() - startedAt)));
-        }, TICK_MS);
+    setDrained(false);
+    // The full width has to reach the screen before the transition to zero is applied, or
+    // there is no starting value to sweep from. A second frame covers the engines that
+    // still fold a lone rAF callback into that first paint.
+    let second = 0;
+    // The drain is decoration, so under reduced motion it is simply not started: the bar
+    // stays at its full width and only the dismissal timer keeps its own schedule. Letting
+    // it run would not slow it down either, since theme.css zeroes transition durations
+    // under the same media query and the bar would jump straight to nothing.
+    const first = prefersReducedMotion()
+      ? 0
+      : requestAnimationFrame(() => {
+          second = requestAnimationFrame(() => {
+            setDrained(true);
+          });
+        });
     const expire = setTimeout(() => {
       dismissToast(item.id);
     }, item.durationMs);
     return () => {
-      if (drain !== null) clearInterval(drain);
+      cancelAnimationFrame(first);
+      cancelAnimationFrame(second);
       clearTimeout(expire);
     };
   }, [item.id, item.durationMs]);
@@ -81,7 +90,10 @@ export function Toast({ item }: ToastProps) {
         aria-hidden="true"
         data-drain=""
         className="h-px bg-accent"
-        style={{ width: `${(remaining / item.durationMs) * 100}%` }}
+        style={{
+          width: drained ? "0%" : "100%",
+          transition: drained ? `width ${item.durationMs}ms linear` : undefined,
+        }}
       />
     </div>
   );

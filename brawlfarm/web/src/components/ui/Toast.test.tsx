@@ -7,7 +7,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { Toaster } from "./Toast";
 import { ApiError } from "../../api/client";
-import { resetToasts, toast } from "../../lib/toast";
+import { TOAST_MS, resetToasts, toast } from "../../lib/toast";
 
 /** jsdom ships no matchMedia at all, so each branch has to be stubbed in. */
 function stubReducedMotion(reduce: boolean): void {
@@ -137,21 +137,27 @@ describe("Toaster", () => {
     expect(logged).toHaveBeenCalledTimes(1);
   });
 
-  it("drains the hairline across the toast's life", () => {
+  it("hands the hairline a transition to sweep across the toast's life", async () => {
     stubReducedMotion(false);
     const { container } = render(<Toaster />);
     act(() => {
       toast("Plan saved");
     });
     const bar = drainBar(container);
+    // The first paint is the full width with nothing to animate, so the browser has a
+    // value to sweep from once the transition arrives.
     expect(bar.style.width).toBe("100%");
-    act(() => {
-      vi.advanceTimersByTime(2000);
+    expect(bar.style.transition).toBe("");
+    // jsdom runs requestAnimationFrame off a timer, so the frames the drain waits for only
+    // come round when the clock does.
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(50);
     });
-    expect(bar.style.width).toBe("50%");
+    expect(bar.style.width).toBe("0%");
+    expect(bar.style.transition).toBe(`width ${String(TOAST_MS)}ms linear`);
   });
 
-  it("holds the hairline still for a reader who asked for less motion", () => {
+  it("holds the hairline still for a reader who asked for less motion", async () => {
     stubReducedMotion(true);
     const { container } = render(<Toaster />);
     act(() => {
@@ -159,10 +165,11 @@ describe("Toaster", () => {
     });
     const bar = drainBar(container);
     expect(bar.style.width).toBe("100%");
-    act(() => {
-      vi.advanceTimersByTime(2000);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(50);
     });
     expect(bar.style.width).toBe("100%");
+    expect(bar.style.transition).toBe("");
   });
 
   it("renders nothing at all when the queue is empty", () => {
