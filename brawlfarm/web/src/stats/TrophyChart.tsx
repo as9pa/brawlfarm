@@ -214,6 +214,7 @@ export function TrophyChart({ series, instances, range }: TrophyChartProps) {
         </div>
         <button
           type="button"
+          aria-pressed={showTable}
           onClick={() => setShowTable((open) => !open)}
           className="ml-auto text-[12px] text-muted hover:text-text"
         >
