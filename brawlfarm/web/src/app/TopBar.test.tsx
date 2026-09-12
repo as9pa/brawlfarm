@@ -20,9 +20,10 @@ afterEach(() => {
 });
 
 describe("pageTitle", () => {
-  it("names the three sections and uses the instance name on its own page", () => {
+  it("names the four sections and uses the instance name on its own page", () => {
     expect(pageTitle("/")).toBe("Fleet");
     expect(pageTitle("/stats")).toBe("Stats");
+    expect(pageTitle("/calibration")).toBe("Calibration");
     expect(pageTitle("/settings")).toBe("Settings");
     expect(pageTitle("/settings/notifications")).toBe("Settings");
     expect(pageTitle("/instances/Pie64_1")).toBe("Pie64_1");

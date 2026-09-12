@@ -14,6 +14,7 @@ import { useEffect, useState } from "react";
 import { BrowserRouter, Navigate, Route, Routes } from "react-router";
 
 import { Shell } from "./app/Shell";
+import { Calibration } from "./calibration/Calibration";
 import { createQueryClient, queryKeys } from "./api/queries";
 import { getSettings } from "./api/settings";
 import { Toaster } from "./components/ui/Toast";
@@ -85,6 +86,7 @@ function ShellRoutes() {
         <Route path="/" element={<Fleet />} />
         <Route path="/instances/:name" element={<Instance />} />
         <Route path="/stats" element={<Stats />} />
+        <Route path="/calibration" element={<Calibration />} />
         <Route path="/settings" element={<Navigate to="/settings/instances" replace />} />
         <Route path="/settings/:section" element={<Settings />} />
       </Routes>

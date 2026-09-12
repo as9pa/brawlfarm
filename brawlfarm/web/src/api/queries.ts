@@ -28,6 +28,12 @@ export const queryKeys = {
   settings: () => ["settings"] as const,
   /** Version and home folder. About and Data both read it, so one request serves both. */
   health: () => ["health"] as const,
+  /** The calibration file itself: one read for the whole panel, no instance in it. */
+  calibration: () => ["calibration"] as const,
+  /** Scored against one instance's last frame, so it starts with the same prefix as the
+   * file read and an invalidation of ["calibration"] covers both. */
+  calibrationScores: (name: string) => ["calibration", "scores", name] as const,
+  recorder: (name: string) => ["recorder", name] as const,
 };
 
 export function createQueryClient(): QueryClient {

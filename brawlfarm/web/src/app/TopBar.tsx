@@ -17,6 +17,7 @@ import { TONE_DOT, type Tone } from "../lib/states";
 const SECTION_TITLES: Record<string, string> = {
   "/": "Fleet",
   "/stats": "Stats",
+  "/calibration": "Calibration",
   "/settings": "Settings",
 };
 
