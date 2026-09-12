@@ -1,4 +1,4 @@
-/** The rail: the wordmark, three sections, none of them tagged as unbuilt any more, and
+/** The rail: the wordmark, four sections, none of them tagged as unbuilt any more, and
  * every instance with a dot in its state's colour. */
 import { screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -31,6 +31,10 @@ describe("Rail", () => {
     expect(screen.getByText("brawlfarm")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Fleet" })).toHaveAttribute("href", "/");
     expect(screen.getByRole("link", { name: "Stats" })).toHaveAttribute("href", "/stats");
+    expect(screen.getByRole("link", { name: "Calibration" })).toHaveAttribute(
+      "href",
+      "/calibration",
+    );
     expect(screen.getByRole("link", { name: "Settings" })).toHaveAttribute("href", "/settings");
     expect(screen.queryByText("soon")).toBeNull();
     expect(await screen.findByText("Instances")).toBeInTheDocument();

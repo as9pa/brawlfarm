@@ -55,7 +55,10 @@ uv run brawlfarm                 # supervise every instance and open the panel
 uv run brawlfarm --no-browser    # same, without opening a browser
 uv run brawlfarm --port 9000     # serve the panel somewhere else
 uv run brawlfarm --once          # one supervisor tick, print the instances, exit
+uv run brawlfarm --window        # a desktop window and a tray icon instead of the browser
 ```
+
+`--window` needs the optional desktop extras, which `uv sync --group desktop` installs; without them brawlfarm says so and opens the browser as usual. Closing the window only hides it to the tray icon, whose menu has Open panel and Quit.
 
 Settings live in `%LOCALAPPDATA%\brawlfarm\config.toml` (override the folder with `BRAWLFARM_HOME`). Add one `[[instances]]` table per BlueStacks instance with its `name` and `adb_port`; each instance's files live under `instances/<name>/`. Stopping the process leaves workers running; the next start reattaches to them through their status files.
 
@@ -103,6 +106,20 @@ The API binds 127.0.0.1 only and has no authentication: anything that can reach 
 ### Notifications and health monitoring
 
 `[notifications]` in `config.toml` takes a webhook URL, an ntfy topic and server, the list of event kinds worth sending, and `healthchecks_url`. Every completed supervisor tick GETs that URL, so a supervisor that stops ticking raises an alarm on healthchecks.io, or anything else that speaks the same one-URL protocol, without you watching the window.
+
+## Calibration
+
+Calibration in the left rail shows what the workers see: the chosen instance's live frame with the tap points and the anchor boxes drawn on it, and a table of every template with its threshold, its score on that frame and whether its status is Found, Drift or Absent.
+
+The values behind it are overridable from the calibration folder, which is `%LOCALAPPDATA%\brawlfarm\calibration\` by default and `<home>/calibration` under `--home`.
+
+`calibration.toml` is flat TOML, one constant per line, taking tap coordinates as two integers and thresholds and timings as numbers; it is read once at startup, so a change needs a restart, and the page reports both the bad lines and the fact that the file has moved on.
+
+A PNG at `templates/<name>.png`, under one of the thirteen packaged template names, replaces that template on the next capture without a restart.
+
+The Record frames switch writes labeled JPEG frames and a `labels.jsonl` into `recordings/<instance>/<yyyymmdd-hhmmss>/` for recalibration work, one frame per second or on any state change, capped at 2000 frames a session and 512 MiB an instance, and it never deletes anything.
+
+`docs/calibration.md` has the whole of it, including what the page will not do: it reads, and the files write.
 
 ## Contributing
 

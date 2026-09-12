@@ -48,6 +48,8 @@ uv run brawlfarm --home <path>   # use a different data directory for this run
 
 The panel binds 127.0.0.1 only and has no login, so anything that can reach it can drive your instances. Do not port-forward it and do not put it behind a reverse proxy.
 
+If you would rather have a window than a browser tab, `uv sync --group desktop` installs the optional desktop extras and `uv run brawlfarm --window` then opens the panel in its own window with a tray icon. Closing the window only hides it: the tray icon brings it back, and Quit there stops the run the way Ctrl+C does. Without the extras brawlfarm says so and opens the browser instead.
+
 ## Run the setup wizard
 
 The wizard lives at `http://127.0.0.1:8765/setup`. With nothing configured yet, the Fleet page offers it behind an Open setup button, and once you are past it, Settings, Connection has a Run setup again link.

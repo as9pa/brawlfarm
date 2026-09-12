@@ -48,6 +48,7 @@ from brawlfarm.core import (
 )
 from brawlfarm.core.api import ApiClient, ApiError
 from brawlfarm.core.datalog import DataLog
+from brawlfarm.core.recorder import Recorder
 from brawlfarm.core.states import State
 
 # --- tunable timeouts (seconds / counts) ---
@@ -127,6 +128,12 @@ class Controller:
         # stop is >10 min overdue (e.g. wedged mid-recovery).
         self._stop_flag_seen = False
         self._soft_stop_since = None  # monotonic ts when a soft-stop reason appeared
+        # Labeled frame recorder (calibration corpora): off unless a `record.flag`
+        # file sits next to stop.flag in DATA_DIR. Observation only — it never taps,
+        # never changes a State, and swallows its own errors.
+        self.recorder = Recorder(
+            config.HOME_DIR / "calibration", config.DATA_DIR.name, config.DATA_DIR / "record.flag"
+        )
         # Network-stuck tracker (see RESULTS_STUCK_TAPS):
         self._results_taps = 0  # consecutive advance_results taps without progress
         self.popup_count = 0
@@ -1456,6 +1463,10 @@ class Controller:
                     # Phase hint = faster anchor ordering only; never changes the State
                     # returned for a frame (see states.PHASE_ORDER).
                     state = states.classify(screen, phase=self.phase)
+                    # Same frame, same label the farm just acted on: the recorder
+                    # writes it only while record.flag is set, and returns False
+                    # (never raises) every other tick.
+                    self.recorder.observe(screen, state, self.phase)
                     if self.phase != self._prev_phase:
                         self._maybe_shot(screen, self.phase)
                         self._prev_phase = self.phase
@@ -1510,6 +1521,9 @@ class Controller:
                             self._stop_flag_seen = (config.DATA_DIR / "stop.flag").exists()
                         except OSError:
                             pass
+                        # record.flag rides the same cadence: opening or closing a
+                        # recording session is never urgent.
+                        self.recorder.poll()
                     time.sleep(config.LOOP_POLL_INTERVAL)
                 except adb.AdbError as e:
                     # A slow/failed adb command (common under multi-instance contention)
@@ -1529,3 +1543,11 @@ class Controller:
             self.dl.event("crash", err=repr(e))
             self.log(f"CRASH: {e!r}")
             raise
+        finally:
+            # Close the recording session on EVERY exit (clean stop, Ctrl-C, crash)
+            # so recorder.json stops claiming a live session. Never masks the
+            # exception that got us here.
+            try:
+                self.recorder.close()
+            except Exception:
+                pass

@@ -118,6 +118,20 @@ class _DL:
         self.events.append((etype, fields))
 
 
+class _Rec:
+    """The recorder seam: run() polls the flag, observes every frame and closes
+    on exit. Off in this test, so all three are no-ops."""
+
+    def poll(self):
+        pass
+
+    def observe(self, screen, state, phase):
+        return False
+
+    def close(self):
+        pass
+
+
 def _one_iteration_controller(monkeypatch, frame) -> Controller:
     """A bare Controller whose run() does exactly one loop iteration (the
     tests/test_network_stuck.py pattern: __new__ plus the attributes the loop reads, every
@@ -147,6 +161,7 @@ def _one_iteration_controller(monkeypatch, frame) -> Controller:
     c._adb_errors = 0
     c._unknown_streak = 0
     c._loop_i = 0
+    c.recorder = _Rec()
     return c
 
 

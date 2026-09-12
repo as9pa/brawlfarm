@@ -15,6 +15,7 @@ import contextlib
 import logging
 import os
 import sys
+import threading
 import webbrowser
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
@@ -67,6 +68,11 @@ def _parser() -> argparse.ArgumentParser:
     ap.add_argument("--port", type=_port, default=None, help="panel port (default: app.port, 8765)")
     ap.add_argument(
         "--no-browser", action="store_true", help="serve the panel without opening a browser"
+    )
+    ap.add_argument(
+        "--window",
+        action="store_true",
+        help="open the panel in a desktop window with a tray icon (needs uv sync --group desktop)",
     )
     return ap
 
@@ -135,11 +141,15 @@ async def _serve(
     make_server=_uvicorn_server,
     browser_open=webbrowser.open,
     delay_s: float = 1.0,
+    stop: asyncio.Event | None = None,
 ) -> None:
     """Serve the panel and supervise the fleet on one loop. uvicorn owns the signal
     handling: Ctrl+C ends serve(), and only then is the supervisor asked to stop. The final
     await lets a tick already running in its worker thread finish; the workers themselves
-    are left alone on purpose."""
+    are left alone on purpose.
+
+    In window mode this loop runs off the main thread, where uvicorn's signal handlers
+    never fire; `stop` is the Ctrl+C the tray's Quit sends instead."""
     server = make_server(app, port)
     supervising = asyncio.create_task(sup.run_forever())
     browsing = None
@@ -148,7 +158,19 @@ async def _serve(
             _open_later(f"http://127.0.0.1:{port}/", delay_s, browser_open)
         )
     try:
-        await server.serve()
+        if stop is None:
+            await server.serve()
+        else:
+            serving = asyncio.create_task(server.serve())
+            waiting = asyncio.create_task(stop.wait())
+            # Either the user quit or the server gave up on its own (a port already in
+            # use ends serve() by itself); waiting only on the event would hang on that.
+            await asyncio.wait({serving, waiting}, return_when=asyncio.FIRST_COMPLETED)
+            waiting.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await waiting
+            server.should_exit = True  # the shutdown uvicorn performs on Ctrl+C
+            await serving
     finally:
         # uvicorn re-raises the SIGINT it swallowed the moment serve() returns, and
         # asyncio.run's own handler turns that into a cancel of this task -- which would
@@ -199,25 +221,104 @@ def main(argv: list[str] | None = None) -> int:
 
     from brawlfarm.api.app import create_app  # pulls in FastAPI; --once must not pay for it
 
-    port = args.port or settings.app.port
-    app = create_app(sup, home)
-    print(f"brawlfarm {__version__}: panel on http://127.0.0.1:{port}/ (loopback only)")
+    # Both modes serve the same three things, and neither of them can be built from the
+    # flags alone, so the namespace carries them: _dispatch picks a mode without knowing
+    # what either one has to set up.
+    args.port = args.port or settings.app.port
+    args.sup = sup
+    args.app = create_app(sup, home)
+    print(f"brawlfarm {__version__}: panel on http://127.0.0.1:{args.port}/ (loopback only)")
     print(f"supervising {len(settings.instances)} instance(s) from {home}")
+    return _dispatch(args)
+
+
+def _dispatch(args: argparse.Namespace) -> int:
+    """Window mode when it was asked for and the extras are there, the browser otherwise."""
+    if getattr(args, "window", False):
+        from brawlfarm import desktop  # never imported unless --window was passed
+
+        if desktop.available():
+            return _run_window_mode(args)
+        print(desktop.MISSING_MESSAGE, file=sys.stderr)
+    return _run_browser_mode(args)
+
+
+def _run_browser_mode(args: argparse.Namespace) -> int:
+    """Serve on this thread and let uvicorn's own signal handling end the run."""
     print("Ctrl+C stops the panel; workers keep running and are reattached on the next start.")
     try:
-        asyncio.run(_serve(sup, app, port, open_browser=not args.no_browser))
+        asyncio.run(_serve(args.sup, args.app, args.port, open_browser=not args.no_browser))
     except KeyboardInterrupt:  # Ctrl+C before uvicorn installed its own handlers
-        sup.request_shutdown()
+        args.sup.request_shutdown()
     except OSError as exc:
-        print(f"error: cannot serve on 127.0.0.1:{port}: {exc}", file=sys.stderr)
+        print(f"error: cannot serve on 127.0.0.1:{args.port}: {exc}", file=sys.stderr)
         return 1
     except SystemExit:
         # uvicorn logs the bind failure and calls sys.exit(1) itself rather than raising.
         print(
-            f"error: cannot serve on 127.0.0.1:{port}; is brawlfarm already running?",
+            f"error: cannot serve on 127.0.0.1:{args.port}; is brawlfarm already running?",
             file=sys.stderr,
         )
         return 1
+    return 0
+
+
+def _run_window_mode(args: argparse.Namespace) -> int:
+    """Serve on a second thread and give the main thread to the window and the tray icon,
+    which both insist on owning it. Quit from the tray sets the stop event, which ends the
+    server and the supervisor exactly as Ctrl+C does in browser mode."""
+    from brawlfarm import desktop
+
+    print("Quit from the tray icon stops the panel; workers keep running and are reattached")
+    print("on the next start. Closing the window only hides it.")
+    ready = threading.Event()
+    holder: dict[str, object] = {}
+    failure: list[BaseException] = []
+
+    async def _serve_until_quit() -> None:
+        holder["loop"] = asyncio.get_running_loop()
+        holder["stop"] = stop = asyncio.Event()
+        ready.set()
+        await _serve(args.sup, args.app, args.port, open_browser=False, stop=stop)
+
+    def _thread() -> None:
+        try:
+            asyncio.run(_serve_until_quit())
+        except BaseException as exc:  # including the SystemExit uvicorn raises on a bad bind
+            failure.append(exc)
+        finally:
+            ready.set()  # a failure before the loop started must not leave the wait hanging
+
+    serving = threading.Thread(target=_thread, name="serve", daemon=True)
+    serving.start()
+    ready.wait(timeout=10)
+    serving.join(timeout=1.0)  # uvicorn reports a port it cannot bind within moments
+    if not serving.is_alive():
+        exc = failure[0] if failure else None
+        if exc is None or isinstance(exc, SystemExit):
+            # uvicorn logs the bind failure and calls sys.exit(1) itself rather than raising.
+            print(
+                f"error: cannot serve on 127.0.0.1:{args.port}; is brawlfarm already running?",
+                file=sys.stderr,
+            )
+        else:
+            print(f"error: cannot serve on 127.0.0.1:{args.port}: {exc}", file=sys.stderr)
+        return 1
+
+    def quit_cb() -> None:
+        loop, stop = holder.get("loop"), holder.get("stop")
+        if loop is not None and stop is not None:
+            loop.call_soon_threadsafe(stop.set)
+
+    desktop.run(
+        f"http://127.0.0.1:{args.port}/",
+        running=lambda: sum(1 for v in args.sup.views() if v.pid),
+        quit_cb=quit_cb,
+    )
+    quit_cb()  # a window closed by any other route still takes the server down with it
+    serving.join(timeout=10)
+    if serving.is_alive():
+        log.warning("the panel did not stop within 10 seconds; exiting anyway")
     return 0
 
 
