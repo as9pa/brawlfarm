@@ -2,9 +2,11 @@
  * actions column does not show but a screen reader still hears, and one full-width cell
  * when there is nothing to list. */
 import { render, screen, within } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import userEvent from "@testing-library/user-event";
+import { describe, expect, it, vi } from "vitest";
 
 import { type Column, Table } from "./Table";
+import { renderWithProviders } from "../../test/renderWithProviders";
 
 interface Row {
   name: string;
@@ -64,5 +66,88 @@ describe("Table", () => {
     const cell = screen.getByRole("cell");
     expect(cell).toHaveTextContent("No instances yet. Add one or scan for BlueStacks.");
     expect(cell).toHaveAttribute("colspan", "3");
+  });
+
+  it("writes no aria-sort and no header button without the new props", () => {
+    renderWithProviders(
+      <Table
+        columns={[
+          { key: "name", label: "Brawler", sortable: true },
+          { key: "games", label: "Games", sortable: true },
+        ]}
+        rows={[{ name: "NORI", games: 3 }]}
+        rowKey={(row) => row.name}
+        empty="No games in this range."
+      />,
+    );
+    for (const header of screen.getAllByRole("columnheader")) {
+      expect(header).not.toHaveAttribute("aria-sort");
+      expect(within(header).queryByRole("button")).toBeNull();
+    }
+  });
+
+  it("writes aria-sort on the sorted column and none on the others", () => {
+    renderWithProviders(
+      <Table
+        columns={[
+          { key: "name", label: "Brawler", sortable: true },
+          { key: "games", label: "Games", sortable: true },
+          { key: "icon", label: "", width: "34px" },
+        ]}
+        rows={[{ name: "NORI", games: 3 }]}
+        rowKey={(row) => row.name}
+        empty="No games in this range."
+        sort={{ key: "games", dir: "desc" }}
+        onSort={() => undefined}
+      />,
+    );
+    expect(screen.getByRole("columnheader", { name: "Games" })).toHaveAttribute(
+      "aria-sort",
+      "descending",
+    );
+    expect(screen.getByRole("columnheader", { name: "Brawler" })).toHaveAttribute(
+      "aria-sort",
+      "none",
+    );
+    // A column that is not sortable gets no aria-sort at all, sorted table or not.
+    expect(screen.getByRole("columnheader", { name: "icon" })).not.toHaveAttribute("aria-sort");
+  });
+
+  it("calls onSort once per header click, with that column's key", async () => {
+    const onSort = vi.fn();
+    renderWithProviders(
+      <Table
+        columns={[
+          { key: "name", label: "Brawler", sortable: true },
+          { key: "games", label: "Games", sortable: true },
+        ]}
+        rows={[{ name: "NORI", games: 3 }]}
+        rowKey={(row) => row.name}
+        empty="No games in this range."
+        sort={{ key: "games", dir: "desc" }}
+        onSort={onSort}
+      />,
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Brawler" }));
+    expect(onSort).toHaveBeenCalledTimes(1);
+    expect(onSort).toHaveBeenCalledWith("name");
+  });
+
+  it("never reorders the rows it was given", () => {
+    renderWithProviders(
+      <Table
+        columns={[{ key: "name", label: "Brawler", sortable: true, render: (r) => r.name }]}
+        rows={[
+          { name: "SHELLY", games: 1 },
+          { name: "NORI", games: 3 },
+        ]}
+        rowKey={(row) => row.name}
+        empty="No games in this range."
+        sort={{ key: "name", dir: "asc" }}
+        onSort={() => undefined}
+      />,
+    );
+    const cells = screen.getAllByRole("cell").map((cell) => cell.textContent);
+    expect(cells).toEqual(["SHELLY", "NORI"]);
   });
 });
