@@ -2,7 +2,7 @@
 
 An open-source Brawl Stars trophy farmer for BlueStacks on Windows, with a local control panel in your browser.
 
-Status: under construction. Phase 6 of 8 (the Stats screen and brawler icons). The schedule editor arrives in phase 7; see `docs/PLAN.md`.
+Status: under construction. Phase 6 of 8 (the Stats screen and brawler icons). Docs and publishing come in phase 7; see `docs/PLAN.md`.
 
 ## What it does
 
