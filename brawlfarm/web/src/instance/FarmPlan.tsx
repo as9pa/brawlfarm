@@ -11,6 +11,7 @@ import { useEffect, useRef, useState } from "react";
 import { getPlan, putPlan } from "../api/plans";
 import { queryKeys } from "../api/queries";
 import type { FarmPlan as FarmPlanBody, PlanResponse } from "../api/types";
+import { BrawlerIcon } from "../components/ui/BrawlerIcon";
 import { Button } from "../components/ui/Button";
 import { ErrorBlock } from "../components/ui/ErrorBlock";
 import { Field } from "../components/ui/Field";
@@ -251,7 +252,8 @@ export function FarmPlan({ name }: { name: string }) {
 
       <div className="flex flex-col gap-1">
         <span className="text-[12px] text-muted">Current brawler</span>
-        <div className="flex items-baseline gap-2">
+        <div className="flex items-center gap-2">
+          <BrawlerIcon name={plan.current.brawler} />
           <span className="font-mono text-[13px]">{plan.current.brawler ?? "none"}</span>
           <span className="ml-auto font-mono text-[12px] tabular-nums text-muted">
             {plan.current.trophies === null ? "none" : plan.current.trophies} / {goal}
@@ -278,7 +280,8 @@ export function FarmPlan({ name }: { name: string }) {
         ) : (
           <ul>
             {plan.queue.map((brawler) => (
-              <li key={brawler} className="flex items-baseline gap-2 text-[13px]">
+              <li key={brawler} className="flex items-center gap-2 text-[13px]">
+                <BrawlerIcon name={brawler} />
                 <span className="font-mono">{brawler}</span>
                 <span className="ml-auto font-mono text-[12px] tabular-nums text-muted">
                   {trophiesOf.get(brawler.toUpperCase()) ?? "none"}
@@ -298,7 +301,8 @@ export function FarmPlan({ name }: { name: string }) {
           {showAll ? (
             <ul data-testid="plan-roster">
               {roster.map((b) => (
-                <li key={b.id} className="flex items-baseline gap-2 text-[13px]">
+                <li key={b.id} className="flex items-center gap-2 text-[13px]">
+                  <BrawlerIcon name={b.name} />
                   <span className="font-mono">{b.name}</span>
                   <span className="ml-auto font-mono text-[12px] tabular-nums text-muted">
                     {b.trophies}
