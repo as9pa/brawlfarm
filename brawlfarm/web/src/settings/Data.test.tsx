@@ -34,7 +34,7 @@ function server(
   const { calls } = stubFetch((url, init) => {
     if (url === "/api/health") {
       return jsonResponse({
-        version: "0.1.0",
+        version: "1.0.0",
         home: "C:/data/brawlfarm",
         instances: 2,
         uptime_s: 12.5,

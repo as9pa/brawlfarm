@@ -17,7 +17,7 @@ function server(options: { putStatus?: number; putDetail?: string } = {}) {
   const { calls } = stubFetch((url, init) => {
     if (url === "/api/health") {
       return jsonResponse({
-        version: "0.1.0",
+        version: "1.0.0",
         home: "C:/data/brawlfarm",
         instances: 1,
         uptime_s: 12.5,
@@ -91,7 +91,7 @@ describe("Settings > About", () => {
   it("shows the running version, the three links and the attribution", async () => {
     server();
     mount();
-    expect(await screen.findByText("brawlfarm 0.1.0")).toBeInTheDocument();
+    expect(await screen.findByText("brawlfarm 1.0.0")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "GitHub" })).toHaveAttribute(
       "href",
       "https://github.com/as9pa/brawlfarm",

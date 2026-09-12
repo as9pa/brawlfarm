@@ -27,7 +27,7 @@ def test_health_reports_version_home_and_instances(api) -> None:
     r = client.get("/api/health")
     assert r.status_code == 200
     body = r.json()
-    assert body["version"].startswith("0.")
+    assert body["version"].startswith("1.")
     assert body["home"] == str(home.resolve())
     assert body["instances"] == 2
     assert body["uptime_s"] >= 0.0
