@@ -16,12 +16,19 @@ afterEach(() => {
 });
 
 /** Two configured instances, an aggregate, and an ok connection. `stats` overrides the
- * aggregate; `statsStatus` makes GET /api/stats fail. */
+ * aggregate; `statsStatus` makes GET /api/stats fail, `instancesStatus` the list. */
 function server(
-  options: { stats?: ReturnType<typeof makeStats>; statsStatus?: number } = {},
+  options: {
+    stats?: ReturnType<typeof makeStats>;
+    statsStatus?: number;
+    instancesStatus?: number;
+  } = {},
 ): FetchCall[] {
   return stubFetch((url) => {
     if (url === "/api/instances") {
+      if (options.instancesStatus !== undefined) {
+        return jsonResponse({ detail: "config.toml is unreadable" }, options.instancesStatus);
+      }
       return jsonResponse({
         instances: [
           makeInstance({ name: "Pie64", player_tag: "#2P0YLQ9" }),
@@ -154,6 +161,15 @@ describe("Stats", () => {
     expect(await screen.findByText("Stats appear after the first match.")).toBeInTheDocument();
     expect(screen.getByRole("radiogroup", { name: "Range" })).toBeInTheDocument();
     expect(screen.queryByTestId("metrics-row")).toBeNull();
+  });
+
+  it("shows the failure, not the skeleton, when the instance list cannot load", async () => {
+    server({ instancesStatus: 500 });
+    mount();
+    expect(await screen.findByText("config.toml is unreadable")).toBeInTheDocument();
+    expect(screen.queryByTestId("stats-skeleton")).toBeNull();
+    // There is nothing to pick and nothing to scope, so the toolbar stays away too.
+    expect(screen.queryByRole("radiogroup", { name: "Range" })).toBeNull();
   });
 
   it("shows an ErrorBlock and nothing else when the request fails", async () => {
