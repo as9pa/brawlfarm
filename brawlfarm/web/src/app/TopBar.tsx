@@ -30,6 +30,8 @@ const CONNECTION_PILL: Record<Connection, { label: string; tone: Tone }> = {
 
 export function pageTitle(pathname: string): string {
   if (pathname.startsWith(INSTANCE_PREFIX)) return pathname.slice(INSTANCE_PREFIX.length);
+  // One title for all seven sections: /settings/data is still the Settings page.
+  if (pathname.startsWith("/settings")) return "Settings";
   return SECTION_TITLES[pathname] ?? "brawlfarm";
 }
 

@@ -25,13 +25,13 @@ function stubInstances(): void {
 }
 
 describe("Rail", () => {
-  it("shows the wordmark and tags the sections that are not built yet", async () => {
+  it("shows the wordmark and tags the one section that is not built yet", async () => {
     stubInstances();
     renderWithProviders(<Rail />);
     expect(screen.getByText("brawlfarm")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Fleet" })).toHaveAttribute("href", "/");
     expect(screen.getByRole("link", { name: /Stats/ })).toHaveTextContent("Stats soon");
-    expect(screen.getByRole("link", { name: /Settings/ })).toHaveTextContent("Settings soon");
+    expect(screen.getByRole("link", { name: "Settings" })).toHaveAttribute("href", "/settings");
     expect(await screen.findByText("Instances")).toBeInTheDocument();
   });
 
