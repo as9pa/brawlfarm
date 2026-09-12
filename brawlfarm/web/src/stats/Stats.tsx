@@ -109,6 +109,21 @@ export function Stats() {
     />
   );
 
+  // Without the instance list there is nothing to pick and nothing to scope, so the
+  // toolbar stays out of this one and the skeleton is left to the pending state alone:
+  // a failed list would otherwise sit on the skeleton forever.
+  if (instancesQuery.isError) {
+    return (
+      <section className="flex flex-col gap-3">
+        <h2 className="text-[28px] font-semibold tracking-tight">Stats</h2>
+        <ErrorBlock
+          error={instancesQuery.error}
+          onRetry={() => void instancesQuery.refetch()}
+        />
+      </section>
+    );
+  }
+
   if (stats.isError) {
     return (
       <section className="flex flex-col gap-3">
