@@ -106,13 +106,9 @@ assert all(set(order) == set(_BASE_ORDER) for order in PHASE_ORDER.values()), (
 )
 
 
-def _anchor_threshold(name: str) -> float | None:
-    """Per-anchor match threshold (None = config.MATCH_THRESHOLD default)."""
-    if name == "matchmaking":
-        return config.MATCHMAKING_THRESHOLD
-    if name == "teams_left":
-        return config.IN_MATCH_THRESHOLD
-    return None
+def _anchor_threshold(name: str) -> float:
+    """Per-anchor match threshold; the single source is vision.threshold_for."""
+    return vision.threshold_for(name)
 
 
 def classify(screen: np.ndarray, phase: str | None = None) -> State:

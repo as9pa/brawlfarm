@@ -127,7 +127,7 @@ def threshold_for(name: str) -> float:
 
 def find(screen: np.ndarray, name: str, threshold: float | None = None) -> Match | None:
     """Return the best match for template `name` in `screen`, or None if the
-    best score is below threshold.
+    best score is below threshold. A threshold of None means threshold_for(name).
 
     When config.GRAY_MATCH is on (default), the match runs on grayscale views of both
     the screen and the template — ~4.7x faster than BGR for TM_CCOEFF_NORMED (which
@@ -173,7 +173,7 @@ def find_with_score(
     OCR/template pass). Follows config.GRAY_MATCH and the COLOR_ONLY_TEMPLATES carve-out
     exactly like find()/score(), so its verdict matches find()'s on the same frame."""
     if threshold is None:
-        threshold = config.MATCH_THRESHOLD
+        threshold = threshold_for(name)
     if config.GRAY_MATCH and name not in config.COLOR_ONLY_TEMPLATES:
         template = _load_template_gray(name)
         haystack = _as_gray(screen)
