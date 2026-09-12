@@ -20,15 +20,18 @@
  */
 import { type KeyboardEvent, type MouseEvent, useState } from "react";
 
-import type { StatsPoint, StatsSeries } from "../api/types";
+import type { StatsPoint, StatsRange, StatsSeries } from "../api/types";
 import { Table, type Column } from "../components/ui/Table";
-import { hhmm } from "../lib/time";
+import { formatMoment } from "./format";
 
 export interface TrophyChartProps {
   series: StatsSeries[];
   /** Every selected instance, in the order the chips are in. The legend follows this, so
    * an instance with no games still appears and the legend matches the chips. */
   instances: string[];
+  /** Which range is showing. Only the clock reads it: a range wider than today needs the
+   * day on every stamp or the axis and the table lose which one they mean. */
+  range: StatsRange;
 }
 
 export const CHART_LABEL = "Cumulative trophy change";
@@ -50,9 +53,6 @@ const PAD_Y = 10; // so a point at the very top or bottom is not half a stroke o
 const VALUE_PAD = 0.05; // the brief's 5 %
 const EMPTY = "No games in this range.";
 const NONE = "none";
-/** hhmm is the panel's one clock format: the recent games table and the session caption
- * both use it, so the crosshair and the ends read the same way they do. */
-const clock = hhmm;
 
 function colorFor(index: number): string {
   return SERIES_COLORS[index % SERIES_COLORS.length];
@@ -73,7 +73,10 @@ function valueAt(points: StatsPoint[], moment: number): number | null {
   return found;
 }
 
-export function TrophyChart({ series, instances }: TrophyChartProps) {
+export function TrophyChart({ series, instances, range }: TrophyChartProps) {
+  /** The panel's one clock format: the recent games table reads the same way, so the
+   * crosshair, the ends and the table all agree on what a stamp looks like. */
+  const clock = (iso: string): string => formatMoment(iso, range);
   const [showTable, setShowTable] = useState(false);
   const [hover, setHover] = useState<number | null>(null);
   const [cursor, setCursor] = useState<number | null>(null);
@@ -170,7 +173,13 @@ export function TrophyChart({ series, instances }: TrophyChartProps) {
   };
 
   const columns: Column<{ t: string; values: (number | null)[] }>[] = [
-    { key: "t", label: "Time", mono: true, width: "80px", render: (row) => clock(row.t) },
+    {
+      key: "t",
+      label: "Time",
+      mono: true,
+      width: range === "today" ? "80px" : "120px",
+      render: (row) => clock(row.t),
+    },
     ...ordered.map((s, index) => ({
       key: s.instance,
       label: s.instance,
