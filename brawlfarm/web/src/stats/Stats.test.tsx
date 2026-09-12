@@ -197,4 +197,16 @@ describe("Stats", () => {
       "Add a player tag for Pie64 in Settings, Instances to see its games.",
     );
   });
+
+  it("draws the chart for the selection, legend and all", async () => {
+    server();
+    mount();
+    expect(
+      await screen.findByRole("img", { name: "Cumulative trophy change" }),
+    ).toBeInTheDocument();
+    expect(screen.getAllByTestId("legend-entry").map((n) => n.textContent)).toEqual([
+      "Pie64",
+      "Pie64_1",
+    ]);
+  });
 });

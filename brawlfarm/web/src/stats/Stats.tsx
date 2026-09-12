@@ -16,6 +16,7 @@ import { useSearchParams } from "react-router";
 import { ConnectionStrip } from "./ConnectionStrip";
 import { MetricsRow } from "./MetricsRow";
 import { StatsToolbar } from "./StatsToolbar";
+import { TrophyChart } from "./TrophyChart";
 import { getConnection } from "../api/connection";
 import { queryKeys } from "../api/queries";
 import { getStats, statsCsvHref } from "../api/stats";
@@ -149,7 +150,7 @@ export function Stats() {
           <div data-testid="metrics-row">
             <MetricsRow summary={stats.data.summary} />
           </div>
-          {/* task 7 puts TrophyChart here */}
+          <TrophyChart series={stats.data.series} instances={selected} />
           {/* task 8 puts the BrawlerTable / RankBars band and RecentGames here */}
         </>
       )}
