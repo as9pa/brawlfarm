@@ -92,6 +92,17 @@ describe("MetricsRow", () => {
     expect(within(figure("top-4 rate")).getByTestId("metric-value")).toHaveTextContent("none");
   });
 
+  it("wraps at phone width rather than truncating any cell", () => {
+    renderWithProviders(<MetricsRow summary={summary()} />);
+    const cells = screen.getAllByTestId(/^metric-(?!value$)/);
+    expect(cells).toHaveLength(6);
+    for (const cell of cells) {
+      expect(cell.className).toContain("min-w-[");
+      expect(cell.querySelectorAll('[class*="truncate"]')).toHaveLength(0);
+      expect(cell.querySelectorAll('[class*="overflow-hidden"]')).toHaveLength(0);
+    }
+  });
+
   it("gives every number tabular figures", () => {
     renderWithProviders(<MetricsRow summary={summary()} />);
     for (const node of screen.getAllByTestId("metric-value")) {

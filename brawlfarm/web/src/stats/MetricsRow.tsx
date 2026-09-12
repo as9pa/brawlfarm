@@ -3,6 +3,9 @@
  * separated by a 1 px rule. No tiles, no big numbers, no sparkline. The row is the
  * summary, so it is the one thing on the page that is always readable at a glance.
  *
+ * Nothing here truncates. A cell keeps a floor of 104 px and the row wraps under it, so a
+ * phone gets two or three columns of readable figures rather than six cells of "37...".
+ *
  * Two placeholders stand in for numbers that would be a lie: "after 30 min" while the
  * range is too short for a rate to mean anything, and "none" when there is nothing at all
  * to average.
@@ -32,15 +35,15 @@ function Figure({ label, value, tone }: { label: string; value: string; tone?: s
   return (
     <div
       data-testid={`metric-${label}`}
-      className="flex min-w-0 flex-1 flex-col gap-0.5 border-l border-line px-3 first:border-l-0 first:pl-0"
+      className="flex min-w-[104px] flex-1 flex-col gap-0.5 border-l border-line px-3 first:border-l-0 first:pl-0"
     >
       <span
         data-testid="metric-value"
-        className={`truncate font-mono text-[18px] tabular-nums ${tone ?? "text-text"}`}
+        className={`font-mono text-[18px] tabular-nums ${tone ?? "text-text"}`}
       >
         {value}
       </span>
-      <span data-label="" className="truncate text-[11px] text-muted">
+      <span data-label="" className="text-[11px] text-muted">
         {label}
       </span>
     </div>
