@@ -28,6 +28,7 @@ from brawlfarm import __version__
 from brawlfarm.api import (
     alerts,
     brawlers,
+    connection,
     events,
     feed,
     instances,
@@ -150,6 +151,9 @@ def create_app(sup: Supervisor, home: Path) -> FastAPI:
     # One roster cache for the process: per instance, five-minute TTL, stale on failure.
     # Not built in the lifespan because it holds nothing loop-bound until its first use.
     app.state.roster = roster.RosterCache()
+    # One connection check for the process: five-minute TTL, one lock. Built here for the
+    # same reason the roster cache is, and its lock is made on first use.
+    app.state.connection = connection.ConnectionCache()
 
     @app.middleware("http")
     async def _loopback_only(request: Request, call_next):
@@ -182,6 +186,7 @@ def create_app(sup: Supervisor, home: Path) -> FastAPI:
     app.include_router(setup_routes.router)
     app.include_router(screens.router)
     app.include_router(plans.router)
+    app.include_router(connection.router)
     app.include_router(schedule.router)
     app.include_router(feed.router)
     app.include_router(alerts.router)
