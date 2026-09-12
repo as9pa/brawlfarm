@@ -45,6 +45,17 @@ describe("StatsToolbar", () => {
     expect(props.onRange).toHaveBeenCalledWith("today");
   });
 
+  it("jumps to the first and the last range with Home and End", async () => {
+    const props = mount();
+    await userEvent.click(screen.getByRole("radio", { name: "7 days" }));
+    props.onRange.mockClear();
+    await userEvent.keyboard("{End}");
+    expect(props.onRange).toHaveBeenCalledWith("all");
+    props.onRange.mockClear();
+    await userEvent.keyboard("{Home}");
+    expect(props.onRange).toHaveBeenCalledWith("today");
+  });
+
   it("toggles one instance chip", async () => {
     const props = mount();
     await userEvent.click(screen.getByRole("button", { name: "Pie64_1" }));

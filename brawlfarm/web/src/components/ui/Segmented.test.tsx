@@ -1,6 +1,7 @@
 /** The filter chips are a radio group, so a screen reader keeps the "one of these is
  * selected" relationship and gets the keyboard that goes with it: the group is a single
- * tab stop and the arrows move the selection along it, wrapping at both ends. */
+ * tab stop, the arrows move the selection along it, wrapping at both ends, and Home and
+ * End land on the two ends. */
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useState } from "react";
@@ -70,11 +71,20 @@ describe("Segmented", () => {
     expect(checked()).toBe("Errors");
   });
 
+  it("goes to the two ends with Home and End", async () => {
+    render(<Controlled start="matches" />);
+    screen.getByRole("radio", { name: "Matches" }).focus();
+    await userEvent.keyboard("{End}");
+    expect(checked()).toBe("Errors");
+    await userEvent.keyboard("{Home}");
+    expect(checked()).toBe("All");
+  });
+
   it("leaves other keys to the browser", async () => {
     const onChange = vi.fn();
     render(<Segmented value="all" options={OPTIONS} onChange={onChange} label="Feed filter" />);
     screen.getByRole("radio", { name: "All" }).focus();
-    await userEvent.keyboard("{Home}");
+    await userEvent.keyboard("{PageDown}");
     expect(onChange).not.toHaveBeenCalled();
   });
 });
