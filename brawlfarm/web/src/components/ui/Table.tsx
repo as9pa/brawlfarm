@@ -13,6 +13,9 @@
  * A column whose label is empty still gets a header cell, named by its key and hidden with
  * sr-only on a span inside the cell rather than on the cell itself: sr-only is
  * position:absolute, and that would take the header out of the table's column flow.
+ *
+ * The overflow box is itself positioned so that absolutely positioned span stays clipped
+ * inside it instead of escaping to the nearest positioned ancestor.
  */
 import type { ReactNode } from "react";
 
@@ -34,7 +37,7 @@ export interface TableProps<Row> {
 
 export function Table<Row>({ columns, rows, rowKey, empty }: TableProps<Row>) {
   return (
-    <div className="overflow-x-auto">
+    <div className="relative overflow-x-auto">
       <table className="w-full border-collapse text-[13px]">
         <colgroup>
           {columns.map((column) => (
