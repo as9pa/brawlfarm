@@ -6,6 +6,10 @@
  * column has no value accessor: `render` is how every cell gets its content, which is what
  * lets a status chip, an inline field and a row of buttons all be ordinary columns.
  *
+ * The table sits in its own overflow-x-auto box, because at phone width the columns add up
+ * to more than the panel is wide and a table that pushes the page sideways takes the whole
+ * layout with it. Both callers want that, so it lives here rather than in either of them.
+ *
  * A column whose label is empty still gets a header cell, named by its key and hidden with
  * sr-only on a span inside the cell rather than on the cell itself: sr-only is
  * position:absolute, and that would take the header out of the table's column flow.
@@ -30,50 +34,52 @@ export interface TableProps<Row> {
 
 export function Table<Row>({ columns, rows, rowKey, empty }: TableProps<Row>) {
   return (
-    <table className="w-full border-collapse text-[13px]">
-      <colgroup>
-        {columns.map((column) => (
-          <col
-            key={column.key}
-            style={column.width === undefined ? undefined : { width: column.width }}
-          />
-        ))}
-      </colgroup>
-      <thead>
-        <tr className="border-b border-line">
+    <div className="overflow-x-auto">
+      <table className="w-full border-collapse text-[13px]">
+        <colgroup>
           {columns.map((column) => (
-            <th
+            <col
               key={column.key}
-              scope="col"
-              className="px-2 py-1.5 text-left text-[11px] font-medium uppercase tracking-wide text-muted"
-            >
-              {column.label === "" ? <span className="sr-only">{column.key}</span> : column.label}
-            </th>
+              style={column.width === undefined ? undefined : { width: column.width }}
+            />
           ))}
-        </tr>
-      </thead>
-      <tbody>
-        {rows.length === 0 ? (
-          <tr>
-            <td colSpan={columns.length} className="px-2 py-3 text-[13px] text-muted">
-              {empty}
-            </td>
+        </colgroup>
+        <thead>
+          <tr className="border-b border-line">
+            {columns.map((column) => (
+              <th
+                key={column.key}
+                scope="col"
+                className="px-2 py-1.5 text-left text-[11px] font-medium uppercase tracking-wide text-muted"
+              >
+                {column.label === "" ? <span className="sr-only">{column.key}</span> : column.label}
+              </th>
+            ))}
           </tr>
-        ) : (
-          rows.map((row) => (
-            <tr key={rowKey(row)} className="border-b border-line last:border-b-0 hover:bg-panel-2">
-              {columns.map((column) => (
-                <td
-                  key={column.key}
-                  className={`px-2 py-1.5 align-middle ${column.mono === true ? "font-mono tabular-nums" : ""}`}
-                >
-                  {column.render === undefined ? null : column.render(row)}
-                </td>
-              ))}
+        </thead>
+        <tbody>
+          {rows.length === 0 ? (
+            <tr>
+              <td colSpan={columns.length} className="px-2 py-3 text-[13px] text-muted">
+                {empty}
+              </td>
             </tr>
-          ))
-        )}
-      </tbody>
-    </table>
+          ) : (
+            rows.map((row) => (
+              <tr key={rowKey(row)} className="border-b border-line last:border-b-0 hover:bg-panel-2">
+                {columns.map((column) => (
+                  <td
+                    key={column.key}
+                    className={`px-2 py-1.5 align-middle ${column.mono === true ? "font-mono tabular-nums" : ""}`}
+                  >
+                    {column.render === undefined ? null : column.render(row)}
+                  </td>
+                ))}
+              </tr>
+            ))
+          )}
+        </tbody>
+      </table>
+    </div>
   );
 }
