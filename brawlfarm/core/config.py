@@ -192,11 +192,9 @@ GRAY_MATCH = os.environ.get("BRAWL_GRAY_MATCH", "1") != "0"
 # so going gray would change real decisions:
 #   close_x      color separates by a hair at 0.85 (min-true 0.851 / max-false 0.845);
 #                gray INVERTS it (min-true 0.876 / max-false 0.897) -> 15/562 frames flip.
-#   matchmaking  gray drops true frames below the 0.90 threshold (min-true 0.887) and
-#                inflates false ones -> 195/562 frames flip at the threshold.
-# (Both are small low-contrast sprites; worth re-shooting crisper templates someday —
-# close_x is razor-thin even in color.)
-COLOR_ONLY_TEMPLATES = frozenset({"close_x", "matchmaking"})
+# matchmaking left this set in phase 8: the re-shot "Players found N/12" template
+# separates cleanly in gray (see MATCHMAKING_THRESHOLD).
+COLOR_ONLY_TEMPLATES = frozenset({"close_x"})
 
 # Phase-aware classification: the controller passes its phase to states.classify so the
 # EXPECTED anchor is template-matched first (find returns on first hit, so order =
@@ -208,7 +206,9 @@ PHASE_CLASSIFY = os.environ.get("BRAWL_PHASE_CLASSIFY", "1") != "0"
 
 MATCH_THRESHOLD = 0.85  # default template-match confidence (0..1)
 IN_MATCH_THRESHOLD = 0.70  # "Teams left:" HUD match (lower: text over varying maps)
-MATCHMAKING_THRESHOLD = 0.90  # "Players found" match — tightened (it hit 0.86 on a reward screen)
+# "Players found N/12" line in the queue screen (276x45), gray-matched. Measured on the
+# 2026-09 corpus: queue frames at or above 0.99, every other frame at or below 0.51.
+MATCHMAKING_THRESHOLD = 0.85
 
 
 # --- Behavior flags ----------------------------------------------------------
