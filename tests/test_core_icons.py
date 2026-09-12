@@ -21,6 +21,7 @@ def _forget_refresh_stamp(monkeypatch):
     """The refresh rate limit is a module-level monotonic stamp, so it outlives a test
     unless it is put back. Every case starts as a fresh process would."""
     monkeypatch.setattr(icons, "_last_refresh_at", None)
+    monkeypatch.setattr(icons, "_last_refresh_token", None)
 
 
 def write_catalog(home: Path, catalog: dict[str, int]) -> None:
@@ -102,6 +103,45 @@ def test_a_refresh_that_raises_leaves_the_catalog_alone(tmp_path: Path) -> None:
 
     assert icons.resolve_id(tmp_path, "Shelly", "tok", fetch=boom) is None
     assert json.loads(icons.catalog_path(tmp_path).read_text(encoding="utf-8")) == {"NORI": 42}
+
+
+def test_a_refresh_that_raises_does_not_arm_the_hour(tmp_path: Path) -> None:
+    """A rejected token or a dropped connection must not lock the catalog out for an hour:
+    the next miss after the token is corrected has to reach the API again."""
+    calls: list[str] = []
+    clock = [1000.0]
+
+    def fetch(token: str) -> list[dict]:
+        calls.append(token)
+        raise RuntimeError("the API said no")
+
+    assert icons.resolve_id(tmp_path, "Shelly", "tok", now=lambda: clock[0], fetch=fetch) is None
+
+    def ok(token: str) -> list[dict]:
+        calls.append(token)
+        return [{"id": 9, "name": "Shelly"}]
+
+    clock[0] += 1
+    assert icons.resolve_id(tmp_path, "Shelly", "tok", now=lambda: clock[0], fetch=ok) == 9
+    assert len(calls) == 2
+
+
+def test_a_changed_token_inside_the_hour_refreshes(tmp_path: Path) -> None:
+    """The stamp is tied to the token that earned it, so correcting the token in settings
+    clears the throttle without a restart."""
+    calls: list[str] = []
+    clock = [1000.0]
+
+    def fetch(token: str) -> list[dict]:
+        calls.append(token)
+        return [{"id": 9, "name": "Shelly"}] if token == "good" else [{"id": 42, "name": "Nori"}]
+
+    assert icons.resolve_id(tmp_path, "Shelly", "bad", now=lambda: clock[0], fetch=fetch) is None
+    clock[0] += 1
+    assert icons.resolve_id(tmp_path, "Shelly", "bad", now=lambda: clock[0], fetch=fetch) is None
+    assert len(calls) == 1
+    assert icons.resolve_id(tmp_path, "Shelly", "good", now=lambda: clock[0], fetch=fetch) == 9
+    assert calls == ["bad", "good"]
 
 
 def test_load_catalog_of_a_broken_file_is_empty(tmp_path: Path) -> None:
