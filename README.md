@@ -2,7 +2,7 @@
 
 An open-source Brawl Stars trophy farmer for BlueStacks on Windows, with a local control panel in your browser.
 
-Status: under construction. Phase 6 of 8 (the Stats screen and brawler icons). Docs and publishing come in phase 7; see `docs/PLAN.md`.
+Status: v1.0.0. Phases 1 to 7 of the plan are done; phase 8 (a calibration page, recalibration for the current game version, a desktop window and tray icon, a labeled frame recorder) follows. See `docs/PLAN.md`.
 
 ## What it does
 
@@ -29,7 +29,7 @@ Windows 11, BlueStacks 5 with Android Debug Bridge enabled, an instance display 
 
 Start brawlfarm and open `http://127.0.0.1:8765/setup`. The wizard finds adb, lists your BlueStacks instances and their ports, checks each one is 1600 x 900 at pixel density 240, and optionally takes a Brawl Stars API token and your player tags. Every step writes straight to `config.toml`, so you can close it and come back. With nothing configured yet, the Fleet page offers the same wizard behind an Open setup button, and Settings, Connection has a Run setup again link once you are past it.
 
-To change the display: BlueStacks, Settings, Display, set 1600 x 900 and pixel density 240, then restart the instance. A prose walkthrough with pictures joins `docs/setup.md` in phase 7.
+To change the display: BlueStacks, Settings, Display, set 1600 x 900 and pixel density 240, then restart the instance. The step by step walkthrough is `docs/setup.md`.
 
 ## Development
 
@@ -102,7 +102,11 @@ The API binds 127.0.0.1 only and has no authentication: anything that can reach 
 
 ### Notifications and health monitoring
 
-`[notifications]` in `config.toml` takes a webhook URL, an ntfy topic and server, the list of event kinds worth sending, and `healthchecks_url`. Every completed supervisor tick GETs that URL, so a supervisor that stops ticking raises an alarm on healthchecks.io — or anything else that speaks the same one-URL protocol — without you watching the window.
+`[notifications]` in `config.toml` takes a webhook URL, an ntfy topic and server, the list of event kinds worth sending, and `healthchecks_url`. Every completed supervisor tick GETs that URL, so a supervisor that stops ticking raises an alarm on healthchecks.io, or anything else that speaks the same one-URL protocol, without you watching the window.
+
+## Contributing
+
+Bug reports and pull requests are welcome, and `CONTRIBUTING.md` has the conventions and the checks to run before you open one. One rule outranks every other: a change to the never-tap logic or the safety rails is not merged on any other merit, however good the rest of the change is.
 
 ## Legal
 
