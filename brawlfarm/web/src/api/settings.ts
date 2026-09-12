@@ -8,7 +8,7 @@
  * logged, never stored anywhere but the query cache, and never rendered unmasked by default.
  */
 import { api } from "./client";
-import type { AppSettings } from "./types";
+import type { AppSettings, NotifyTestResponse } from "./types";
 
 export function getSettings(): Promise<AppSettings> {
   return api<AppSettings>("/api/settings");
@@ -16,4 +16,22 @@ export function getSettings(): Promise<AppSettings> {
 
 export function putSettings(doc: AppSettings): Promise<AppSettings> {
   return api<AppSettings>("/api/settings", { method: "PUT", body: JSON.stringify(doc) });
+}
+
+/** POST /api/settings/reset. Returns the document it wrote: every section back to its model
+ * default, with the instances list carried over untouched. */
+export function resetSettings(): Promise<AppSettings> {
+  return api<AppSettings>("/api/settings/reset", { method: "POST" });
+}
+
+/** POST /api/settings/open-data-folder. 204 on Windows; 501 "Only on Windows" anywhere
+ * else, which the caller toasts. The path itself never crosses the wire. */
+export function openDataFolder(): Promise<void> {
+  return api<void>("/api/settings/open-data-folder", { method: "POST" });
+}
+
+/** POST /api/notifications/test. The body is the server's own list of channel names that
+ * answered and channel names that did not; nothing here sees a URL or a topic. */
+export function testNotifications(): Promise<NotifyTestResponse> {
+  return api<NotifyTestResponse>("/api/notifications/test", { method: "POST" });
 }
