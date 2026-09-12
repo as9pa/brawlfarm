@@ -27,6 +27,7 @@ import brawlfarm
 from brawlfarm import __version__
 from brawlfarm.api import (
     alerts,
+    brawlers,
     events,
     feed,
     instances,
@@ -92,8 +93,9 @@ def create_app(sup: Supervisor, home: Path) -> FastAPI:
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         """Startup: attach the bus to this loop, mirror the brawlfarm logger onto it,
         publish every supervisor state change, collect alerts from the tailer and from the
-        supervisor itself, start the feed tailer, and run one tick so the first
-        GET /api/instances already has views. Shutdown: stop the tailer and detach the log
+        supervisor itself, start the feed tailer, run one tick so the first
+        GET /api/instances already has views, and start the icon prewarm without
+        awaiting it. Shutdown: stop the tailer and detach the log
         handler so a second app in the same process (the test suite makes many) does not
         publish into a dead bus."""
         bus = EventBus()
@@ -118,6 +120,16 @@ def create_app(sup: Supervisor, home: Path) -> FastAPI:
                 await asyncio.to_thread(app.state.sup.tick)
             except Exception:  # a failed startup tick must not stop the app from serving
                 log.exception("startup tick failed")
+            # One pass over the cached rosters, started and not awaited: start-up must
+            # never block on the CDN, and a cold cache simply has nothing to warm.
+            asyncio.create_task(
+                asyncio.to_thread(
+                    brawlers.prewarm,
+                    app.state.home,
+                    app.state.sup.settings.connection.brawl_api_token,
+                    app.state.roster.cached_names(),
+                )
+            )
             yield
         finally:
             tailing.cancel()
@@ -174,6 +186,7 @@ def create_app(sup: Supervisor, home: Path) -> FastAPI:
     app.include_router(feed.router)
     app.include_router(alerts.router)
     app.include_router(stats.router)
+    app.include_router(brawlers.router)
 
     # --- the web UI ------------------------------------------------------------------
     dist = dist_dir()
