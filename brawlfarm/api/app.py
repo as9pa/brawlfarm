@@ -41,6 +41,7 @@ from brawlfarm.api import (
     setup_routes,
     stats,
 )
+from brawlfarm.api import calibration as calibration_routes
 from brawlfarm.api.alerts import AlertStore
 from brawlfarm.api.events import BusLogHandler, EventBus
 from brawlfarm.api.feed import FeedTailer
@@ -192,6 +193,7 @@ def create_app(sup: Supervisor, home: Path) -> FastAPI:
     app.include_router(alerts.router)
     app.include_router(stats.router)
     app.include_router(brawlers.router)
+    app.include_router(calibration_routes.router)
 
     # --- the web UI ------------------------------------------------------------------
     dist = dist_dir()
