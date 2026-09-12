@@ -218,8 +218,7 @@ async def get_scores(request: Request, name: str) -> dict:
     if screen is None:
         raise HTTPException(status_code=404, detail="no frame yet")
     phase = _phase_of(inst)
-    state, anchors = await asyncio.to_thread(_classify_and_score, screen, phase)
-    height, width = screen.shape[:2]
+    state, anchors, (height, width) = await asyncio.to_thread(_classify_and_score, screen, phase)
     return {
         "at": datetime.fromtimestamp(mtime_ns / 1e9, timezone.utc).isoformat(),
         "width": int(width),
@@ -230,9 +229,24 @@ async def get_scores(request: Request, name: str) -> dict:
     }
 
 
-def _classify_and_score(screen: np.ndarray, phase: str | None) -> tuple[str, list[dict]]:
-    """The whole CPU half of the scores route, so one hop to a thread covers both."""
-    return states.classify(screen, phase=phase).name.lower(), _anchors(screen, phase)
+def _classify_and_score(
+    screen: np.ndarray, phase: str | None
+) -> tuple[str, list[dict], tuple[int, int]]:
+    """The whole CPU half of the scores route, so one hop to a thread covers both.
+
+    The worker's preview is half size; the templates and every anchor box are 1600x900,
+    so we scale the frame up here rather than have the worker store a second frame.
+    """
+    if screen.shape[1] != config.SCREEN_W or screen.shape[0] != config.SCREEN_H:
+        screen = cv2.resize(
+            screen, (config.SCREEN_W, config.SCREEN_H), interpolation=cv2.INTER_LINEAR
+        )
+    height, width = screen.shape[:2]
+    return (
+        states.classify(screen, phase=phase).name.lower(),
+        _anchors(screen, phase),
+        (height, width),
+    )
 
 
 @router.get("/api/instances/{name}/recorder")

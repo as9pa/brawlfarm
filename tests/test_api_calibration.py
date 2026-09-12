@@ -110,6 +110,35 @@ def test_scores_route_no_frame_then_frame(api) -> None:
     assert client.get("/api/instances/Nope/calibration/scores").status_code == 404
 
 
+def test_scores_route_scales_a_half_size_preview(api) -> None:
+    """The worker writes preview.jpg at half size; the route must score it at 1600x900,
+    or the templates (which are cut from the locked screen) miss everything."""
+    client, sup, home = api
+    name = sup.settings.instances[0].name
+    inst = S.instance_dir(home, name)
+    inst.mkdir(parents=True, exist_ok=True)
+    template = vision._load_template("play")
+    th, tw = template.shape[:2]
+    full = np.zeros((config.SCREEN_H, config.SCREEN_W, 3), dtype=np.uint8)
+    left = config.PLAY_BUTTON[0] - tw // 2
+    top = config.PLAY_BUTTON[1] - th // 2
+    full[top : top + th, left : left + tw] = template
+    half = cv2.resize(full, (800, 450), interpolation=cv2.INTER_AREA)
+    cv2.imwrite(str(inst / "preview.jpg"), half)
+    (inst / "status.json").write_text(json.dumps({"phase": "menu"}), encoding="utf-8")
+    r = client.get(f"/api/instances/{name}/calibration/scores")
+    assert r.status_code == 200
+    body = r.json()
+    assert body["width"] == 1600 and body["height"] == 900
+    play = next(a for a in body["anchors"] if a["name"] == "play")
+    assert play["found"] is True
+    assert abs(play["box"]["x"] - left) <= 2 and abs(play["box"]["y"] - top) <= 2
+    for anchor in body["anchors"]:
+        box = anchor["box"]
+        assert 0 <= box["x"] and box["x"] + box["w"] <= config.SCREEN_W
+        assert 0 <= box["y"] and box["y"] + box["h"] <= config.SCREEN_H
+
+
 def test_open_folder(api, monkeypatch) -> None:
     client, _sup, home = api
     monkeypatch.setattr(sys, "platform", "win32")
