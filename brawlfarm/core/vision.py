@@ -16,6 +16,8 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 from functools import lru_cache
+from pathlib import Path
+from typing import Literal
 
 import cv2
 import numpy as np
@@ -37,21 +39,62 @@ class Match:
         return (self.x, self.y)
 
 
+# The templates that ship with the package. Fixed at import: the folder is package
+# data, so a calibration override never adds or removes a name, it only replaces a file.
+TEMPLATE_NAMES: tuple[str, ...] = tuple(sorted(p.stem for p in config.TEMPLATES_DIR.glob("*.png")))
+
+
+def OVERRIDE_DIR() -> Path:
+    """Where the Calibration page writes re-cropped templates. Read from config at CALL
+    time, never at import: config.set_home() re-points HOME_DIR under us."""
+    return config.HOME_DIR / "calibration" / "templates"
+
+
+def template_path(name: str) -> Path:
+    """The file actually used for `name`: the override if one exists, else packaged."""
+    override = OVERRIDE_DIR() / f"{name}.png"
+    if override.is_file():
+        return override
+    return config.TEMPLATES_DIR / f"{name}.png"
+
+
+def template_source(name: str) -> Literal["package", "override"]:
+    return "override" if (OVERRIDE_DIR() / f"{name}.png").is_file() else "package"
+
+
 @lru_cache(maxsize=64)
-def _load_template(name: str) -> np.ndarray:
-    path = config.TEMPLATES_DIR / f"{name}.png"
-    img = cv2.imread(str(path), cv2.IMREAD_COLOR)
+def _read_template(path_str: str, mtime_ns: int) -> np.ndarray:
+    img = cv2.imread(path_str, cv2.IMREAD_COLOR)
     if img is None:
-        raise FileNotFoundError(f"Template not found: {path}")
+        raise FileNotFoundError(f"Template not found: {path_str}")
     return img
 
 
 @lru_cache(maxsize=64)
-def _load_template_gray(name: str) -> np.ndarray:
+def _read_template_gray(path_str: str, mtime_ns: int) -> np.ndarray:
     """Grayscale variant for the fast matching path (config.GRAY_MATCH). Converted
     from the BGR load (not IMREAD_GRAYSCALE) so the pixels are guaranteed to use the
     same BGR->gray weights as the screen-side cvtColor in _as_gray."""
-    return cv2.cvtColor(_load_template(name), cv2.COLOR_BGR2GRAY)
+    return cv2.cvtColor(_read_template(path_str, mtime_ns), cv2.COLOR_BGR2GRAY)
+
+
+def _stat_key(name: str) -> tuple[str, int]:
+    """Cache key for the loaders: path plus mtime, so dropping (or deleting) an override
+    is picked up on the next match without restarting the bot."""
+    path = template_path(name)
+    try:
+        mtime_ns = path.stat().st_mtime_ns
+    except OSError:
+        raise FileNotFoundError(f"Template not found: {path}") from None
+    return str(path), mtime_ns
+
+
+def _load_template(name: str) -> np.ndarray:
+    return _read_template(*_stat_key(name))
+
+
+def _load_template_gray(name: str) -> np.ndarray:
+    return _read_template_gray(*_stat_key(name))
 
 
 # Per-frame grayscale cache: classify() calls find() up to ~10x on the SAME frame, so we
@@ -71,6 +114,17 @@ def _as_gray(screen: np.ndarray) -> np.ndarray:
     return gray
 
 
+def threshold_for(name: str) -> float:
+    """The threshold find() uses for this template when none is passed. Two templates
+    are tuned away from the default: "teams_left" is text over varying maps (lower) and
+    "matchmaking" hit 0.86 on a reward screen (higher). See config "Vision tuning"."""
+    if name == "matchmaking":
+        return config.MATCHMAKING_THRESHOLD
+    if name == "teams_left":
+        return config.IN_MATCH_THRESHOLD
+    return config.MATCH_THRESHOLD
+
+
 def find(screen: np.ndarray, name: str, threshold: float | None = None) -> Match | None:
     """Return the best match for template `name` in `screen`, or None if the
     best score is below threshold.
@@ -83,7 +137,7 @@ def find(screen: np.ndarray, name: str, threshold: float | None = None) -> Match
     "Vision tuning" and the legacy research note "performance optimization", item 1
     (not ported)."""
     if threshold is None:
-        threshold = config.MATCH_THRESHOLD
+        threshold = threshold_for(name)
 
     if config.GRAY_MATCH and name not in config.COLOR_ONLY_TEMPLATES:
         template = _load_template_gray(name)
