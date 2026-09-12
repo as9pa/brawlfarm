@@ -40,6 +40,9 @@ def set_home(home: Path) -> None:
     CAPTURES_DIR = HOME_DIR / "captures"
     ONBOARD_SHOTS_DIR = CAPTURES_DIR / "onboard"
     DATA_DIR = HOME_DIR / os.environ.get("BRAWL_DATA_DIR", "data")
+    global CALIBRATION_FILE, CALIBRATION
+    CALIBRATION_FILE = HOME_DIR / "calibration" / "calibration.toml"
+    CALIBRATION = _calibration.apply(globals(), CALIBRATION_FILE)
 
 
 # BlueStacks ships its own adb; use it directly. Overridable for non-default installs.
@@ -722,3 +725,11 @@ BUSH_MAX_RELOCATIONS = 3
 BUSH_JITTER_RADIUS = 45  # small joystick swipe magnitude for the in-bush micro-jitter
 BUSH_JITTER_MIN_INTERVAL = 4.0  # seconds between micro-jitters (well under idle-kick)
 BUSH_JITTER_MAX_INTERVAL = 8.0
+
+# --- Calibration overrides (phase 8): <home>/calibration/calibration.toml ----------
+# Floats and two-int tap tuples above may be overridden from that file. The
+# module below only reads; nothing in the app writes calibration.toml.
+from brawlfarm.core import calibration as _calibration  # noqa: E402
+
+CALIBRATION_FILE = HOME_DIR / "calibration" / "calibration.toml"
+CALIBRATION = _calibration.apply(globals(), CALIBRATION_FILE)
