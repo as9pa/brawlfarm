@@ -60,7 +60,8 @@ def _recorder_payload(inst: Path) -> dict:
     """recorder.json as the worker left it, plus whether the flag is currently set.
 
     The worker owns recorder.json: a missing or half-written file means "nothing has
-    recorded here yet", never a 500.
+    recorded here yet", never a 500. mode comes from status.json, not from recorder.json,
+    because it is the worker that knows which kind it is.
     """
     status = {
         "on": False,
@@ -79,7 +80,21 @@ def _recorder_payload(inst: Path) -> dict:
     if isinstance(data, dict):
         status.update({k: v for k, v in data.items() if k in status})
     status["flag"] = (inst / "record.flag").exists()
+    status["mode"] = _mode_of(inst)
     return status
+
+
+def _mode_of(inst: Path) -> str:
+    """Which kind of worker is recording here. Only an instance whose own heartbeat says
+    ``observe`` is observing; no heartbeat, an unreadable one or anything else is "farm",
+    which is the answer that makes the page's switch stay disabled rather than inviting a
+    click that the observe route would refuse."""
+    try:
+        data = json.loads((inst / "status.json").read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return "farm"
+    mode = data.get("mode") if isinstance(data, dict) else None
+    return "observe" if mode == "observe" else "farm"
 
 
 def _phase_of(inst: Path) -> str | None:

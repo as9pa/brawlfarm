@@ -167,6 +167,7 @@ def test_recorder_routes(api) -> None:
         "last_session": None,
         "last_frames": 0,
         "flag": False,
+        "mode": "farm",
     }
     r = client.post(f"/api/instances/{name}/recorder", json={"on": True})
     assert r.status_code == 200 and r.json()["flag"] is True
@@ -192,3 +193,13 @@ def test_recorder_routes(api) -> None:
     assert r.status_code == 200 and r.json()["flag"] is False
     assert not (inst / "record.flag").exists()
     assert client.post("/api/instances/Nope/recorder", json={"on": True}).status_code == 404
+
+
+def test_recorder_payload_names_the_mode(api) -> None:
+    client, sup, home = api
+    name = sup.settings.instances[0].name
+    inst = S.instance_dir(home, name)
+    assert client.get(f"/api/instances/{name}/recorder").json()["mode"] == "farm"
+    inst.mkdir(parents=True, exist_ok=True)
+    (inst / "status.json").write_text(json.dumps({"mode": "observe"}), encoding="utf-8")
+    assert client.get(f"/api/instances/{name}/recorder").json()["mode"] == "observe"

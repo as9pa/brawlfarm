@@ -41,6 +41,14 @@ class StartBody(BaseModel):
     hours: float | None = Field(default=None, gt=0)
 
 
+class ObserveBody(BaseModel):
+    """Observe mode's switch, and nothing else: this route cannot start a farm."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    on: bool
+
+
 def view_to_dict(view: InstanceView) -> dict:
     """The InstanceView as JSON: enums become their string values and `until` becomes ISO
     seconds, so the browser always gets the same types for a field."""
@@ -167,6 +175,27 @@ async def stop_instance(request: Request, name: str) -> dict:
     inst, _dir = resolve_instance(request, name)
     sup = get_sup(request)
     sup.stop(inst.name)
+    sup.poke()
+    return {"ok": True}
+
+
+@router.post("/api/instances/{name}/observe", status_code=202)
+async def observe_instance(request: Request, name: str, body: ObserveBody) -> dict:
+    """Record while the owner plays: write the observe override so the next tick launches
+    the worker with --observe. Turning it off is the ordinary graceful stop.
+
+    409 while the instance is doing anything else. Handing a live instance straight from
+    farming to observing would put two processes on one display during the handoff, so the
+    owner stops it first and turns this on from stopped. A second on for an instance that
+    is already observing is not a handoff, so it passes.
+    """
+    inst, _dir = resolve_instance(request, name)
+    sup = get_sup(request)
+    view = next((v for v in sup.views() if v.name == inst.name), None)
+    live = view is not None and view.state in LIVE_STATES and view.desired != "observe"
+    if body.on and live:
+        raise HTTPException(status_code=409, detail=f"Stop {inst.name} before recording play")
+    sup.observe(inst.name, body.on)
     sup.poke()
     return {"ok": True}
 
