@@ -27,8 +27,10 @@ SESSION_STAMP_FMT = "%Y%m%d-%H%M%S"  # core/datalog.py's filename, local time
 
 # {resolved instance dir: (session filename, session stamp, games.csv stamp, value)}. A
 # stamp is (mtime, size): mtime alone misses two writes inside one filesystem tick, which
-# the Windows CI runner produces. The work is redone only when one of those three changes,
-# so a Fleet poll every few seconds costs two stat calls per instance.
+# the Windows CI runner produces. A same-size rewrite inside one tick still slips through;
+# games.csv is append-only so that does not happen in practice, and the next append fixes
+# it. The work is redone only when one of those three changes, so a Fleet poll every few
+# seconds costs two stat calls per instance.
 _cache: dict[Path, tuple[str, tuple[float, int], tuple[float, int], dict | None]] = {}
 
 
