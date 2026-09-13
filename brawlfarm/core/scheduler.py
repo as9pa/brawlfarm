@@ -503,13 +503,15 @@ def evaluate(
         }
 
     if not enabled:
-        # A STOP override is honored even with scheduling off (v3.1 #5): /stop
-        # writes one so the watchdog doesn't relaunch ~1 min later (found live
-        # 2026-06-10). Run overrides are meaningless here (disabled = always-run)
-        # and malformed/expired ones were already pruned by the caller.
-        if override and override.get("mode") == "stop":
+        # A STOP or OBSERVE override is honored even with scheduling off (v3.1 #5):
+        # /stop writes one so the watchdog doesn't relaunch ~1 min later (found live
+        # 2026-06-10), and observe mode is a manual state the schedule knows nothing
+        # about. Run overrides are meaningless here (disabled = always-run) and
+        # malformed/expired ones were already pruned by the caller.
+        if override and override.get("mode") in ("stop", "observe"):
+            mode = str(override["mode"])
             try:
-                return block("stop", "override_stop", _iso(_parse(override["until"])))
+                return block(mode, f"override_{mode}", _iso(_parse(override["until"])))
             except (KeyError, ValueError):
                 pass
         return block("run", "disabled")
@@ -535,6 +537,8 @@ def evaluate(
                     override["until"],
                     max_minutes=max(1.0, mins),
                 )
+            if override.get("mode") == "observe":
+                return block("observe", "override_observe", override["until"])
             return block("stop", "override_stop", override["until"])
 
     sessions = plan.get("sessions", [])
@@ -990,15 +994,15 @@ def clear_override(name: str) -> None:
 
 
 def read_override(name: str) -> dict | None:
-    """The account's manual override (/start or /stop), or None when there is none, the
-    file is unreadable, or the account is not configured. Read-only twin of
+    """The account's manual override (/start, /stop or observe mode), or None when there
+    is none, the file is unreadable, or the account is not configured. Read-only twin of
     write_override: pruning an expired override stays the tick's job, so the panel can
     show one that is about to lapse."""
     try:
         raw = _read_json(_override_path(name))
     except KeyError:  # not in config.INSTANCES
         return None
-    if not raw or raw.get("mode") not in ("run", "stop") or not raw.get("until"):
+    if not raw or raw.get("mode") not in ("run", "stop", "observe") or not raw.get("until"):
         return None
     return {"mode": raw["mode"], "until": raw["until"], "set_at": raw.get("set_at")}
 

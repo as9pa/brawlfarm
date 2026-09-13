@@ -326,7 +326,10 @@ class Supervisor:
 
     def _launch_worker(self, inst: S.InstanceSettings, desired: dict | None, now: datetime) -> None:
         max_minutes = (desired or {}).get("max_minutes")
-        args = S.worker_args(self.settings, float(max_minutes) if max_minutes else None)
+        observe = (desired or {}).get("state") == "observe"
+        args = S.worker_args(
+            self.settings, float(max_minutes) if max_minutes else None, observe=observe
+        )
         env = {**os.environ, **S.worker_env(self.settings, inst, self.home)}
         self._flag(inst.name).unlink(missing_ok=True)
         self._stop_asked.pop(inst.name, None)
@@ -358,6 +361,21 @@ class Supervisor:
         self.settings.instance(name)
         scheduler.write_override(name, "stop", now + timedelta(days=STOP_OVERRIDE_DAYS))
         self._request_stop(name, now)
+        self.poke()
+
+    def observe(self, name: str, on: bool) -> None:
+        """Observe mode on: an observe override, so the next tick launches the worker with
+        --observe. Off: the ordinary graceful stop, because an observer that is no longer
+        wanted is just a worker to stop."""
+        now = self._clock()
+        self.settings.instance(name)
+        if not on:
+            self.stop(name)
+            return
+        scheduler.write_override(name, "observe", now + timedelta(days=STOP_OVERRIDE_DAYS))
+        self._flag(name).unlink(missing_ok=True)
+        self._stop_asked.pop(name, None)
+        self._backoff.clear(name)
         self.poke()
 
     def stop_now(self, name: str) -> bool:
