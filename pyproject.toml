@@ -5,6 +5,16 @@ description = "Open-source Brawl Stars trophy farmer for BlueStacks, with a loca
 readme = "README.md"
 requires-python = ">=3.13"
 license = "MIT"
+keywords = ["brawl-stars", "bluestacks", "automation", "adb", "farming"]
+classifiers = [
+  "Development Status :: 5 - Production/Stable",
+  "Environment :: Win32 (MS Windows)",
+  "Intended Audience :: End Users/Desktop",
+  "License :: OSI Approved :: MIT License",
+  "Operating System :: Microsoft :: Windows",
+  "Programming Language :: Python :: 3.13",
+  "Topic :: Games/Entertainment",
+]
 dependencies = [
   "opencv-python>=4.10",
   "numpy>=2.0",
@@ -19,8 +29,20 @@ dependencies = [
   "uvicorn>=0.30",
 ]
 
+[project.urls]
+Homepage = "https://github.com/as9pa/brawlfarm"
+Repository = "https://github.com/as9pa/brawlfarm"
+Issues = "https://github.com/as9pa/brawlfarm/issues"
+Changelog = "https://github.com/as9pa/brawlfarm/releases"
+
 [project.scripts]
 brawlfarm = "brawlfarm.__main__:main"
+
+# The desktop dependencies live twice on purpose: the group is what a clone syncs with
+# `uv sync --group desktop`, the extra is what an install from PyPI asks for with
+# `brawlfarm[desktop]`. Keep the two lists identical.
+[project.optional-dependencies]
+desktop = ["pywebview>=5.3", "pystray>=0.19", "pillow>=10"]
 
 [dependency-groups]
 dev = ["pytest>=8.3", "pytest-asyncio>=0.24", "ruff>=0.12", "httpx>=0.27"]

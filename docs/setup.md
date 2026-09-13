@@ -28,7 +28,7 @@ The wizard's Display step checks this for you: it asks each instance for its rea
 
 ## Install brawlfarm
 
-There is no `uv tool install brawlfarm` yet. Clone the repository and run it from the checkout:
+Clone the repository and run it from the checkout:
 
 ```
 git clone https://github.com/as9pa/brawlfarm.git
@@ -36,6 +36,17 @@ cd brawlfarm
 uv sync
 uv run brawlfarm
 ```
+
+### From PyPI
+
+Once the first release is on PyPI you can skip the clone. `uv tool install brawlfarm` puts a `brawlfarm` command on your PATH, and `uvx brawlfarm` runs it once without installing anything:
+
+```
+uv tool install brawlfarm
+brawlfarm
+```
+
+The desktop window and tray icon are an extra, so install `uv tool install "brawlfarm[desktop]"` if you want `brawlfarm --window`. Everything below says `uv run brawlfarm` because it assumes the checkout; with a tool install, drop the `uv run` and type `brawlfarm`.
 
 `uv run brawlfarm` supervises every configured instance, serves the panel on `http://127.0.0.1:8765/` and opens your browser on it a second later. It prints the same URL to the console. The flags you are most likely to want:
 
@@ -48,7 +59,7 @@ uv run brawlfarm --home <path>   # use a different data directory for this run
 
 The panel binds 127.0.0.1 only and has no login, so anything that can reach it can drive your instances. Do not port-forward it and do not put it behind a reverse proxy.
 
-If you would rather have a window than a browser tab, `uv sync --group desktop` installs the optional desktop extras and `uv run brawlfarm --window` then opens the panel in its own window with a tray icon. Closing the window only hides it: the tray icon brings it back, and Quit there stops the run the way Ctrl+C does. Without the extras brawlfarm says so and opens the browser instead.
+If you would rather have a window than a browser tab, `uv sync --group desktop` in a checkout (or `uv tool install "brawlfarm[desktop]"` from PyPI) installs the optional desktop extras and `uv run brawlfarm --window` then opens the panel in its own window with a tray icon. Closing the window only hides it: the tray icon brings it back, and Quit there stops the run the way Ctrl+C does. Without the extras brawlfarm says so and opens the browser instead.
 
 ## Run the setup wizard
 

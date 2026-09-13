@@ -25,6 +25,18 @@ These are absolute and are enforced in code and in review:
 
 Windows 11, BlueStacks 5 with Android Debug Bridge enabled, an instance display of 1600 x 900 at pixel density 240, Python 3.13 and [uv](https://docs.astral.sh/uv/).
 
+## Install
+
+Clone the repository and `uv sync`, or, once the first release is on PyPI, install it as a tool:
+
+```
+uv tool install brawlfarm            # a brawlfarm command on your PATH
+uv tool install "brawlfarm[desktop]" # the same, plus --window and the tray icon
+uvx brawlfarm                        # run it once without installing it
+```
+
+The commands below assume the checkout and say `uv run brawlfarm`; with a tool install the command is just `brawlfarm`. `docs/setup.md` is the step by step walkthrough and `docs/release.md` is how a release ships.
+
 ## Setup
 
 Start brawlfarm and open `http://127.0.0.1:8765/setup`. The wizard finds adb, lists your BlueStacks instances and their ports, checks each one is 1600 x 900 at pixel density 240, and optionally takes a Brawl Stars API token and your player tags. Every step writes straight to `config.toml`, so you can close it and come back. With nothing configured yet, the Fleet page offers the same wizard behind an Open setup button, and Settings, Connection has a Run setup again link once you are past it.
@@ -58,7 +70,7 @@ uv run brawlfarm --once          # one supervisor tick, print the instances, exi
 uv run brawlfarm --window        # a desktop window and a tray icon instead of the browser
 ```
 
-`--window` needs the optional desktop extras, which `uv sync --group desktop` installs; without them brawlfarm says so and opens the browser as usual. Closing the window only hides it to the tray icon, whose menu has Open panel and Quit.
+`--window` needs the optional desktop extras, which `uv sync --group desktop` installs in a checkout and `uv tool install "brawlfarm[desktop]"` installs from PyPI; without them brawlfarm says so and opens the browser as usual. Closing the window only hides it to the tray icon, whose menu has Open panel and Quit.
 
 Settings live in `%LOCALAPPDATA%\brawlfarm\config.toml` (override the folder with `BRAWLFARM_HOME`). Add one `[[instances]]` table per BlueStacks instance with its `name` and `adb_port`; each instance's files live under `instances/<name>/`. Stopping the process leaves workers running; the next start reattaches to them through their status files.
 

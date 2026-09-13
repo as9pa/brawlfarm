@@ -1,0 +1,48 @@
+name: release
+
+on:
+  release:
+    types: [published]
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.13"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: corepack enable
+      - run: pnpm install --frozen-lockfile
+        working-directory: brawlfarm/web
+      - run: pnpm build
+        working-directory: brawlfarm/web
+      - run: uv build --wheel
+      - name: the wheel version matches the tag
+        env:
+          TAG_NAME: ${{ github.event.release.tag_name }}
+        run: |
+          uv run python -c "import os, tomllib; version = tomllib.load(open('pyproject.toml','rb'))['project']['version']; tag = os.environ['TAG_NAME'].removeprefix('v'); assert version == tag, f'pyproject version {version} does not match tag {tag}'; print('version ok', version)"
+      - name: the wheel carries the built panel
+        run: |
+          uv run python -c "import glob, zipfile; names = zipfile.ZipFile(sorted(glob.glob('dist/*.whl'))[-1]).namelist(); assert 'brawlfarm/web/dist/index.html' in names, 'dist/index.html missing from the wheel'; assert not any(n.startswith('brawlfarm/web/src/') for n in names), 'the wheel carries web sources'; print('wheel ok')"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    environment: pypi
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+      - uses: pypa/gh-action-pypi-publish@release/v1
