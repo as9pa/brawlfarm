@@ -18,6 +18,7 @@ function makeRecorder(overrides: Partial<Recorder> = {}): Recorder {
     last_session: null,
     last_frames: 0,
     flag: false,
+    mode: "farm",
     ...overrides,
   };
 }
@@ -92,6 +93,14 @@ describe("RecorderCard", () => {
   it("explains a write that failed", () => {
     mount(makeRecorder({ reason: "error" }));
     expect(screen.getByText(WRITE_ERROR_MESSAGE)).toBeInTheDocument();
+  });
+
+  it("hands the recorder to observe mode while the observe worker owns the flag", () => {
+    mount(makeRecorder({ mode: "observe" }));
+    expect(screen.getByRole("switch", { name: "Record frames" })).toBeDisabled();
+    expect(
+      screen.getByText("Observe mode owns the recorder. Use Record while I play."),
+    ).toBeInTheDocument();
   });
 
   it("disables the switch until the status has arrived", () => {

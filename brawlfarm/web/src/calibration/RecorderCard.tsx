@@ -8,6 +8,9 @@
  *
  * A cap is not a failure: the recorder stopped on purpose, and the strip says which cap
  * it hit and what to do about it.
+ *
+ * An observe worker raises and drops the same flag itself, so while one is recording this
+ * switch steps aside rather than offering a second way to close that session.
  */
 import type { Recorder } from "../api/calibration";
 import { Switch } from "../components/ui/Switch";
@@ -49,6 +52,7 @@ function capMessage(status: Recorder, instance: string): string | null {
 
 export function RecorderCard({ instance, status, pending, onToggle }: RecorderCardProps) {
   const cap = status === undefined ? null : capMessage(status, instance);
+  const observing = status?.mode === "observe";
   const clock = status?.session === null || status?.session === undefined
     ? null
     : sessionClock(status.session);
@@ -60,10 +64,16 @@ export function RecorderCard({ instance, status, pending, onToggle }: RecorderCa
         <Switch
           label="Record frames"
           checked={status?.flag === true}
-          disabled={status === undefined || pending}
+          disabled={status === undefined || pending || observing}
           onChange={onToggle}
         />
       </div>
+
+      {observing && (
+        <p className="text-[12px] text-muted">
+          Observe mode owns the recorder. Use Record while I play.
+        </p>
+      )}
 
       {status !== undefined && status.on && (
         <p className="text-[12px] text-muted">

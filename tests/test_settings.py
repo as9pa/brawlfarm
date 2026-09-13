@@ -195,6 +195,13 @@ def test_worker_args_follow_dnd_and_cap() -> None:
     assert S.worker_args(s, 42.7) == ["--select-brawler", "--max-minutes", "42.7"]
 
 
+def test_worker_args_for_observe_carry_nothing_that_plays() -> None:
+    s = S.AppSettings()
+    s.behavior.dnd_at_start = True
+    assert S.worker_args(s, None, observe=True) == ["--observe"]
+    assert S.worker_args(s, 42.7, observe=True) == ["--observe"]
+
+
 def test_settings_module_does_not_import_the_core() -> None:
     """settings.py decides BRAWLFARM_HOME before the core (which reads it at import) loads,
     so it must never import brawlfarm.core. Checked on the source, not by reloading modules."""

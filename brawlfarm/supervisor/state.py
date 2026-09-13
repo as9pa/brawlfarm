@@ -38,7 +38,7 @@ class InstanceView:
     pid: int | None
     heartbeat_age_s: float | None
     phase: str | None
-    desired: str  # "run" | "stop"
+    desired: str  # "run" | "stop" | "observe"
     desired_reason: str | None
     until: datetime | None  # session end, resume time, retry time or stop deadline
     games_played: int | None
@@ -88,6 +88,10 @@ def derive_state(
     ``stop_pending`` is the kill deadline when a graceful stop is in flight (or a bool
     for callers without one). Precedence, alive: stopping > reconnecting > farming.
     Dead: offline > starting > scheduled break / stopped.
+
+    ``observe`` is a desired mode, not a state: an observing instance reads as STARTING
+    then FARMING, which keeps it inside the panel's live-instance guards. The recorder
+    payload's ``mode`` field is what says which kind of worker is running.
     """
     alive = health in (Health.HEALTHY, Health.STALE)
     if alive:
@@ -100,7 +104,7 @@ def derive_state(
         return InstanceState.FARMING, desired_until
     if offline_until is not None:
         return InstanceState.OFFLINE, offline_until
-    if booting or desired == "run":
+    if booting or desired in ("run", "observe"):
         return InstanceState.STARTING, None
     if desired_reason == "override_stop":
         return InstanceState.STOPPED, None

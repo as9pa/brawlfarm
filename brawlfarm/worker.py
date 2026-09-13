@@ -6,6 +6,7 @@ runs standalone too:
     uv run python -m brawlfarm.worker --max-games 2 --debug-shots  # short supervised run
     uv run python -m brawlfarm.worker                    # farm until stopped (Ctrl-C)
     uv run python -m brawlfarm.worker --max-minutes 480  # farm for 8 hours then stop
+    uv run python -m brawlfarm.worker --observe       # record while you play, never taps
 
 The worker farms whatever mode is selected in the menu, but refuses to play and stops
 if the menu is not on Trio Showdown (so it never grinds the wrong mode).
@@ -15,6 +16,7 @@ import argparse
 import sys
 
 from brawlfarm.core.controller import Controller
+from brawlfarm.core.observer import Observer
 
 
 def main() -> int:
@@ -44,12 +46,23 @@ def main() -> int:
         help="run ALL startup tasks at once (DND + brawler select); same as passing "
         "those two flags. Mega-quest activation is always on regardless.",
     )
+    ap.add_argument(
+        "--observe",
+        action="store_true",
+        help="record while you play: capture and label frames, never tap. Ignores every "
+        "other startup flag.",
+    )
     args = ap.parse_args()
 
     try:
         sys.stdout.reconfigure(encoding="utf-8")  # player names contain unicode
     except Exception:
         pass
+
+    # Observe mode plays nothing, so it takes none of the startup tasks: it only watches.
+    if args.observe:
+        Observer(max_minutes=args.max_minutes).run()
+        return 0
 
     # --startup-all is a convenience that turns on every startup task at once.
     startup = args.startup_all

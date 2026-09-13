@@ -15,6 +15,7 @@ import numpy as np
 import pytest
 
 from brawlfarm import settings as S
+from brawlfarm.api.deps import LIVE_STATES
 from brawlfarm.core import config, vision
 from brawlfarm.core.states import State
 from tests.apihelpers import make_client
@@ -167,6 +168,7 @@ def test_recorder_routes(api) -> None:
         "last_session": None,
         "last_frames": 0,
         "flag": False,
+        "mode": "farm",
     }
     r = client.post(f"/api/instances/{name}/recorder", json={"on": True})
     assert r.status_code == 200 and r.json()["flag"] is True
@@ -192,3 +194,32 @@ def test_recorder_routes(api) -> None:
     assert r.status_code == 200 and r.json()["flag"] is False
     assert not (inst / "record.flag").exists()
     assert client.post("/api/instances/Nope/recorder", json={"on": True}).status_code == 404
+
+
+def test_recorder_payload_names_the_mode(api) -> None:
+    client, sup, home = api
+    name = sup.settings.instances[0].name
+    inst = S.instance_dir(home, name)
+    assert client.get(f"/api/instances/{name}/recorder").json()["mode"] == "farm"
+    inst.mkdir(parents=True, exist_ok=True)
+    (inst / "status.json").write_text(json.dumps({"mode": "observe"}), encoding="utf-8")
+    assert client.get(f"/api/instances/{name}/recorder").json()["mode"] == "observe"
+
+
+def test_recorder_refuses_a_live_observe_session(api) -> None:
+    """The observer raises and drops record.flag itself, so the calibration switch answers
+    409 rather than closing the owner's recording session behind the observe card's back.
+    Both positions are refused: turning it on there would be just as much of a second
+    switch on the same flag."""
+    client, sup, home = api
+    name = sup.settings.instances[0].name
+    inst = S.instance_dir(home, name)
+    inst.mkdir(parents=True, exist_ok=True)
+    (inst / "record.flag").touch()
+    (inst / "status.json").write_text(json.dumps({"mode": "observe"}), encoding="utf-8")
+    assert next(v for v in sup.views() if v.name == name).state in LIVE_STATES
+    r = client.post(f"/api/instances/{name}/recorder", json={"on": False})
+    assert r.status_code == 409
+    assert r.json()["detail"] == f"{name} is recording play; use the observe switch"
+    assert (inst / "record.flag").exists()
+    assert client.post(f"/api/instances/{name}/recorder", json={"on": True}).status_code == 409

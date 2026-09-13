@@ -41,7 +41,7 @@ export interface InstancePayload {
   heartbeat_age_s: number | null;
   /** The worker's own phase string; unknown values are shown as they arrive. */
   phase: Phase | string | null;
-  desired: "run" | "stop";
+  desired: "run" | "stop" | "observe";
   desired_reason: string | null;
   until: string | null;
   games_played: number | null;

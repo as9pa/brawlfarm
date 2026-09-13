@@ -21,7 +21,7 @@ from fastapi import APIRouter, HTTPException, Request, Response
 from pydantic import BaseModel
 
 from brawlfarm import settings as S
-from brawlfarm.api.deps import get_home, resolve_instance
+from brawlfarm.api.deps import LIVE_STATES, get_home, get_sup, resolve_instance
 from brawlfarm.core import calibration, config, states, vision
 
 router = APIRouter()
@@ -60,7 +60,8 @@ def _recorder_payload(inst: Path) -> dict:
     """recorder.json as the worker left it, plus whether the flag is currently set.
 
     The worker owns recorder.json: a missing or half-written file means "nothing has
-    recorded here yet", never a 500.
+    recorded here yet", never a 500. mode comes from status.json, not from recorder.json,
+    because it is the worker that knows which kind it is.
     """
     status = {
         "on": False,
@@ -79,7 +80,21 @@ def _recorder_payload(inst: Path) -> dict:
     if isinstance(data, dict):
         status.update({k: v for k, v in data.items() if k in status})
     status["flag"] = (inst / "record.flag").exists()
+    status["mode"] = _mode_of(inst)
     return status
+
+
+def _mode_of(inst: Path) -> str:
+    """Which kind of worker is recording here. Only an instance whose own heartbeat says
+    ``observe`` is observing; no heartbeat, an unreadable one or anything else is "farm",
+    which is the answer that makes the page's switch stay disabled rather than inviting a
+    click that the observe route would refuse."""
+    try:
+        data = json.loads((inst / "status.json").read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return "farm"
+    mode = data.get("mode") if isinstance(data, dict) else None
+    return "observe" if mode == "observe" else "farm"
 
 
 def _phase_of(inst: Path) -> str | None:
@@ -259,9 +274,20 @@ async def get_recorder(request: Request, name: str) -> dict:
 @router.post("/api/instances/{name}/recorder")
 async def set_recorder(request: Request, name: str, body: RecorderBody) -> dict:
     """Flip record.flag. The worker notices within a few ticks and answers in
-    recorder.json, so the payload here is the flag plus whatever it last wrote."""
+    recorder.json, so the payload here is the flag plus whatever it last wrote.
+
+    409 while an observe worker is live, in either position: the observer raises and drops
+    the same flag itself, so a click here would close the owner's recording session behind
+    the observe switch's back.
+    """
     inst_settings, _dir = resolve_instance(request, name)
     inst = S.instance_dir(get_home(request), inst_settings.name)
+    view = next((v for v in get_sup(request).views() if v.name == inst_settings.name), None)
+    if view is not None and view.state in LIVE_STATES and _mode_of(inst) == "observe":
+        raise HTTPException(
+            status_code=409,
+            detail=f"{inst_settings.name} is recording play; use the observe switch",
+        )
     flag = inst / "record.flag"
     if body.on:
         inst.mkdir(parents=True, exist_ok=True)

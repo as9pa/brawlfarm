@@ -25,6 +25,7 @@ import {
   getCalibration,
   getRecorder,
   getScores,
+  setObserve,
   setRecorder,
 } from "../api/calibration";
 import { ApiError } from "../api/client";
@@ -75,6 +76,21 @@ export function useRecorderToggle(
     mutationFn: (on: boolean) => setRecorder(instance as string, on),
     onSuccess: (status) => {
       client.setQueryData(queryKeys.recorder(instance ?? ""), status);
+    },
+  });
+}
+
+export function useObserveToggle(
+  instance: string | null,
+): UseMutationResult<{ ok: boolean }, Error, boolean> {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (on: boolean) => setObserve(instance as string, on),
+    onSuccess: () => {
+      // Unlike the recorder toggle there is no fresh status in the response: the
+      // supervisor acts on its next tick, so both reads that will change are asked again.
+      void client.invalidateQueries({ queryKey: queryKeys.instances() });
+      void client.invalidateQueries({ queryKey: queryKeys.recorder(instance ?? "") });
     },
   });
 }

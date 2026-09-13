@@ -455,3 +455,54 @@ def test_clearing_the_token_clears_the_applied_one(tmp_path, world, monkeypatch)
     sup.apply_settings(sup.settings)
     # The environment override the spec promises is still the fallback, not the leftover.
     assert config.API_TOKEN == "from-the-environment"
+
+
+def test_observe_override_launches_the_worker_with_observe(sup, world, tmp_path) -> None:
+    sup.observe("Pie64", True)
+    assert (scheduler.read_override("Pie64") or {})["mode"] == "observe"
+    world.now += timedelta(seconds=L.BOOT_GRACE_S + 20)
+    sup.tick()
+    args = [a for a, _env, n in world.launches if n == "Pie64"][-1]
+    assert args == ["--observe"]
+    assert "--select-brawler" not in args and "--dnd" not in args
+
+
+def test_observe_does_not_read_as_a_scheduled_break(sup, world, tmp_path) -> None:
+    sup.observe("Pie64", True)
+    views = sup.tick()
+    view = _view(views, "Pie64")
+    assert view.desired == "observe"
+    assert view.state == InstanceState.STARTING
+
+
+def test_observe_off_is_the_ordinary_stop(sup, world, tmp_path) -> None:
+    sup.observe("Pie64", True)
+    sup.observe("Pie64", False)
+    assert (scheduler.read_override("Pie64") or {})["mode"] == "stop"
+    assert (S.instance_dir(tmp_path, "Pie64") / "stop.flag").exists()
+
+
+def test_observe_stops_a_live_farm_worker_before_relaunching_it(sup, world, tmp_path) -> None:
+    world.alive.add(4242)
+    _heartbeat(tmp_path, "Pie64", 4242, world.now)  # no "mode" field = a farm worker
+    sup.observe("Pie64", True)
+    views = sup.tick()
+    # The farm worker taps, so it is stopped rather than left running under an observe
+    # override; the relaunch is the next tick's job.
+    assert (S.instance_dir(tmp_path, "Pie64") / "stop.flag").exists()
+    assert _view(views, "Pie64").state == InstanceState.STOPPING
+    assert world.kills == []
+    world.alive.discard(4242)  # the worker exited at the menu
+    world.now += timedelta(seconds=60)
+    sup.tick()
+    assert [a for a, _env, n in world.launches if n == "Pie64"][-1] == ["--observe"]
+
+
+def test_a_live_observer_stops_when_observe_is_cleared(sup, world, tmp_path) -> None:
+    world.alive.add(4242)
+    _heartbeat(tmp_path, "Pie64", 4242, world.now, mode="observe")
+    # No override and the schedule off means desired run, and an observer has no session
+    # cap of its own, so the tick has to stop it.
+    views = sup.tick()
+    assert (S.instance_dir(tmp_path, "Pie64") / "stop.flag").exists()
+    assert _view(views, "Pie64").state == InstanceState.STOPPING

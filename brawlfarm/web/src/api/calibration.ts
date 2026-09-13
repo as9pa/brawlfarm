@@ -80,6 +80,10 @@ export interface Recorder {
   /** Whether record.flag is set right now. The worker answers in its own time, so this
    * is what the switch shows and `on` is what the session line reports. */
   flag: boolean;
+  /** Which worker is recording: "observe" while the owner plays by hand, "farm"
+   * otherwise. It comes from the instance's heartbeat, so it is the running process
+   * answering rather than the switch that asked for it. */
+  mode: "farm" | "observe";
 }
 
 export function getCalibration(): Promise<Calibration> {
@@ -96,6 +100,17 @@ export function getRecorder(name: string): Promise<Recorder> {
 
 export function setRecorder(name: string, on: boolean): Promise<Recorder> {
   return api<Recorder>(`/api/instances/${encodeURIComponent(name)}/recorder`, {
+    method: "POST",
+    body: JSON.stringify({ on }),
+  });
+}
+
+/** POST /api/instances/{name}/observe. 202 on the way in; 409 while the instance is
+ * doing anything else, because observe mode only ever starts from stopped. The
+ * supervisor launches the worker on its next tick, so the answer here is an
+ * acknowledgement and not a status. */
+export function setObserve(name: string, on: boolean): Promise<{ ok: boolean }> {
+  return api<{ ok: boolean }>(`/api/instances/${encodeURIComponent(name)}/observe`, {
     method: "POST",
     body: JSON.stringify({ on }),
   });
