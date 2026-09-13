@@ -26,6 +26,7 @@ MODULES = [
     "onboarding",
     "preview",
     "quests",
+    "questpick",
     "recalib",
     "rewards",
     "scheduler",
