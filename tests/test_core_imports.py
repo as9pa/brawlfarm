@@ -34,6 +34,7 @@ MODULES = [
     "states",
     "stats",
     "status",
+    "upgrade_gate",
     "vision",
 ]
 
