@@ -185,8 +185,19 @@ class Supervisor:
         until = _parse_until((desired or {}).get("until"))
         note = ""
         launched = False
+        # One worker per instance means the live one has to be the right kind: the farm
+        # controller writes no "mode", the observer writes "observe". A live worker whose
+        # kind no longer matches what is wanted is stopped like any other stop, and the
+        # next tick relaunches it with the right worker_args. Without this a healthy farm
+        # worker keeps tapping under an observe override, and a healthy observer (which has
+        # no session cap) keeps watching after the override clears.
+        wrong_kind = (
+            alive
+            and want != "stop"
+            and (st or {}).get("mode", "farm") != ("observe" if want == "observe" else "farm")
+        )
 
-        if want == "stop":
+        if want == "stop" or wrong_kind:
             self._backoff.clear(name)
             if alive:
                 self._request_stop(name, now)
