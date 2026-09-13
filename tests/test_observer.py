@@ -81,3 +81,53 @@ def test_an_exception_still_clears_the_flag(data: Path, monkeypatch) -> None:
     with pytest.raises(RuntimeError):
         observer.Observer().run()
     assert not (data / "record.flag").exists()
+
+
+# --- the rails ------------------------------------------------------------------------
+#
+# Observe mode's whole safety argument is that no tap function is reachable from it. Both
+# halves of that are checked here: the source names no input call, and importing the
+# module pulls in nothing that owns one. A future edit that breaks either CANNOT land
+# green, which is the point, so treat a failure here as a design question and not a test
+# to fix.
+
+NO_INPUT = (
+    "adb.tap",
+    "adb.swipe",
+    "adb.tap_hold",
+    "adb.input_text",
+    "adb.keyevent",
+    "adb.go_home",
+    "adb.launch_app",
+    "adb.force_stop",
+)
+
+FORBIDDEN_MODULES = (
+    "brawlfarm.core.controller",
+    "brawlfarm.core.brawlers",
+    "brawlfarm.core.quests",
+    "brawlfarm.core.rewards",
+    "brawlfarm.core.settings",
+)
+
+
+def test_the_observer_source_names_no_input_call() -> None:
+    source = Path(observer.__file__).read_text(encoding="utf-8")
+    named = [call for call in NO_INPUT if call in source]
+    assert named == [], f"observer.py must never tap: {named}"
+
+
+def test_importing_the_observer_pulls_in_nothing_that_taps(tmp_path: Path) -> None:
+    import os
+    import subprocess
+    import sys
+
+    env = {k: v for k, v in os.environ.items() if not k.startswith(("BRAWL_", "DISCORD_"))}
+    env["BRAWLFARM_HOME"] = str(tmp_path)
+    code = (
+        "import sys; import brawlfarm.core.observer; "
+        f"bad = [m for m in {FORBIDDEN_MODULES!r} if m in sys.modules]; "
+        "assert not bad, bad"
+    )
+    result = subprocess.run([sys.executable, "-c", code], env=env, capture_output=True, text=True)
+    assert result.returncode == 0, result.stderr

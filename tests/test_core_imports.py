@@ -22,6 +22,7 @@ MODULES = [
     "jsonio",
     "match_vision",
     "notify",
+    "observer",
     "onboarding",
     "preview",
     "quests",
