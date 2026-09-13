@@ -72,3 +72,11 @@ def test_worker_help_runs() -> None:
     )
     assert result.returncode == 0
     assert "--max-games" in result.stdout
+
+
+def test_worker_help_lists_observe() -> None:
+    result = subprocess.run(
+        [sys.executable, "-m", "brawlfarm.worker", "--help"], capture_output=True, text=True
+    )
+    assert result.returncode == 0
+    assert "--observe" in result.stdout

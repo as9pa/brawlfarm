@@ -230,9 +230,16 @@ def worker_env(settings: AppSettings, inst: InstanceSettings, home: Path) -> dic
     }
 
 
-def worker_args(settings: AppSettings, max_minutes: float | None) -> list[str]:
+def worker_args(
+    settings: AppSettings, max_minutes: float | None, *, observe: bool = False
+) -> list[str]:
     """CLI flags for ``python -m brawlfarm.worker``: brawler selection always, DND when
-    the behaviour setting says so, and the scheduler's session cap when there is one."""
+    the behaviour setting says so, and the scheduler's session cap when there is one.
+
+    Observe mode is the exception and takes the flag alone: it never plays, so a startup
+    task that would touch the game has no business in its command line."""
+    if observe:
+        return ["--observe"]
     args = ["--select-brawler"]
     if settings.behavior.dnd_at_start:
         args.append("--dnd")
