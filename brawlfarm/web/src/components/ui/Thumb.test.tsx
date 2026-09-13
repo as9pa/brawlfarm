@@ -130,6 +130,23 @@ describe("Thumb", () => {
     expect(calls).toHaveLength(2);
   });
 
+  it("stacks the break caption under the failure instead of over it", async () => {
+    vi.useFakeTimers();
+    stubFetch(() => jsonResponse({ detail: "adb did not answer" }, 503));
+    render(<Thumb name="Pie64" refreshMs={false} dimmed caption="Break until 21:30" />);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    const error = screen.getByText("Screenshot failed: adb did not answer");
+    const caption = screen.getByText("Break until 21:30");
+    expect(error).toBeInTheDocument();
+    expect(caption).toBeInTheDocument();
+    const overlay = screen.getByTestId("thumb-overlay");
+    expect(overlay.className).toContain("flex-col");
+    expect(overlay).toContainElement(error);
+    expect(overlay).toContainElement(caption);
+  });
+
   it("dims the image and captions it while the instance is on a break", async () => {
     stubFetch(() => jpegResponse());
     render(<Thumb name="Pie64" refreshMs={false} dimmed caption="Break until 21:30" />);
