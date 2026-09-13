@@ -21,7 +21,7 @@ from fastapi import APIRouter, HTTPException, Request, Response
 from pydantic import BaseModel
 
 from brawlfarm import settings as S
-from brawlfarm.api.deps import get_home, resolve_instance
+from brawlfarm.api.deps import LIVE_STATES, get_home, get_sup, resolve_instance
 from brawlfarm.core import calibration, config, states, vision
 
 router = APIRouter()
@@ -274,9 +274,20 @@ async def get_recorder(request: Request, name: str) -> dict:
 @router.post("/api/instances/{name}/recorder")
 async def set_recorder(request: Request, name: str, body: RecorderBody) -> dict:
     """Flip record.flag. The worker notices within a few ticks and answers in
-    recorder.json, so the payload here is the flag plus whatever it last wrote."""
+    recorder.json, so the payload here is the flag plus whatever it last wrote.
+
+    409 while an observe worker is live, in either position: the observer raises and drops
+    the same flag itself, so a click here would close the owner's recording session behind
+    the observe switch's back.
+    """
     inst_settings, _dir = resolve_instance(request, name)
     inst = S.instance_dir(get_home(request), inst_settings.name)
+    view = next((v for v in get_sup(request).views() if v.name == inst_settings.name), None)
+    if view is not None and view.state in LIVE_STATES and _mode_of(inst) == "observe":
+        raise HTTPException(
+            status_code=409,
+            detail=f"{inst_settings.name} is recording play; use the observe switch",
+        )
     flag = inst / "record.flag"
     if body.on:
         inst.mkdir(parents=True, exist_ok=True)

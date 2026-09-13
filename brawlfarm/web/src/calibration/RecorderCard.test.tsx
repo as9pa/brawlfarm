@@ -95,6 +95,14 @@ describe("RecorderCard", () => {
     expect(screen.getByText(WRITE_ERROR_MESSAGE)).toBeInTheDocument();
   });
 
+  it("hands the recorder to observe mode while the observe worker owns the flag", () => {
+    mount(makeRecorder({ mode: "observe" }));
+    expect(screen.getByRole("switch", { name: "Record frames" })).toBeDisabled();
+    expect(
+      screen.getByText("Observe mode owns the recorder. Use Record while I play."),
+    ).toBeInTheDocument();
+  });
+
   it("disables the switch until the status has arrived", () => {
     render(
       <RecorderCard instance="Pie64" status={undefined} pending={false} onToggle={vi.fn()} />,
