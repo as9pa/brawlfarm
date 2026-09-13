@@ -8,6 +8,7 @@ break a Fleet card.
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 
 from brawlfarm.api import sessions
@@ -149,6 +150,23 @@ def test_a_new_game_row_invalidates_the_cache(tmp_path: Path) -> None:
         inst,
         [game("2026-09-12T21:10:00", "2", "12"), game("2026-09-12T21:20:00", "4", "6")],
     )
+    assert sessions.last_session(inst)["games"] == 2
+
+
+def test_a_rewrite_inside_one_mtime_tick_still_invalidates(tmp_path: Path) -> None:
+    """Two writes can land in the same filesystem tick (the Windows CI runner does it), so
+    the stamp must not be mtime alone."""
+    inst = tmp_path / "Pie64"
+    write_session(inst, "20260912-210000", [{"ts": "2026-09-12T22:14:07", "kind": "recap"}])
+    write_games(inst, [game("2026-09-12T21:10:00", "2", "12")])
+    games_path = inst / "games.csv"
+    frozen = games_path.stat().st_mtime
+    assert sessions.last_session(inst)["games"] == 1
+    write_games(
+        inst,
+        [game("2026-09-12T21:10:00", "2", "12"), game("2026-09-12T21:20:00", "4", "6")],
+    )
+    os.utime(games_path, (frozen, frozen))
     assert sessions.last_session(inst)["games"] == 2
 
 
