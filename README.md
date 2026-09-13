@@ -147,6 +147,11 @@ A PNG at `templates/<name>.png`, under one of the thirteen packaged template nam
 
 The Record frames switch writes labeled JPEG frames and a `labels.jsonl` into `recordings/<instance>/<yyyymmdd-hhmmss>/` for recalibration work, one frame per second or on any state change, capped at 2000 frames a session and 512 MiB an instance, and it never deletes anything.
 
+The Record while I play switch next to it stops short of farming entirely: it launches the
+worker in observe mode, which watches and labels frames while you play the instance by
+hand and never sends an input event. It only starts from a stopped instance, and it writes
+into the same `recordings/<instance>/<yyyymmdd-hhmmss>/` folder with the same caps.
+
 `docs/calibration.md` has the whole of it, including what the page will not do: it reads, and the files write.
 
 ## Contributing

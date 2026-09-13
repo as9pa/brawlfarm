@@ -53,6 +53,28 @@ Two caps stop a recording from filling the disk. A session closes at 2000 frames
 
 The recorder never deletes anything. Clearing space is your job: delete the session folders you are done with from the calibration folder.
 
+## Record while I play
+
+Recording frames captures what the bot sees, which is only the handful of screens the bot
+visits. Record while I play captures what you see. Stop the instance, turn the switch on,
+and the supervisor launches a worker in observe mode: it connects, checks the display is
+1600x900, and from then on it screencaps about twice a second, labels each frame with the
+state its anchors prove and writes it to the same session folder the recorder uses. Then
+you play the game by hand and walk it through whatever screens the next calibration needs.
+
+Observe mode never taps. It is a separate module from the farm controller and it imports
+nothing that can send an input event, which two tests enforce: one reads its source and
+fails on any adb input call, and one imports it in a fresh interpreter and fails if the
+controller, the brawler screen, the quests screen, the reward paths or the core settings
+came along with it.
+
+It is one worker per instance either way, so observe mode takes the same slot a farming
+worker would. That is why the switch refuses to start on a running instance: stop it
+first. Turning the switch off is an ordinary stop.
+
+The session ends at the same 2000 frame cap a farm recording has, which is roughly half an
+hour of distinct screens. When it stops, turn the switch on again for a new folder.
+
 ## Safety
 
 The page reads and the files write. Nothing on the page moves a tap point, and no route behind it writes a coordinate: the calibration routes serve the constants, the templates, the anchor scores and the recorder switch, and the only one that writes at all creates the calibration folder or flips `record.flag`. Changing a value means editing `calibration.toml` or dropping a PNG in `templates`, by hand, on purpose.
