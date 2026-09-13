@@ -72,6 +72,7 @@ const RECORDER: Recorder = {
   last_session: null,
   last_frames: 0,
   flag: false,
+  mode: "farm",
 };
 
 /** Two configured instances, the second one stopped; `file` reshapes calibration.toml,

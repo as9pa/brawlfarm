@@ -18,6 +18,7 @@ function makeRecorder(overrides: Partial<Recorder> = {}): Recorder {
     last_session: null,
     last_frames: 0,
     flag: false,
+    mode: "farm",
     ...overrides,
   };
 }

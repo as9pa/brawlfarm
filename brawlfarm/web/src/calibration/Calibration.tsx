@@ -15,12 +15,14 @@ import { type ReactNode, useState } from "react";
 
 import { AnchorTable } from "./AnchorTable";
 import { FrameOverlay, type OverlayShow } from "./FrameOverlay";
+import { ObserveCard } from "./ObserveCard";
 import { OverridesTable } from "./OverridesTable";
 import { RecorderCard } from "./RecorderCard";
 import {
   LIVE_POLL_MS,
   isNoFrameYet,
   useCalibrationFile,
+  useObserveToggle,
   useRecorder,
   useRecorderToggle,
   useScores,
@@ -85,6 +87,7 @@ export function Calibration() {
   const scores = useScores(chosen, running);
   const recorder = useRecorder(chosen, running);
   const toggle = useRecorderToggle(chosen);
+  const observe = useObserveToggle(chosen);
 
   const openFolder = () => {
     openCalibrationFolder().catch((error: unknown) => {
@@ -94,6 +97,14 @@ export function Calibration() {
 
   const onToggle = (on: boolean) => {
     toggle.mutate(on, {
+      onError: (error) => {
+        toast(failureMessage(error));
+      },
+    });
+  };
+
+  const onObserve = (on: boolean) => {
+    observe.mutate(on, {
       onError: (error) => {
         toast(failureMessage(error));
       },
@@ -190,6 +201,16 @@ export function Calibration() {
                   status={recorder.data}
                   pending={toggle.isPending}
                   onToggle={onToggle}
+                />
+              )}
+              {chosen !== null && (
+                <ObserveCard
+                  instance={chosen}
+                  desired={instance?.desired ?? "stop"}
+                  running={running}
+                  status={recorder.data}
+                  pending={observe.isPending}
+                  onToggle={onObserve}
                 />
               )}
             </div>
