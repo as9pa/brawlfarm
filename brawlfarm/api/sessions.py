@@ -25,10 +25,11 @@ from brawlfarm.api import feed
 SESSION_GLOB = "session-*.jsonl"
 SESSION_STAMP_FMT = "%Y%m%d-%H%M%S"  # core/datalog.py's filename, local time
 
-# {resolved instance dir: (session filename, session mtime, games.csv mtime, value)}. The
-# work is redone only when one of those three changes, so a Fleet poll every few seconds
-# costs two stat calls per instance.
-_cache: dict[Path, tuple[str, float, float, dict | None]] = {}
+# {resolved instance dir: (session filename, session stamp, games.csv stamp, value)}. A
+# stamp is (mtime, size): mtime alone misses two writes inside one filesystem tick, which
+# the Windows CI runner produces. The work is redone only when one of those three changes,
+# so a Fleet poll every few seconds costs two stat calls per instance.
+_cache: dict[Path, tuple[str, tuple[float, int], tuple[float, int], dict | None]] = {}
 
 
 def _newest_name(inst_dir: Path) -> str | None:
@@ -42,13 +43,14 @@ def _newest_name(inst_dir: Path) -> str | None:
     return names[-1] if names else None
 
 
-def _mtime(path: Path) -> float:
-    """The file's mtime, or -1.0 when it is not there. A missing games.csv is a stable
-    cache key, not an exception."""
+def _stamp(path: Path) -> tuple[float, int]:
+    """The file's (mtime, size), or (-1.0, -1) when it is not there. A missing games.csv
+    is a stable cache key, not an exception."""
     try:
-        return path.stat().st_mtime
+        st = path.stat()
     except OSError:
-        return -1.0
+        return (-1.0, -1)
+    return (st.st_mtime, st.st_size)
 
 
 def _started_at(filename: str) -> datetime | None:
@@ -157,7 +159,7 @@ def last_session(inst_dir: Path) -> dict | None:
         return None
     session_path = inst_dir / filename
     games_path = inst_dir / "games.csv"
-    stamp = (filename, _mtime(session_path), _mtime(games_path))
+    stamp = (filename, _stamp(session_path), _stamp(games_path))
     cached = _cache.get(inst_dir)
     if cached is not None and cached[:3] == stamp:
         return cached[3]
