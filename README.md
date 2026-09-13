@@ -6,7 +6,7 @@ Status: v1.0.0. Phases 1 to 7 of the plan are done; phase 8 (a calibration page,
 
 ## Screenshots
 
-The panel, running against a scratch data directory with three example instances parked on a scheduled break.
+The panel, running against a scratch data directory with three example instances: one offline, two stopped.
 
 ![The Fleet page: one card per instance with today's games and trophies](docs/img/fleet.png)
 Fleet: every instance at a glance, with start, stop and restart controls.
