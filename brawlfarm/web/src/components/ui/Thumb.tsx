@@ -120,15 +120,20 @@ export function Thumb({
           className={`h-full w-full object-cover transition-opacity duration-[120ms] ${dimmed ? "opacity-40" : ""}`}
         />
       )}
-      {error !== null && (
-        <div className="absolute inset-0 flex flex-col items-center justify-center gap-1 p-3 text-center">
-          <span className="text-[13px] text-bad">{`Screenshot failed: ${error.detail}`}</span>
-          <span className="text-[12px] text-muted">Retrying in 15 s.</span>
-        </div>
-      )}
-      {caption !== undefined && (
-        <div className="absolute inset-0 flex items-center justify-center text-[13px] text-text">
-          {caption}
+      {/* One stack, not two overlays: a broken adb and a scheduled break happen together
+       * all the time, and centering both on inset-0 drew the caption over the error. */}
+      {(error !== null || caption !== undefined) && (
+        <div
+          data-testid="thumb-overlay"
+          className="absolute inset-0 flex flex-col items-center justify-center gap-1 p-3 text-center"
+        >
+          {error !== null && (
+            <>
+              <span className="text-[13px] text-bad">{`Screenshot failed: ${error.detail}`}</span>
+              <span className="text-[12px] text-muted">Retrying in 15 s.</span>
+            </>
+          )}
+          {caption !== undefined && <span className="text-[13px] text-text">{caption}</span>}
         </div>
       )}
       {overlay !== undefined && <div className="absolute left-2 top-2">{overlay}</div>}

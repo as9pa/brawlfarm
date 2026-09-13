@@ -4,6 +4,22 @@ An open-source Brawl Stars trophy farmer for BlueStacks on Windows, with a local
 
 Status: v1.0.0. Phases 1 to 7 of the plan are done; phase 8 (a calibration page, recalibration for the current game version, a desktop window and tray icon, a labeled frame recorder) follows. See `docs/PLAN.md`.
 
+## Screenshots
+
+The panel, running against a scratch data directory with three example instances: one offline, two stopped.
+
+![The Fleet page: one card per instance with today's games and trophies](docs/img/fleet.png)
+Fleet: every instance at a glance, with start, stop and restart controls.
+
+![An instance page: live screen, farm plan, schedule and session totals](docs/img/instance.png)
+Instance: the live screen, the farm plan, the day's schedule and the session so far.
+
+![The Settings page listing the configured instances](docs/img/settings.png)
+Settings: instances, adb connection, behavior switches, schedule and notifications.
+
+![The Calibration page: recorder, anchor scores and threshold overrides](docs/img/calibration.png)
+Calibration: what the workers see, the anchor scores and the threshold overrides in force.
+
 ## What it does
 
 - Farms Trio Showdown on its own: queue, play, results, back to the menu, repeat.
