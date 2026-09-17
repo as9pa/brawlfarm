@@ -340,6 +340,17 @@ MODE_BANNER = (950, 818)
 # mid-animation, so a single transient miss must NOT raise a wrong_mode alarm. Only
 # BOTH frames missing is a confirmed wrong-mode.
 MODE_VERIFY_RECHECK_S = 1.7
+# The event picker gained category tabs (measured on Pie64, 1600x900, 2026-09-17):
+# it opens on SPECIAL EVENTS, and Showdown now lives under the TROPHIES tab. Cards the
+# account has never opened wear a one-time "NEW!" cover that hides the card name from
+# OCR until it is tapped once (peeling it selects nothing). Every value here is a
+# needle, a y cut-off or a wait: the new taps are all centers of labels OCR just found.
+MODE_TAB_TROPHIES = "TROPHIES"  # bottom tab bar, exact OCR match
+MODE_NEW_COVER = "NEW!"  # a card's one-time cover; the tab-bar badges read "NEW"
+MODE_CARD_AREA_MAX_Y = 800  # covers live above this; below it is the tab bar
+MODE_TAB_WAIT_S = 3.0  # the trophy mode cards slide in after the tab tap
+MODE_COVER_WAIT_S = 1.2  # between cover peels
+MODE_CARD_WAIT_S = 2.5  # card expands in place / returns to the menu (1.8 was too short)
 
 # In-match. This account has NO gadget/hypercharge unlocked on the farm brawler,
 # and Super rarely charges from passive attacking, so in practice this is just the

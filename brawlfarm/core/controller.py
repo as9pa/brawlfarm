@@ -754,26 +754,59 @@ class Controller:
         would break. Self-validating: the Solo/Duo/Trio chooser only appears for the real
         Showdown card, so if we mis-tapped (e.g. the 'Loaded Duo Showdown' event) the TRIO
         lookup fails and we back out — phase_at_menu then stops on wrong_mode (unchanged
-        safety net). Best-effort: if Trio's card is under another category tab or needs
-        horizontal scrolling, this returns False rather than guessing."""
+        safety net). Best-effort: if Trio's card needs horizontal scrolling, this returns
+        False rather than guessing.
+
+        The picker gained category tabs (measured 2026-09-17): it opens on SPECIAL EVENTS
+        and Showdown sits under TROPHIES, behind a one-time "NEW!" cover on any card this
+        account has never opened. So: tab (when there is one), peel the covers, then the
+        card and TRIO as before. Every tap but the banner is a label OCR just found."""
         adb.tap(*config.MODE_BANNER)  # open the Events / mode selector
         time.sleep(2.5)  # let the event cards load in
         screen = adb.screencap()
+        tab = vision.find_text(screen, config.MODE_TAB_TROPHIES, exact=True)
+        if tab is not None:
+            adb.tap(*tab)  # switch to the trophy game modes
+            self.log(f"mode-selector navigate -> {config.MODE_TAB_TROPHIES} tab")
+            time.sleep(config.MODE_TAB_WAIT_S)
+            screen = adb.screencap()
+        else:  # an older picker with no tab bar: the cards are already on screen
+            self.log("mode-selector navigate -> no tab bar, using the open picker")
+        peeled = 0
+        for text, _conf, (cx, cy) in vision.read_lines_boxes(screen):
+            # One OCR pass finds every cover at once. The tab-bar badges read "NEW"
+            # (no bang) and sit below the cards, so BOTH tests have to pass.
+            if text.strip().upper() != config.MODE_NEW_COVER:
+                continue
+            if cy >= config.MODE_CARD_AREA_MAX_Y:
+                continue
+            adb.tap(cx, cy)  # peel the cover: reveals the card name, selects nothing
+            peeled += 1
+            time.sleep(config.MODE_COVER_WAIT_S)
+        if peeled:
+            self.log(f"mode-selector navigate -> peeled {peeled} {config.MODE_NEW_COVER} cover(s)")
+            time.sleep(config.MODE_CARD_WAIT_S)  # let the last card settle before we read it
+            screen = adb.screencap()
         card = vision.find_text(screen, "SHOWDOWN", exact=True)  # the standard Showdown card
         if card is None:
+            self.log("mode-selector navigate -> no SHOWDOWN card")
             adb.keyevent(4)
             time.sleep(1.0)  # back out to the menu
             return False
-        adb.tap(*card)  # open the Solo / Duo / Trio chooser
-        time.sleep(1.8)
+        adb.tap(*card)  # open the Solo / Duo / Trio chooser (the card expands in place)
+        self.log("mode-selector navigate -> SHOWDOWN card")
+        time.sleep(config.MODE_CARD_WAIT_S)
         screen = adb.screencap()
         trio = vision.find_text(screen, "TRIO", exact=True)
         if trio is None:
-            adb.keyevent(4)
+            self.log("mode-selector navigate -> no TRIO in the chooser")
+            adb.keyevent(4)  # close the expanded card...
+            time.sleep(1.0)
+            adb.keyevent(4)  # ...and the picker under it
             time.sleep(1.0)
             return False
         adb.tap(*trio)  # select Trio Showdown -> back to menu
-        time.sleep(1.8)
+        time.sleep(config.MODE_CARD_WAIT_S)
         ok = states.is_trio_showdown_selected(adb.screencap())
         self.log(f"mode-selector navigate -> Trio selected: {ok}")
         return ok
