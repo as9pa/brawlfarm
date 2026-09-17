@@ -102,6 +102,8 @@ export function StepStats({ setup }: StepProps) {
             onChange={token.onChange}
             type="password"
             width="full"
+            spellCheck={false}
+            autoComplete="off"
           />
           {tokenError !== undefined && <p className="mt-1 text-[12px] text-bad">{tokenError}</p>}
         </div>
