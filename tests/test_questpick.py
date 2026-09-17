@@ -1,13 +1,87 @@
 """The pure half of the quest-aware pick: OCR lines in, a brawler name or None out.
 
-Every line here is hand-typed, including the mangled ones, because the quests screen has
-not been recorded yet. Nothing in this file reads a screen, and nothing it tests can."""
+Every line here is hand-typed, including the mangled ones and the centres, because the
+only quests-screen recording so far is half size. Nothing in this file reads a screen, and
+nothing it tests can."""
 
 from __future__ import annotations
 
 from brawlfarm.core import brawlers, questpick
 
 OWNED = ["Shelly", "El Primo", "8-Bit", "Larry & Lawrie"]
+
+
+def _line(text: str, cx: int, cy: int) -> tuple[str, float, tuple[int, int]]:
+    """One entry shaped like vision.read_lines_boxes gives it: text, confidence, centre."""
+    return (text, 0.99, (cx, cy))
+
+
+def test_a_cards_title_lines_join_in_cy_order() -> None:
+    lines = [
+        _line("WITH NITA,", 400, 320),
+        _line("WIN 5 BATTLES", 400, 300),
+        _line("PAM OR MINA", 400, 340),
+    ]
+    assert questpick.group_cards(lines) == ["WIN 5 BATTLES WITH NITA, PAM OR MINA"]
+
+
+def test_two_cards_a_card_pitch_apart_stay_separate() -> None:
+    lines = [
+        _line("WIN 5 BATTLES WITH NITA", 400, 300),
+        _line("WIN 3 BATTLES WITH PAM", 857, 300),
+    ]
+    assert questpick.group_cards(lines) == [
+        "WIN 5 BATTLES WITH NITA",
+        "WIN 3 BATTLES WITH PAM",
+    ]
+
+
+def test_a_card_whose_progress_is_finished_is_dropped() -> None:
+    """Rows come back top to bottom, cards left to right, and no title carries its token."""
+    lines = [
+        _line("WIN 5 BATTLES WITH NITA", 400, 300),
+        _line("8 / 8", 400, 400),
+        _line("WIN 3 BATTLES WITH PAM", 857, 300),
+        _line("0/5", 857, 400),
+        _line("DEAL 20000 DAMAGE WITH SHELLY", 400, 513),
+        _line("5/5", 400, 613),
+        _line("WIN 2 BATTLES WITH EDGAR", 857, 513),
+        _line("7 / 24", 857, 613),
+    ]
+    assert questpick.group_cards(lines) == [
+        "WIN 3 BATTLES WITH PAM",
+        "WIN 2 BATTLES WITH EDGAR",
+    ]
+
+
+def test_a_progress_token_further_than_half_a_pitch_belongs_to_no_card() -> None:
+    lines = [
+        _line("WIN 5 BATTLES WITH NITA", 400, 300),
+        _line("8/8", 857, 400),
+    ]
+    assert questpick.group_cards(lines) == ["WIN 5 BATTLES WITH NITA"]
+
+
+def test_a_card_cut_off_by_a_region_edge_is_dropped() -> None:
+    lines = [
+        _line("TTLES WITH NITA", 96, 300),
+        _line("WIN 3 BATTLES WITH PAM", 800, 300),
+        _line("WIN 2 BATTLES WI", 1490, 300),
+    ]
+    assert questpick.group_cards(lines) == ["WIN 3 BATTLES WITH PAM"]
+
+
+def test_a_line_in_no_row_band_is_ignored() -> None:
+    lines = [
+        _line("QUESTS", 800, 240),
+        _line("WIN 5 BATTLES WITH NITA", 800, 300),
+        _line("BRAWL PASS", 800, 440),
+    ]
+    assert questpick.group_cards(lines) == ["WIN 5 BATTLES WITH NITA"]
+
+
+def test_no_lines_at_all_group_into_no_cards() -> None:
+    assert questpick.group_cards([]) == []
 
 
 def test_parses_win_n_battles_with_a_named_brawler() -> None:

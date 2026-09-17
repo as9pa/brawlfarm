@@ -530,6 +530,20 @@ QUESTS_MEGA_CARD_REGION = (
 )  # gold here => NEW MEGA QUEST card present
 QUESTS_CLOSE_BUTTON = (55, 52)  # top-left back arrow -> menu (NO BACK key)
 
+# --- Quest grid --------------------------------------------------------------
+# Where the three rows of quest cards sit, so questpick.group_cards can bucket one OCR
+# pass into cards: a line's cy picks its row band, its cx picks its card in the row.
+# PROVISIONAL: doubled from the 800x450 observe recording Pie64 20260916-212232 frame
+# 0020, so every number below is a half-size measurement times two (the comments keep
+# the half-size reading as 'h'). Re-measure on a full-size recording.
+QUEST_LIST_REGION = (0, 220, 1600, 850)  # row 1 card top y=112h to row 3 card bottom y=418h
+QUEST_ROW_PITCH = 213  # card tops 112h, 218h, 325h; mean pitch 106.5h
+QUEST_TITLE_BAND0 = (256, 364)  # row 1 title lines span y 128h to 182h, 3-line case
+QUEST_PROGRESS_BAND0 = (376, 424)  # row 1 progress centre y=197h, 12h either side
+QUEST_CARD_PITCH_X = 457  # card left edges 160h, 390h, 635h; pitch 228.5h
+QUEST_CARD_X_TOL = 150  # one card's title lines vary under 40 full in cx
+QUEST_EDGE_MARGIN_X = 180  # drops cut columns: 0020 col1 cx=96, col4 cx=1490
+
 # --- Social / Do-Not-Disturb ---------------------------------------------------
 # Team/friend invites pop a modal that BLOCKS the menu and can interrupt the farm, so at
 # startup we set the game's own mute settings (in-game DND) once per session. Calibrated

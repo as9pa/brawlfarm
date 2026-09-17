@@ -1,9 +1,10 @@
 """Quest lines in, a farm brawler name out. Pure, and deliberately so.
 
-``parse`` turns the OCR of the quests screen into quests; ``resolve`` turns those plus the
-owned roster into one brawler name. Neither touches adb, a screen, a coordinate or
-config.py, so both are tested today against hand-typed lines and wired to a real screen
-read later, once an observe recording of the quests screen exists.
+``group_cards`` turns one OCR pass over the quests screen into card strings, ``parse``
+turns those into quests, and ``resolve`` turns those plus the owned roster into one
+brawler name. Nothing here touches adb or a screen; group_cards reads the quest-grid
+geometry out of config.py and nothing else, so all three are tested against hand-typed
+lines and hand-typed centres.
 
 Three shapes matter:
 
@@ -29,6 +30,8 @@ from __future__ import annotations
 import re
 from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
+
+from brawlfarm.core import config
 
 KIND_BRAWLER = "brawler"
 KIND_CLASS = "class"
@@ -72,6 +75,14 @@ _LOOKALIKE = str.maketrans({"0": "O", "1": "I", "5": "S", "|": "I"})
 # between two names, so normalize keeps it for _CANDIDATE_SPLIT.
 _THOUSANDS = re.compile(r"(?<=\d),(?=\d)")
 
+# The quests screen shows three rows of cards at once. Row k's bands are row 0's shifted
+# down by k pitches, and a line whose cy lands in no band belongs to no card.
+_ROWS = 3
+
+# A card's progress reads "3/8", and the OCR puts spaces either side of the slash as often
+# as not. It is the card's state, never part of its title.
+_PROGRESS_RE = re.compile(r"\s*(\d+)\s*/\s*(\d+)\s*")
+
 
 @dataclass(frozen=True)
 class Quest:
@@ -110,6 +121,86 @@ def normalize(line: str) -> str:
     upper = _THOUSANDS.sub("", (line or "").upper()).replace(".", "")
     cleaned = "".join(c if c.isalnum() or c == "," else " " for c in upper)
     return " ".join(_fold(word) for word in cleaned.split())
+
+
+def group_cards(lines: Iterable[tuple[str, float, tuple[int, int]]]) -> list[str]:
+    """The quest cards one ``vision.read_lines_boxes`` pass saw, joined, in screen order.
+
+    Takes exactly what that call returns, (text, confidence, (cx, cy)) with CENTRES ONLY
+    and never a rectangle, so every rule here works on centres: a line's cy picks its row
+    band, its cx picks its card inside the row. Cards come back row by row and, within a
+    row, left to right, each a title joined with single spaces and ready for ``parse``.
+
+    Two kinds of card never come back. One cut off by a region edge is truncated, so it
+    would parse into a quest the screen never showed, and one whose progress reads N/N is
+    already finished, so farming it buys nothing.
+    """
+    entries = [(text.strip(), cx, cy) for text, _conf, (cx, cy) in lines if text.strip()]
+    cards: list[str] = []
+    for row in range(_ROWS):
+        shift = row * config.QUEST_ROW_PITCH
+        titles: list[tuple[int, int, str]] = []
+        tokens: list[tuple[int, int, int]] = []
+        for text, cx, cy in entries:
+            progress = _PROGRESS_RE.fullmatch(text)
+            if progress is not None:
+                if _in_band(cy, config.QUEST_PROGRESS_BAND0, shift):
+                    tokens.append((cx, int(progress.group(1)), int(progress.group(2))))
+            elif _in_band(cy, config.QUEST_TITLE_BAND0, shift):
+                titles.append((cx, cy, text))
+        # The clusters come out left to right because _clusters sorts its input by cx.
+        for cluster in _clusters(titles):
+            mean_cx = _mean_cx(cluster)
+            if _near_edge(mean_cx):
+                continue
+            progress = _nearest_token(tokens, mean_cx)
+            if progress is not None and progress[0] == progress[1]:
+                continue
+            in_cy_order = sorted(cluster, key=lambda line: line[1])
+            cards.append(" ".join(text for _cx, _cy, text in in_cy_order))
+    return cards
+
+
+def _in_band(cy: int, band: tuple[int, int], shift: int) -> bool:
+    """Whether a line's cy sits in row 0's ``band`` moved down by ``shift``."""
+    lo, hi = band
+    return lo + shift <= cy <= hi + shift
+
+
+def _clusters(titles: list[tuple[int, int, str]]) -> list[list[tuple[int, int, str]]]:
+    """One row's title lines split into cards, left to right.
+
+    Sorted by cx, a line joins the running card while it is within QUEST_CARD_X_TOL of
+    that card's mean cx, else it starts the next one: a card's own lines wander by a few
+    dozen pixels, the next card's begin half a pitch away.
+    """
+    out: list[list[tuple[int, int, str]]] = []
+    for line in sorted(titles):
+        if out and abs(line[0] - _mean_cx(out[-1])) <= config.QUEST_CARD_X_TOL:
+            out[-1].append(line)
+        else:
+            out.append([line])
+    return out
+
+
+def _mean_cx(cluster: list[tuple[int, int, str]]) -> float:
+    return sum(cx for cx, _cy, _text in cluster) / len(cluster)
+
+
+def _near_edge(mean_cx: float) -> bool:
+    """Whether a card sits close enough to a region edge to have been cut off by it."""
+    x1, _y1, x2, _y2 = config.QUEST_LIST_REGION
+    return mean_cx - x1 < config.QUEST_EDGE_MARGIN_X or x2 - mean_cx < config.QUEST_EDGE_MARGIN_X
+
+
+def _nearest_token(tokens: list[tuple[int, int, int]], mean_cx: float) -> tuple[int, int] | None:
+    """The done and the total of the progress token nearest this card in cx, or None when
+    the nearest one is further off than half a card pitch and so belongs to a neighbouring
+    card or to no card at all."""
+    if not tokens:
+        return None
+    cx, done, total = min(tokens, key=lambda token: abs(token[0] - mean_cx))
+    return (done, total) if abs(cx - mean_cx) <= config.QUEST_CARD_PITCH_X / 2 else None
 
 
 def parse(lines: Iterable[str]) -> list[Quest]:
