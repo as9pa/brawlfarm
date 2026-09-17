@@ -184,6 +184,19 @@ describe("Toaster", () => {
     expect(drainBar(container)).toHaveClass(expected);
   });
 
+  it.each([
+    ["ok", "text-ok"],
+    ["bad", "text-bad"],
+  ] as const)("colours the %s icon to match the hairline", (tone, expected) => {
+    const { container } = render(<Toaster />);
+    act(() => {
+      toast("Plan saved", { tone });
+    });
+    const icon = container.querySelector("svg");
+    expect(icon).not.toBeNull();
+    expect(icon).toHaveClass(expected);
+  });
+
   it("calls a bad toast out rather than announcing it politely", () => {
     render(<Toaster />);
     act(() => {

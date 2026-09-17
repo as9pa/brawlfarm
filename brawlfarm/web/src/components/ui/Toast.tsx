@@ -47,6 +47,14 @@ const TONE_ICON: Record<ToastTone, typeof CircleCheck | null> = {
   info: null,
 };
 
+/** The icon takes the tone's colour too, so the strip reads as one thing rather than a
+ * grey mark sitting above a coloured hairline. */
+const TONE_ICON_COLOUR: Record<ToastTone, string> = {
+  ok: "text-ok",
+  bad: "text-bad",
+  info: "",
+};
+
 /** jsdom and any non-browser render have no matchMedia; no implementation means the
  * reader has stated no preference. */
 function prefersReducedMotion(): boolean {
@@ -133,7 +141,14 @@ export function Toast({ item }: ToastProps) {
       className="pointer-events-auto w-[320px] overflow-hidden rounded-[10px] border border-line bg-panel"
     >
       <div className="flex items-center gap-3 px-3 py-2">
-        {Icon !== null && <Icon size={14} strokeWidth={1.6} aria-hidden="true" />}
+        {Icon !== null && (
+          <Icon
+            size={14}
+            strokeWidth={1.6}
+            aria-hidden="true"
+            className={TONE_ICON_COLOUR[item.tone]}
+          />
+        )}
         <span className="flex-1 text-[13px] text-text">{item.message}</span>
         {item.undo !== undefined && (
           <Button variant="quiet" size="sm" onClick={onUndo}>
