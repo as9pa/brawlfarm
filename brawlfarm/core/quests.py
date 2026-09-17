@@ -158,15 +158,17 @@ def read_quest_lines(log=print) -> list[str]:
     return cards
 
 
-def visit(log=print) -> list[str]:
+def visit(log=print) -> tuple[list[str], bool]:
     """The one quests visit a session makes: open QUESTS, activate a NEW MEGA QUEST if one
-    is offered, read the quest cards, and return to the menu. Returns the cards read, empty
-    if the screen didn't open or nothing OCR'd. Leaves the game on the main menu."""
+    is offered, read the quest cards, and return to the menu. Returns the cards read (empty
+    if the screen didn't open or nothing OCR'd) and whether a mega quest was activated --
+    this visit consumes the gold badge, so its caller owes the feed the row the recurring
+    trigger would have logged. Leaves the game on the main menu."""
     screen = _open_quests(log)
     if screen is None:
         _exit_to_menu()
-        return []
-    _activate_mega(screen, log)
+        return [], False
+    activated = _activate_mega(screen, log)
     cards = read_quest_lines(log)
     _exit_to_menu()
-    return cards
+    return cards, activated

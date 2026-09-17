@@ -26,7 +26,10 @@ class _DL:
         self.events.append((etype, fields))
 
 
-def _ctrl(cards=None, quest_aware=True, goal=1000):
+def _ctrl(cards=None, quest_aware=True, goal=1000, plan_goal=None):
+    """A controller mid-session. `goal` is the FARM goal (ladder: the live step goal),
+    `plan_goal` the plan's goal_trophies the quest pick caps at: they are the same number
+    only at the top of a ladder."""
     c = Controller.__new__(Controller)  # skip __init__ (ApiClient/DataLog/adb)
     c.api = object()
     c.dl = _DL()
@@ -35,7 +38,9 @@ def _ctrl(cards=None, quest_aware=True, goal=1000):
     c._farm_goal = goal
     c._rotated = set()
     c._account_maxed = False
+    c._mega_quest_streak = 0
     c._quest_aware = quest_aware
+    c._quest_goal = goal if plan_goal is None else plan_goal
     c._quest_visit_done = True  # the menu step already ran the visit below
     c._quest_cards = cards
     c._note_recalib = lambda *a, **k: None
@@ -83,23 +88,30 @@ def _event(c, kind):
 
 def test_quest_pick_is_off_without_the_flag(monkeypatch):
     monkeypatch.setattr(farmplan, "load_plan", lambda: _plan(quest_aware=False))
-    assert Controller._quest_pick_on(_ctrl()) is False
+    assert Controller._quest_pick_goal(_ctrl()) is None
 
 
 def test_quest_pick_is_off_for_a_plan_file_without_the_key(monkeypatch):
     monkeypatch.setattr(farmplan, "load_plan", lambda: {"mode": "ladder"})
-    assert Controller._quest_pick_on(_ctrl()) is False
+    assert Controller._quest_pick_goal(_ctrl()) is None
 
 
 def test_quest_pick_is_off_in_prestige_mode(monkeypatch):
     # Owner decision: the quest pick is a ladder feature; prestige ignores the flag.
     monkeypatch.setattr(farmplan, "load_plan", lambda: _plan(mode="prestige"))
-    assert Controller._quest_pick_on(_ctrl()) is False
+    assert Controller._quest_pick_goal(_ctrl()) is None
 
 
 def test_quest_pick_is_on_for_ladder_with_the_flag(monkeypatch):
     monkeypatch.setattr(farmplan, "load_plan", lambda: _plan())
-    assert Controller._quest_pick_on(_ctrl()) is True
+    assert Controller._quest_pick_goal(_ctrl()) == 1000
+
+
+def test_the_cap_that_comes_back_is_the_plans_goal_not_the_ladder_step(monkeypatch):
+    # The controller is mid-ladder at a step goal of 700; the cap is still the plan's.
+    plan = {"mode": "ladder", "goal_trophies": 900, "quest_aware": True}
+    monkeypatch.setattr(farmplan, "load_plan", lambda: plan)
+    assert Controller._quest_pick_goal(_ctrl(goal=700)) == 900
 
 
 def test_an_unreadable_plan_counts_as_off(monkeypatch):
@@ -107,7 +119,7 @@ def test_an_unreadable_plan_counts_as_off(monkeypatch):
         raise OSError("farmplan.json unreadable")
 
     monkeypatch.setattr(farmplan, "load_plan", boom)
-    assert Controller._quest_pick_on(_ctrl()) is False
+    assert Controller._quest_pick_goal(_ctrl()) is None
 
 
 def test_flag_off_selects_the_plan_target_and_reads_no_quests(monkeypatch):
@@ -175,6 +187,31 @@ def test_a_candidate_at_the_goal_is_skipped(monkeypatch):
     }
 
 
+def test_a_candidate_between_the_step_and_the_plan_goal_is_a_candidate(monkeypatch):
+    """The cap is goal_trophies (1000), NOT the live ladder step (700): CROW at 950 is
+    still under the goal, so it clears its quest and is picked. Capping at the step goal
+    dropped most of the roster for most of a ladder."""
+    monkeypatch.setattr(farmplan, "load_plan", lambda: _plan())
+    picked = _picks(monkeypatch, "Spike", ["Spike", "Crow"], goal=700)
+    _trophies(monkeypatch, SPIKE=650, CROW=950)
+    c = _ctrl(cards=["Win 5 battles with Crow"], goal=700, plan_goal=1000)
+    c._do_select_brawler()
+    assert picked == ["Crow"]
+    assert _event(c, "quest_pick")["reason"] == "chosen"
+
+
+def test_a_candidate_at_the_plan_goal_is_skipped_from_the_same_step(monkeypatch):
+    # The complement of the case above: at 1000 the cap does drop CROW, and the plan's
+    # target is what gets selected.
+    monkeypatch.setattr(farmplan, "load_plan", lambda: _plan())
+    picked = _picks(monkeypatch, "Spike", ["Spike", "Crow"], goal=700)
+    _trophies(monkeypatch, SPIKE=650, CROW=1000)
+    c = _ctrl(cards=["Win 5 battles with Crow"], goal=700, plan_goal=1000)
+    c._do_select_brawler()
+    assert picked == ["Spike"]
+    assert _event(c, "quest_pick")["reason"] == "no_candidate"
+
+
 def test_the_cap_never_filters_the_plan_target(monkeypatch):
     # The plan already chose the target, so the cap must not drop it from the
     # candidates: a maxed target that clears a quest still reads as target_clears.
@@ -203,6 +240,32 @@ def test_no_owned_candidate_runs_the_existing_lowest_chain(monkeypatch):
         "target": None,
     }
     assert _event(c, "select_brawler") == {"brawler": "SPIKE"}
+
+
+def test_an_activation_in_the_startup_visit_still_feeds_the_mega_quest_row(monkeypatch):
+    """The visit consumes the gold badge, so the recurring trigger never fires for it:
+    the row has to come from here, ahead of the quest_pick row."""
+    monkeypatch.setattr(quests, "visit", lambda log: (["Win 5 battles with Nita"], True))
+    monkeypatch.setattr(farmplan, "load_plan", lambda: _plan())
+    _picks(monkeypatch, "Spike", ["Spike", "Nita"])
+    _trophies(monkeypatch, SPIKE=400, NITA=300)
+    c = _ctrl(cards=None)
+    c._do_quest_visit()
+    assert c._quest_cards == ["Win 5 battles with Nita"]
+    assert c._mega_quest_streak == 1  # the trigger path's thrash backstop, same step
+    c._do_select_brawler()
+    assert [etype for etype, _ in c.dl.events] == ["mega_quest", "quest_pick", "select_brawler"]
+    assert _event(c, "mega_quest") == {"activated": True}
+
+
+def test_a_visit_with_no_card_offered_feeds_no_mega_quest_row(monkeypatch):
+    # The recurring trigger only ever fires on the gold badge, so a False row at every
+    # session start would be noise.
+    monkeypatch.setattr(quests, "visit", lambda log: (["Win 5 battles with Nita"], False))
+    c = _ctrl(cards=None)
+    c._do_quest_visit()
+    assert _event(c, "mega_quest") is None
+    assert c._mega_quest_streak == 0
 
 
 def test_a_raising_quests_visit_is_caught_and_falls_back(monkeypatch):

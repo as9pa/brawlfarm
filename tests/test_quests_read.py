@@ -128,7 +128,7 @@ def _visit_seams(monkeypatch, *, screen_opens: bool, has_mega: bool) -> dict:
 def test_visit_returns_the_cards_it_read_and_still_exits_to_the_menu(monkeypatch) -> None:
     state = _visit_seams(monkeypatch, screen_opens=True, has_mega=True)
     monkeypatch.setattr(quests, "read_quest_lines", lambda log: ["WIN 5 BATTLES WITH NITA"])
-    assert quests.visit(state["logs"].append) == ["WIN 5 BATTLES WITH NITA"]
+    assert quests.visit(state["logs"].append) == (["WIN 5 BATTLES WITH NITA"], True)
     # The QUESTS button and the mega card, and nothing inside the grid.
     assert state["taps"] == [(340, 852), (312, 540)]
     assert state["exits"] == 1
@@ -137,8 +137,18 @@ def test_visit_returns_the_cards_it_read_and_still_exits_to_the_menu(monkeypatch
 def test_visit_reads_nothing_when_the_quests_screen_never_opens(monkeypatch) -> None:
     state = _visit_seams(monkeypatch, screen_opens=False, has_mega=True)
     monkeypatch.setattr(quests, "read_quest_lines", lambda log: ["WIN 5 BATTLES WITH NITA"])
-    assert quests.visit(state["logs"].append) == []
+    assert quests.visit(state["logs"].append) == ([], False)
     assert state["taps"] == [(340, 852)]
+    assert state["exits"] == 1
+
+
+def test_visit_reports_no_activation_when_no_card_is_offered(monkeypatch) -> None:
+    """The caller logs the mega_quest feed row for this visit, so it has to be told the
+    truth: cards read, nothing activated."""
+    state = _visit_seams(monkeypatch, screen_opens=True, has_mega=False)
+    monkeypatch.setattr(quests, "read_quest_lines", lambda log: ["WIN 5 BATTLES WITH NITA"])
+    assert quests.visit(state["logs"].append) == (["WIN 5 BATTLES WITH NITA"], False)
+    assert state["taps"] == [(340, 852)]  # the QUESTS button only: no card to tap
     assert state["exits"] == 1
 
 
