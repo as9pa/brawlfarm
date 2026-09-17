@@ -56,7 +56,21 @@
   --color-scrim: var(--scrim);
   --font-sans: "Archivo", system-ui, sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, monospace;
-  --radius-control: 6px; --radius-panel: 10px;
+  /* One radius rule: 6 px for controls (button, input, switch, segment), 10 px for panels,
+     dialogs, drawers and toasts, 999 px for chips. Chips stay shorter than buttons. */
+  --radius-control: 6px; --radius-panel: 10px; --radius-chip: 999px;
+}
+
+/* The two text roles. t-figure is for figures, ids, ports, tags and times; t-name is for
+   brawler and instance names and prose values in sentence case. t-name sets no
+   text-transform on purpose: sentence case is the writer's job, not the stylesheet's. */
+@utility t-figure {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+@utility t-name {
+  font-family: var(--font-sans);
+  font-variant-numeric: tabular-nums;
 }
 
 @layer base {
@@ -77,6 +91,8 @@
     font-size: 13px;
     -webkit-font-smoothing: antialiased;
   }
+  /* The one focus rule. The per-component focus-visible classes only restate it, so the
+     ring survives any ancestor or component that sets outline-none. */
   :focus-visible {
     outline: 2px solid var(--accent);
     outline-offset: 2px;

@@ -9,6 +9,11 @@ export interface SwitchProps {
   describedBy?: string;
 }
 
+/** The one focus ring, restated on the control so it survives an ancestor that sets
+ * outline-none. theme.css carries the same rule as the fallback. */
+const FOCUS_RING =
+  "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent";
+
 export function Switch({
   checked,
   onChange,
@@ -24,7 +29,7 @@ export function Switch({
       aria-describedby={describedBy}
       disabled={disabled}
       onClick={() => onChange(!checked)}
-      className="inline-flex items-center gap-2 rounded-[6px] text-[12px] text-muted disabled:cursor-not-allowed disabled:opacity-50"
+      className={`inline-flex items-center gap-2 rounded-[6px] text-[12px] text-muted disabled:cursor-not-allowed disabled:opacity-50 ${FOCUS_RING}`}
     >
       <span
         aria-hidden="true"

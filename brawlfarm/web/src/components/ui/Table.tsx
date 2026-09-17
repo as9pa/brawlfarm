@@ -45,6 +45,11 @@ export interface TableProps<Row> {
   onSort?: (key: string) => void;
 }
 
+/** The one focus ring, restated on the control so it survives an ancestor that sets
+ * outline-none. theme.css carries the same rule as the fallback. */
+const FOCUS_RING =
+  "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent";
+
 export function Table<Row>({ columns, rows, rowKey, empty, sort, onSort }: TableProps<Row>) {
   const sorting = sort !== undefined && onSort !== undefined;
 
@@ -78,7 +83,7 @@ export function Table<Row>({ columns, rows, rowKey, empty, sort, onSort }: Table
                   <button
                     type="button"
                     onClick={() => onSort(column.key)}
-                    className="flex w-full items-center gap-1 text-left uppercase tracking-wide"
+                    className={`flex w-full items-center gap-1 text-left uppercase tracking-wide ${FOCUS_RING}`}
                   >
                     {column.label === "" ? (
                       <span className="sr-only">{column.key}</span>

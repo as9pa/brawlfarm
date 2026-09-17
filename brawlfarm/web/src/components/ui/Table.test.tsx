@@ -150,4 +150,21 @@ describe("Table", () => {
     const cells = screen.getAllByRole("cell").map((cell) => cell.textContent);
     expect(cells).toEqual(["SHELLY", "NORI"]);
   });
+
+  it("carries the shared focus ring on the sort control", () => {
+    renderWithProviders(
+      <Table
+        columns={[{ key: "name", label: "Brawler", sortable: true, render: (r) => r.name }]}
+        rows={[{ name: "SHELLY" }]}
+        rowKey={(row) => row.name}
+        empty="No games in this range."
+        sort={{ key: "name", dir: "asc" }}
+        onSort={() => undefined}
+      />,
+    );
+    const header = screen.getByRole("columnheader", { name: "Brawler" });
+    expect(within(header).getByRole("button").className).toContain(
+      "focus-visible:outline-accent",
+    );
+  });
 });

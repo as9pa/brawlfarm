@@ -21,4 +21,11 @@ describe("Switch", () => {
     await userEvent.click(screen.getByRole("switch", { name: "Schedule on" }));
     expect(onChange).not.toHaveBeenCalled();
   });
+
+  it("carries the shared focus ring", () => {
+    render(<Switch checked={false} onChange={vi.fn()} label="Follow" />);
+    expect(screen.getByRole("switch", { name: "Follow" }).className).toContain(
+      "focus-visible:outline-accent",
+    );
+  });
 });
