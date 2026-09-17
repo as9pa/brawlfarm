@@ -53,22 +53,22 @@ function Figure({ label, value, tone }: { label: string; value: string; tone?: s
 export function MetricsRow({ summary }: MetricsRowProps) {
   return (
     <div className="flex flex-wrap items-start rounded-[10px] border border-line bg-panel px-3 py-2">
-      <Figure label="games" value={String(summary.games)} />
+      <Figure label="Games" value={String(summary.games)} />
       <Figure
-        label="trophies"
+        label="Trophies"
         value={signed(summary.trophies)}
         tone={trophyTone(summary.trophies)}
       />
-      <Figure label="trophies per hour" value={rateText(summary)} />
+      <Figure label="Trophies per hour" value={rateText(summary)} />
       <Figure
-        label="average rank"
+        label="Average rank"
         value={summary.avg_rank === null ? NONE : summary.avg_rank.toFixed(1)}
       />
       <Figure
-        label="top-4 rate"
+        label="Top-4 rate"
         value={summary.top4_rate === null ? NONE : `${Math.round(summary.top4_rate)}%`}
       />
-      <Figure label="time farmed" value={`${summary.hours_farmed.toFixed(2)} h`} />
+      <Figure label="Time farmed" value={`${summary.hours_farmed.toFixed(2)} h`} />
     </div>
   );
 }

@@ -158,7 +158,7 @@ export function Instance() {
     return <ErrorBlock error={fleet.error} onRetry={() => void fleet.refetch()} />;
   }
   const inst = fleet.data.find((row) => row.name === name);
-  if (inst === undefined) return <ErrorBlock error={new ApiError(404, "unknown instance")} />;
+  if (inst === undefined) return <ErrorBlock error={new ApiError(404, "No instance by that name. Open Fleet to pick one.")} />;
 
   const records = feed.data?.records ?? [];
   const interrupts = records.filter((r) => r.category === "interrupts").length;

@@ -30,10 +30,10 @@ const STATE_TONES: Record<InstanceState, Tone> = {
 };
 
 const PHASE_LABELS: Record<string, string> = {
-  at_menu: "at menu",
-  queuing: "queuing",
-  playing: "playing",
-  returning: "returning",
+  at_menu: "At the menu",
+  queuing: "Queuing",
+  playing: "Playing",
+  returning: "Returning",
 };
 
 const ALERT_KIND_LABELS: Record<string, string> = {

@@ -23,7 +23,7 @@ const KINDS: { value: FeedKind; label: string }[] = [
 ];
 
 const EMPTY: Record<FeedKind, string> = {
-  all: "No lines yet. The feed fills as the worker plays.",
+  all: "No lines yet. The feed fills as the instance plays.",
   matches: "No matches this session.",
   interrupts: "No interrupts this session.",
   errors: "No errors this session.",

@@ -117,13 +117,16 @@ describe("Thumb", () => {
 
   it("shows the failure detail in the box and retries 15 s later", async () => {
     vi.useFakeTimers();
-    const { calls } = stubFetch(() => jsonResponse({ detail: "adb did not answer" }, 503));
+    const { calls } = stubFetch(() => jsonResponse({ detail: "boom" }, 503));
     render(<Thumb name="Pie64" refreshMs={false} />);
     await act(async () => {
       await vi.advanceTimersByTimeAsync(0);
     });
-    expect(screen.getByText("Screenshot failed: adb did not answer")).toBeInTheDocument();
+    expect(
+      screen.getByText("No screenshot yet. Check that the instance is running."),
+    ).toBeInTheDocument();
     expect(screen.getByText("Retrying in 15 s.")).toBeInTheDocument();
+    expect(screen.queryByText(/boom/)).not.toBeInTheDocument();
     await act(async () => {
       await vi.advanceTimersByTimeAsync(15000);
     });
@@ -137,7 +140,7 @@ describe("Thumb", () => {
     await act(async () => {
       await vi.advanceTimersByTimeAsync(0);
     });
-    const error = screen.getByText("Screenshot failed: adb did not answer");
+    const error = screen.getByText("No screenshot yet. Check that the instance is running.");
     const caption = screen.getByText("Break until 21:30");
     expect(error).toBeInTheDocument();
     expect(caption).toBeInTheDocument();

@@ -81,7 +81,7 @@ export function StepBlueStacks({ setup }: StepProps) {
 
         {scanning && (
           <div className="flex items-center gap-2">
-            <Chip tone="idle">Scanning</Chip>
+            <Chip tone="idle">Scanning…</Chip>
             <span className="text-[12px] text-muted">Asking adb for devices</span>
           </div>
         )}

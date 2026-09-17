@@ -81,13 +81,13 @@ describe("Setup step 1: BlueStacks", () => {
     // By heading, because the step rail beside it carries the same word as a button.
     expect(await screen.findByRole("heading", { name: "BlueStacks" })).toBeInTheDocument();
     expect(screen.getByText("brawlfarm talks to BlueStacks through adb.")).toBeInTheDocument();
-    expect(await screen.findByText("Scanning")).toBeInTheDocument();
+    expect(await screen.findByText("Scanning…")).toBeInTheDocument();
     expect(screen.getByText("Asking adb for devices")).toBeInTheDocument();
 
     release(FOUND);
     expect(await screen.findByText("Found")).toBeInTheDocument();
     expect(screen.getByText(ADB)).toBeInTheDocument();
-    expect(screen.queryByText("Scanning")).not.toBeInTheDocument();
+    expect(screen.queryByText("Scanning…")).not.toBeInTheDocument();
   });
 
   it("writes the path it found to config.toml and opens Continue", async () => {

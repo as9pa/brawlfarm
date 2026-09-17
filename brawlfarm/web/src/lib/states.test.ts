@@ -24,10 +24,10 @@ describe("stateLabel and stateTone", () => {
 
 describe("phaseLabel", () => {
   it("captions the four worker phases and says so when there is no status", () => {
-    expect(phaseLabel("at_menu")).toBe("at menu");
-    expect(phaseLabel("queuing")).toBe("queuing");
-    expect(phaseLabel("playing")).toBe("playing");
-    expect(phaseLabel("returning")).toBe("returning");
+    expect(phaseLabel("at_menu")).toBe("At the menu");
+    expect(phaseLabel("queuing")).toBe("Queuing");
+    expect(phaseLabel("playing")).toBe("Playing");
+    expect(phaseLabel("returning")).toBe("Returning");
     expect(phaseLabel(null)).toBe("no status yet");
     expect(phaseLabel("")).toBe("no status yet");
   });

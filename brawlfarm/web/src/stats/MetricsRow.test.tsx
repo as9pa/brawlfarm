@@ -32,42 +32,42 @@ describe("MetricsRow", () => {
       return caption?.textContent ?? "";
     });
     expect(labels).toEqual([
-      "games",
-      "trophies",
-      "trophies per hour",
-      "average rank",
-      "top-4 rate",
-      "time farmed",
+      "Games",
+      "Trophies",
+      "Trophies per hour",
+      "Average rank",
+      "Top-4 rate",
+      "Time farmed",
     ]);
   });
 
   it("formats every figure", () => {
     renderWithProviders(<MetricsRow summary={summary()} />);
-    expect(within(figure("games")).getByTestId("metric-value")).toHaveTextContent("4");
-    expect(within(figure("trophies")).getByTestId("metric-value")).toHaveTextContent("+37");
-    expect(within(figure("trophies per hour")).getByTestId("metric-value")).toHaveTextContent(
+    expect(within(figure("Games")).getByTestId("metric-value")).toHaveTextContent("4");
+    expect(within(figure("Trophies")).getByTestId("metric-value")).toHaveTextContent("+37");
+    expect(within(figure("Trophies per hour")).getByTestId("metric-value")).toHaveTextContent(
       "24.7",
     );
-    expect(within(figure("average rank")).getByTestId("metric-value")).toHaveTextContent("3.3");
-    expect(within(figure("top-4 rate")).getByTestId("metric-value")).toHaveTextContent("75%");
-    expect(within(figure("time farmed")).getByTestId("metric-value")).toHaveTextContent("1.53 h");
+    expect(within(figure("Average rank")).getByTestId("metric-value")).toHaveTextContent("3.3");
+    expect(within(figure("Top-4 rate")).getByTestId("metric-value")).toHaveTextContent("75%");
+    expect(within(figure("Time farmed")).getByTestId("metric-value")).toHaveTextContent("1.53 h");
   });
 
   it("tints the trophy figure by its sign", () => {
     const { unmount } = renderWithProviders(<MetricsRow summary={summary()} />);
-    expect(within(figure("trophies")).getByTestId("metric-value")).toHaveClass("text-accent");
+    expect(within(figure("Trophies")).getByTestId("metric-value")).toHaveClass("text-accent");
     unmount();
     const second = renderWithProviders(<MetricsRow summary={summary({ trophies: -12 })} />);
-    expect(within(figure("trophies")).getByTestId("metric-value")).toHaveClass("text-bad");
-    expect(within(figure("trophies")).getByTestId("metric-value")).toHaveTextContent("-12");
+    expect(within(figure("Trophies")).getByTestId("metric-value")).toHaveClass("text-bad");
+    expect(within(figure("Trophies")).getByTestId("metric-value")).toHaveTextContent("-12");
     second.unmount();
     renderWithProviders(<MetricsRow summary={summary({ trophies: 0 })} />);
-    expect(within(figure("trophies")).getByTestId("metric-value")).toHaveClass("text-muted");
+    expect(within(figure("Trophies")).getByTestId("metric-value")).toHaveClass("text-muted");
   });
 
   it("says after 30 min when the rate is null and games were played", () => {
     renderWithProviders(<MetricsRow summary={summary({ trophies_per_hour: null })} />);
-    expect(within(figure("trophies per hour")).getByTestId("metric-value")).toHaveTextContent(
+    expect(within(figure("Trophies per hour")).getByTestId("metric-value")).toHaveTextContent(
       "after 30 min",
     );
   });
@@ -85,11 +85,11 @@ describe("MetricsRow", () => {
         })}
       />,
     );
-    expect(within(figure("trophies per hour")).getByTestId("metric-value")).toHaveTextContent(
+    expect(within(figure("Trophies per hour")).getByTestId("metric-value")).toHaveTextContent(
       "none",
     );
-    expect(within(figure("average rank")).getByTestId("metric-value")).toHaveTextContent("none");
-    expect(within(figure("top-4 rate")).getByTestId("metric-value")).toHaveTextContent("none");
+    expect(within(figure("Average rank")).getByTestId("metric-value")).toHaveTextContent("none");
+    expect(within(figure("Top-4 rate")).getByTestId("metric-value")).toHaveTextContent("none");
   });
 
   it("wraps at phone width rather than truncating any cell", () => {

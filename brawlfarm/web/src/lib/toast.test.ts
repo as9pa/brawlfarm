@@ -23,9 +23,9 @@ afterEach(() => {
 describe("failureMessage", () => {
     it("speaks the API's own sentence, and its own only when there is none", () => {
       expect(failureMessage(new ApiError(503, "adb did not answer"))).toBe("adb did not answer");
-      expect(failureMessage(new Error("boom"))).toBe("Request failed");
-      expect(failureMessage("boom")).toBe("Request failed");
-      expect(failureMessage(undefined)).toBe("Request failed");
+      expect(failureMessage(new Error("boom"))).toBe("That did not go through. Try again.");
+      expect(failureMessage("boom")).toBe("That did not go through. Try again.");
+      expect(failureMessage(undefined)).toBe("That did not go through. Try again.");
     });
 });
 

@@ -66,7 +66,7 @@ describe("ObserveCard", () => {
 
   it("waits for the worker before it counts frames", () => {
     mount({ running: true, desired: "observe", status: makeRecorder({ mode: "farm" }) });
-    expect(screen.getByText(/Waiting for the worker to start/)).toBeInTheDocument();
+    expect(screen.getByText(/Waiting for the recording to start…/)).toBeInTheDocument();
   });
 
   it("counts the frames once the observer is answering", () => {

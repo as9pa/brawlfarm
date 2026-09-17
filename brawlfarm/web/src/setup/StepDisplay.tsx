@@ -66,7 +66,7 @@ function DisplayCard({
       <div className="flex flex-wrap items-center gap-2">
         <span className="font-mono text-[13px]">{name}</span>
         {checking ? (
-          <Chip tone="idle">Checking</Chip>
+          <Chip tone="idle">Checking…</Chip>
         ) : (
           <Chip tone={result?.ok === true ? "ok" : "bad"}>
             {result?.ok === true ? "Correct" : "Wrong size"}

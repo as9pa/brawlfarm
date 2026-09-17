@@ -94,7 +94,7 @@ describe("InstanceCard", () => {
     expect(link).toHaveAttribute("href", "/instances/Pie64");
     expect(link).toHaveTextContent("Pie64");
     expect(screen.getByText("5555")).toBeInTheDocument();
-    expect(screen.getByText("queuing")).toBeInTheDocument();
+    expect(screen.getByText("Queuing")).toBeInTheDocument();
   });
 
   it("stretches that one link over the whole card", async () => {
