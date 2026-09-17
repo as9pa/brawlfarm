@@ -71,6 +71,26 @@ describe("toast", () => {
     expect(reported).toHaveBeenCalledTimes(1);
   });
 
+  it("has no tone of its own until a caller names one", () => {
+    const { result } = renderHook(() => useToasts());
+    act(() => {
+      toast("Plan saved");
+      toast("Schedule saved", { tone: "ok" });
+      toast("That did not go through. Try again.", { tone: "bad" });
+    });
+    expect(result.current.map((item) => item.tone)).toEqual(["info", "ok", "bad"]);
+  });
+
+  it("does not lengthen a toast that offers a retry", () => {
+    const { result } = renderHook(() => useToasts());
+    const retry = vi.fn();
+    act(() => {
+      toast("That did not go through. Try again.", { tone: "bad", retry });
+    });
+    expect(result.current[0].durationMs).toBe(TOAST_MS);
+    expect(result.current[0].retry).toBe(retry);
+  });
+
   it("dismisses by id and ignores an id it has already dropped", () => {
     const { result } = renderHook(() => useToasts());
     let id = 0;

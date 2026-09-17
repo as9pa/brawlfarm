@@ -12,16 +12,24 @@ import { useSyncExternalStore } from "react";
 
 import { ApiError } from "../api/client";
 
+/** What the toast is about: a confirmation, a failure, or the plain note that is neither
+ * and stays the default. */
+export type ToastTone = "ok" | "bad" | "info";
+
 export interface ToastOptions {
   undo?: () => void | Promise<void>;
+  retry?: () => void | Promise<void>;
+  tone?: ToastTone;
   durationMs?: number;
 }
 
 export interface ToastItem {
   id: number;
   message: string;
+  tone: ToastTone;
   durationMs: number;
   undo?: () => void | Promise<void>;
+  retry?: () => void | Promise<void>;
 }
 
 /** What a rejected request should say: the API's own sentence when it answered with one
@@ -54,8 +62,15 @@ export function toast(message: string, opts: ToastOptions = {}): number {
   const item: ToastItem = {
     id: nextId,
     message,
+    // The tone is the factory's to default, so the component never branches on undefined
+    // and every caller written before tones existed keeps the appearance it had.
+    tone: opts.tone ?? "info",
+    // Only an undo lengthens the life. The 6 s window is for a decision the reader can
+    // only make while the toast is up; a retry is an offer to run the same thing again,
+    // which the page still allows once the toast has gone, so it keeps the plain 4 s.
     durationMs: opts.durationMs ?? (opts.undo === undefined ? TOAST_MS : TOAST_UNDO_MS),
     ...(opts.undo === undefined ? {} : { undo: opts.undo }),
+    ...(opts.retry === undefined ? {} : { retry: opts.retry }),
   };
   nextId += 1;
   queue = [...queue, item];
