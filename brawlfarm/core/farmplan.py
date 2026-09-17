@@ -562,7 +562,7 @@ def owned_trophy_map(api) -> dict[str, int]:
     :func:`resolve_target` drops the trophies it already loaded and is left alone (the
     controller tests monkeypatch it), so this costs one extra get_player call per session,
     and only when quest_aware is on. The keys are ``questpick.norm_name``'s spelling,
-    because that is what ``questpick.resolve`` compares its candidates by. API errors
+    because that is what ``questpick.resolve_quest`` compares its candidates by. API errors
     propagate, like resolve_target's."""
     blist = api.get_player().get("brawlers") or []
     return {
