@@ -13,10 +13,13 @@ mid-animation, not a real switch. So the at-menu mode check now:
 These drive Controller.phase_at_menu through fake vision sequences — no adb taps,
 no real templates: trio_showdown_score and navigate_to_trio_showdown are stubbed,
 and every gate BEFORE the mode check is short-circuited so the check is reached.
+
+The second half of the file tests the recovery itself, navigate_to_trio_showdown,
+against the tabbed event picker measured on 2026-09-17.
 """
 
+from brawlfarm.core import config, quests, states
 from brawlfarm.core import controller as ctrlmod
-from brawlfarm.core import quests, states
 from brawlfarm.core.controller import Controller
 from brawlfarm.core.states import State
 
@@ -126,3 +129,116 @@ def test_confirmed_miss_nav_fails_stops_with_honest_reason(monkeypatch):
     assert len(ev) == 1 and ev[0]["recovered"] is False
     assert "wrong_mode" in c.shots
     assert c.stopped_with == ["mode_verify_failed"]
+
+
+# --- navigate_to_trio_showdown: the tabbed event picker ----------------------
+# Measured on Pie64, 1600x900, 2026-09-17: the picker opens on SPECIAL EVENTS,
+# Showdown lives under the TROPHIES tab, and never-opened cards wear a one-time
+# "NEW!" cover that hides the card name from OCR until it is peeled. These drive
+# the REAL method (the tests above stub it) with a fake OCR surface: find_text
+# answers by needle, read_lines_boxes replays one pass, adb.tap and adb.keyevent
+# are recorders.
+
+TROPHIES_TAB = (498, 858)
+SHOWDOWN_CARD = (262, 400)
+TRIO_CHOICE = (284, 697)
+
+
+def _nav(monkeypatch, labels, boxes=(), selected=True):
+    """Bare controller with the whole navigation surface stubbed: `labels` maps an
+    OCR needle to its center (absent = not on this screen), `boxes` is what one
+    read_lines_boxes pass sees, `selected` is the verify's answer. Returns the
+    controller plus the tap and keyevent recorders."""
+    c = Controller.__new__(Controller)
+    taps: list[tuple[int, int]] = []
+    keys: list[int] = []
+    c.log = lambda *a, **k: None
+    monkeypatch.setattr(ctrlmod.adb, "tap", lambda x, y: taps.append((x, y)))
+    monkeypatch.setattr(ctrlmod.adb, "keyevent", lambda code: keys.append(code))
+    monkeypatch.setattr(ctrlmod.adb, "screencap", lambda: SCREEN)
+    monkeypatch.setattr(ctrlmod.time, "sleep", lambda *_a: None)  # no real wait
+    monkeypatch.setattr(ctrlmod.vision, "find_text", lambda s, needle, **kw: labels.get(needle))
+    monkeypatch.setattr(ctrlmod.vision, "read_lines_boxes", lambda s, **kw: list(boxes))
+    monkeypatch.setattr(states, "is_trio_showdown_selected", lambda s: selected)
+    return c, taps, keys
+
+
+def test_nav_tabbed_picker_peels_covers_then_selects(monkeypatch):
+    """(a) Tabbed picker with two covered cards: banner, TROPHIES, both covers,
+    SHOWDOWN, TRIO, in that order, and no back-out."""
+    c, taps, keys = _nav(
+        monkeypatch,
+        {"TROPHIES": TROPHIES_TAB, "SHOWDOWN": SHOWDOWN_CARD, "TRIO": TRIO_CHOICE},
+        boxes=[
+            ("NEW!", 0.92, (743, 249)),
+            ("TROPHY GAME MODES", 0.88, (760, 120)),
+            ("NEW!", 0.90, (1241, 249)),
+            ("NEW", 0.86, (1104, 855)),  # tab-bar badge, no bang: never a cover
+        ],
+    )
+    assert c.navigate_to_trio_showdown() is True
+    assert taps == [
+        config.MODE_BANNER,
+        TROPHIES_TAB,
+        (743, 249),
+        (1241, 249),
+        SHOWDOWN_CARD,
+        TRIO_CHOICE,
+    ]
+    assert keys == []
+
+
+def test_nav_returns_the_verify_answer(monkeypatch):
+    """The result is the verify's answer, not 'we got through the taps': a banner
+    that still reads SOLO SHOWDOWN after the TRIO tap is a False."""
+    c, taps, keys = _nav(
+        monkeypatch,
+        {"TROPHIES": TROPHIES_TAB, "SHOWDOWN": SHOWDOWN_CARD, "TRIO": TRIO_CHOICE},
+        selected=False,
+    )
+    assert c.navigate_to_trio_showdown() is False
+    assert taps == [config.MODE_BANNER, TROPHIES_TAB, SHOWDOWN_CARD, TRIO_CHOICE]
+    assert keys == []
+
+
+def test_nav_without_tabs_keeps_the_old_sequence(monkeypatch):
+    """(b) An older picker with no TROPHIES tab: banner, SHOWDOWN, TRIO, unchanged."""
+    c, taps, keys = _nav(monkeypatch, {"SHOWDOWN": SHOWDOWN_CARD, "TRIO": TRIO_CHOICE})
+    assert c.navigate_to_trio_showdown() is True
+    assert taps == [config.MODE_BANNER, SHOWDOWN_CARD, TRIO_CHOICE]
+    assert keys == []
+
+
+def test_nav_never_taps_the_tab_bar_badges(monkeypatch):
+    """(c) Nothing NEW inside the card area: the tab-bar badge at y 855 and a stray
+    'NEW!' below the card area are both left alone."""
+    c, taps, keys = _nav(
+        monkeypatch,
+        {"TROPHIES": TROPHIES_TAB, "SHOWDOWN": SHOWDOWN_CARD, "TRIO": TRIO_CHOICE},
+        boxes=[("NEW", 0.9, (1104, 855)), ("NEW!", 0.9, (498, 855))],
+    )
+    assert c.navigate_to_trio_showdown() is True
+    assert taps == [config.MODE_BANNER, TROPHIES_TAB, SHOWDOWN_CARD, TRIO_CHOICE]
+    assert keys == []
+
+
+def test_nav_no_showdown_after_peeling_backs_out(monkeypatch):
+    """(d) The card never shows up after the peel: back out of the picker and
+    return False, with no tap past the covers."""
+    c, taps, keys = _nav(
+        monkeypatch,
+        {"TROPHIES": TROPHIES_TAB, "TRIO": TRIO_CHOICE},
+        boxes=[("NEW!", 0.9, (743, 249))],
+    )
+    assert c.navigate_to_trio_showdown() is False
+    assert taps == [config.MODE_BANNER, TROPHIES_TAB, (743, 249)]
+    assert keys == [4]
+
+
+def test_nav_no_trio_backs_out_of_card_and_picker(monkeypatch):
+    """(e) We opened the wrong card (no TRIO in its chooser): back out of BOTH
+    levels we opened, the card and the picker, and return False."""
+    c, taps, keys = _nav(monkeypatch, {"TROPHIES": TROPHIES_TAB, "SHOWDOWN": SHOWDOWN_CARD})
+    assert c.navigate_to_trio_showdown() is False
+    assert taps == [config.MODE_BANNER, TROPHIES_TAB, SHOWDOWN_CARD]
+    assert keys == [4, 4]

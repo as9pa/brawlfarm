@@ -340,6 +340,17 @@ MODE_BANNER = (950, 818)
 # mid-animation, so a single transient miss must NOT raise a wrong_mode alarm. Only
 # BOTH frames missing is a confirmed wrong-mode.
 MODE_VERIFY_RECHECK_S = 1.7
+# The event picker gained category tabs (measured on Pie64, 1600x900, 2026-09-17):
+# it opens on SPECIAL EVENTS, and Showdown now lives under the TROPHIES tab. Cards the
+# account has never opened wear a one-time "NEW!" cover that hides the card name from
+# OCR until it is tapped once (peeling it selects nothing). Every value here is a
+# needle, a y cut-off or a wait: the new taps are all centers of labels OCR just found.
+MODE_TAB_TROPHIES = "TROPHIES"  # bottom tab bar, exact OCR match
+MODE_NEW_COVER = "NEW!"  # a card's one-time cover; the tab-bar badges read "NEW"
+MODE_CARD_AREA_MAX_Y = 800  # covers live above this; below it is the tab bar
+MODE_TAB_WAIT_S = 3.0  # the trophy mode cards slide in after the tab tap
+MODE_COVER_WAIT_S = 1.2  # between cover peels
+MODE_CARD_WAIT_S = 2.5  # card expands in place / returns to the menu (1.8 was too short)
 
 # In-match. This account has NO gadget/hypercharge unlocked on the farm brawler,
 # and Super rarely charges from passive attacking, so in practice this is just the
@@ -578,15 +589,23 @@ QUEST_REROLL_BUTTON = (1433, 167)  # NEVER tapped: a reroll throws a quest away
 # Every hop VERIFIES the expected screen via OCR and bails back to the menu if it isn't
 # there — so a stale coordinate degrades to a logged no-op, never a misfire.
 
+# How long each panel gets to animate in before the verify gives up. Probe-measured
+# live (1600x900, 2026-09-17): the TEAM UP title reads 4.9 s after the "+" slot tap and
+# MUTE FRIENDS reads 2.5 s after the gear tap, so the old fixed 4 x 1.0 s poll gave up
+# first and the whole leg skipped. Budgets are the measured times roughly doubled, for
+# cold-booted clients; settings.py polls them every 0.5 s. Waits only, no tap points.
+DND_PANEL_WAIT_S = 8.0  # TEAM UP title after the "+" slot tap (measured 4.9 s)
+DND_SETTINGS_WAIT_S = 6.0  # MUTE FRIENDS after the gear tap (measured 2.5 s)
+
 # The translucent "+" team slot beside the menu brawler (left slot). Calibrated from a
 # menu capture (zoomed crop of a saved menu screenshot): the slot card spans ~(357-445,
 # 443-515), plus icon centred at (402,482). (685,380) is the brawler body — never tap it.
-# The verify-bail above still makes any drift harmless.
+# Confirmed live by the 2026-09-17 probe: this tap opens the TEAM UP panel.
 DND_TEAM_SLOT = (402, 482)
 
 # TEAM UP panel (opens from the "+"): gear sits top-right just LEFT of the red ✕ — they're
 # only ~65 px apart, so these two must stay distinct (a 1485,30 tap closed the panel).
-DND_TEAMUP_GEAR = (1420, 30)  # ⚠️ uncertain; ✕ confirmed ≈ (1485, 30)
+DND_TEAMUP_GEAR = (1420, 30)  # confirmed 2026-09-17: opens SOCIAL SETTINGS
 DND_TEAMUP_CLOSE_X = (1490, 30)  # red ✕ -> back to menu
 
 # SOCIAL SETTINGS (team invites). The WHOLE ROW is tappable, so we tap the OCR'd label

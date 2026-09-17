@@ -17,10 +17,11 @@ DND now.)
 
 Safety: every hop VERIFIES the expected screen via OCR before tapping anything inside
 it, and bails back to the menu when the verify fails — so a stale/uncalibrated
-coordinate (notably the "+" slot, still a guess) degrades to a logged no-op, never a
-misfire. Idempotent: rows are only tapped when the colour check says they are NOT
-already set; CONFIRM on an unchanged panel is a harmless no-op and is used as the
-deterministic way to close it. TAPS only, never the Android BACK key (project rule).
+coordinate degrades to a logged no-op, never a misfire (the "+" slot and the gear are
+both probe-confirmed as of 2026-09-17). Idempotent: rows are only tapped when the
+colour check says they are NOT already set; CONFIRM on an unchanged panel is a
+harmless no-op and is used as the deterministic way to close it. TAPS only, never the
+Android BACK key (project rule).
 
 STOP ETIQUETTE: a USER-initiated stop hands the account back to a human, so remove_dnd()
 runs the REVERSE of the mute leg — same proven navigation and verifies, toggling back:
@@ -50,13 +51,18 @@ def _event_shot(screen, tag: str) -> None:
     cv2.imwrite(str(d / f"{time.strftime('%H%M%S')}_{tag}.png"), screen)
 
 
-def _wait_for_screen(needle: str, tries: int = 4, delay: float = 1.0):
+def _wait_for_screen(needle: str, budget_s: float, poll_s: float = 0.5):
     """Poll for an OCR label after a navigation tap; return the screen that contained
-    it (for follow-up colour checks), or None once the tries run out. A single fixed-
+    it (for follow-up colour checks), or None once the budget runs out. A single fixed-
     delay capture flaked on cold-booted clients (the panel was still animating in when
-    the check ran) — polling keeps warm-client speed and tolerates the laggy case."""
-    for _ in range(tries):
-        time.sleep(delay)
+    the check ran) — polling keeps warm-client speed and tolerates the laggy case.
+    The caller passes the total time the panel gets (config.DND_PANEL_WAIT_S /
+    DND_SETTINGS_WAIT_S) rather than a try count: the old 4 x 1.0 s budget gave up
+    before the 4.9 s the TEAM UP panel actually takes, and the whole leg skipped."""
+    waited = 0.0
+    while waited < budget_s:
+        time.sleep(poll_s)
+        waited += poll_s
         screen = adb.screencap()
         if vision.find_text(screen, needle) is not None:
             return screen
@@ -78,15 +84,16 @@ def _radio_selected(screen, center) -> bool:
 
 
 def _exit_to_menu(log) -> None:
-    """Return to the main menu using TAPS only (no BACK key). The TEAM UP panel closes
-    from the TOP-RIGHT (red ✕) — unlike the pass/brawlers screens' top-left arrow — so
-    we rotate through those candidates, closing any stray popup via its detected red
-    close_x, until states.classify sees the MENU."""
-    closers = (
-        config.DND_TEAMUP_CLOSE_X,  # TEAM UP panel red ✕
-        config.HOME_BUTTON,  # generic top-right home (white house)
-    )
-    for i in range(8):
+    """Return to the main menu using TAPS only (no BACK key). Each cycle taps ONLY what
+    the screen proves is on it: a stray popup's detected red close_x, else SOCIAL
+    SETTINGS' ✕ (that panel sits ON TOP of TEAM UP, so it is checked first), else the
+    TEAM UP panel's own red ✕: it closes from the TOP-RIGHT, unlike the pass/brawlers
+    screens' top-left arrow. Nothing readable means nothing is tapped this cycle: a
+    panel still animating in reads on the next one. The old version rotated blind taps
+    through HOME_BUTTON (1525, 47), which ON THE MENU is the hamburger (MENU_BURGER):
+    it opened the side menu and the taps after it walked the game out of the app
+    (2026-09-17 worker sessions, once ending behind the Android launcher)."""
+    for _ in range(8):
         screen = adb.screencap()
         state = states.classify(screen)
         if state is states.State.MENU:
@@ -94,8 +101,10 @@ def _exit_to_menu(log) -> None:
         if state is states.State.POPUP:
             x = vision.find(screen, "close_x")
             adb.tap(*(x.center if x is not None else config.CLOSE_X_BUTTON))
-        else:
-            adb.tap(*closers[i % len(closers)])
+        elif vision.find_text(screen, "SOCIAL SETTINGS") is not None:
+            adb.tap(*config.CLOSE_X_BUTTON)
+        elif vision.find_text(screen, "TEAM UP") is not None:
+            adb.tap(*config.DND_TEAMUP_CLOSE_X)
         time.sleep(1.2)
     log("[dnd] could not confirm the menu after closing — continuing anyway")
 
@@ -104,10 +113,11 @@ def ensure_team_invites_muted(log=print) -> bool:
     """Setting A: open the TEAM UP panel's SOCIAL SETTINGS and make sure MUTE FRIENDS =
     24h and MUTE RECENT TEAMMATES = 30 days. Returns True iff the panel was reached (the
     mutes are then known-set); False on a safe bail. Leaves the game on the main menu."""
-    # ⚠️ DND_TEAM_SLOT is still an uncalibrated guess — the verify below makes a miss a
-    # harmless no-op (whatever a stray tap opened gets closed by _exit_to_menu).
+    # DND_TEAM_SLOT is probe-confirmed (2026-09-17) to open this panel; the verify below
+    # still makes a miss a harmless no-op (whatever a stray tap opened gets closed by
+    # _exit_to_menu). The panel takes ~4.9 s to become readable, hence the budget.
     adb.tap(*config.DND_TEAM_SLOT)
-    if _wait_for_screen("TEAM UP") is None:
+    if _wait_for_screen("TEAM UP", config.DND_PANEL_WAIT_S) is None:
         log("[dnd] TEAM UP panel didn't open ('+' slot mis-tapped?) — skipping")
         _exit_to_menu(log)
         return False
@@ -123,7 +133,7 @@ def ensure_team_invites_muted(log=print) -> bool:
     screen = None
     for _ in range(2):
         adb.tap(*config.DND_TEAMUP_GEAR)
-        screen = _wait_for_screen("MUTE")
+        screen = _wait_for_screen("MUTE", config.DND_SETTINGS_WAIT_S)
         if screen is not None:
             break
     if screen is None:
@@ -184,7 +194,7 @@ def ensure_team_invites_unmuted(log=print) -> bool:
     verified to have cleared. Returns True iff the panel was reached AND every
     selected radio cleared; leaves the game on the main menu."""
     adb.tap(*config.DND_TEAM_SLOT)
-    if _wait_for_screen("TEAM UP") is None:
+    if _wait_for_screen("TEAM UP", config.DND_PANEL_WAIT_S) is None:
         log("[dnd-off] TEAM UP panel didn't open — skipping")
         _exit_to_menu(log)
         return False
@@ -193,7 +203,7 @@ def ensure_team_invites_unmuted(log=print) -> bool:
     screen = None
     for _ in range(2):
         adb.tap(*config.DND_TEAMUP_GEAR)
-        screen = _wait_for_screen("MUTE")
+        screen = _wait_for_screen("MUTE", config.DND_SETTINGS_WAIT_S)
         if screen is not None:
             break
     if screen is None:
