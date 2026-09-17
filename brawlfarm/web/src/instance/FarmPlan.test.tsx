@@ -69,14 +69,29 @@ describe("FarmPlan", () => {
     expect(toastMessages()).toEqual(["Plan saved"]);
     expect(screen.getByText(/^Saved \d\d:\d\d$/)).toBeInTheDocument();
     expect(await screen.findByRole("radio", { name: "Lowest" })).toBeInTheDocument();
-    expect(screen.getByText("Goal 1000, the prestige threshold")).toBeInTheDocument();
+    expect(screen.getByText("Goal 1,000, the prestige threshold")).toBeInTheDocument();
   });
 
   it("shows the goal for ladder and hides the prestige caption", async () => {
     mount();
     renderWithProviders(<FarmPlan name="Pie64" />);
     expect(await screen.findByLabelText("Goal")).toHaveValue(1000);
-    expect(screen.queryByText("Goal 1000, the prestige threshold")).not.toBeInTheDocument();
+    expect(screen.queryByText("Goal 1,000, the prestige threshold")).not.toBeInTheDocument();
+  });
+
+  it("says so in words when there is no current brawler and no queue", async () => {
+    mount(makePlan({ current: { brawler: null, trophies: null, goal: 1000 }, queue: [] }));
+    renderWithProviders(<FarmPlan name="Pie64" />);
+    expect(await screen.findByText("No brawler selected yet")).toBeInTheDocument();
+    expect(screen.getByText("Queue is empty")).toBeInTheDocument();
+    expect(screen.getByText("Not yet / 1,000")).toBeInTheDocument();
+    expect(screen.queryByText("none")).not.toBeInTheDocument();
+  });
+
+  it("groups the thousands in the current trophies and the goal", async () => {
+    mount(makePlan({ current: { brawler: "NORI", trophies: 110738, goal: 1000 } }));
+    renderWithProviders(<FarmPlan name="Pie64" />);
+    expect(await screen.findByText("110,738 / 1,000")).toBeInTheDocument();
   });
 
   it("caps the progress bar at 100 per cent and names it for a screen reader", async () => {
@@ -90,9 +105,11 @@ describe("FarmPlan", () => {
   });
 
   it("lists the queue with its trophies and can show the whole roster", async () => {
-    mount();
+    mount(makePlan({ queue: ["TARA", "PIPER"] }));
     renderWithProviders(<FarmPlan name="Pie64" />);
     expect(await screen.findByText("TARA")).toBeInTheDocument();
+    // A queued brawler the roster has not answered for reads Not yet, never none.
+    expect(screen.getByText("PIPER").closest("li")?.textContent).toBe("PIPERNot yet");
     expect(screen.queryByTestId("plan-roster")).not.toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: "Show all brawlers" }));
     const rows = screen.getByTestId("plan-roster").querySelectorAll("li");
@@ -227,7 +244,7 @@ describe("FarmPlan", () => {
     // The help line is the switch's own description, not loose text sitting beside it.
     const help = document.getElementById(String(switches[1].getAttribute("aria-describedby")));
     expect(help).toHaveTextContent(
-      "Applies at session start only. The worker reads the quests screen and picks an owned " +
+      "Applies at session start only. The instance reads the quests screen and picks an owned " +
         "brawler that clears a quest. Your plan target wins when it clears one; otherwise the " +
         "lowest-trophy candidate.",
     );

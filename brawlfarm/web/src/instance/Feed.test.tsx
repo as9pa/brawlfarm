@@ -80,7 +80,7 @@ describe("Feed", () => {
     stubFeed(() => []);
     renderWithProviders(<Feed name="Pie64" session={SESSION} />);
     expect(
-      await screen.findByText("No lines yet. The feed fills as the worker plays."),
+      await screen.findByText("No lines yet. The feed fills as the instance plays."),
     ).toBeInTheDocument();
     await userEvent.click(screen.getByRole("radio", { name: "Interrupts" }));
     expect(await screen.findByText("No interrupts this session.")).toBeInTheDocument();

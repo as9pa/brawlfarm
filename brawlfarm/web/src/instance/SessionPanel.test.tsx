@@ -34,14 +34,14 @@ describe("SessionPanel", () => {
     render(<SessionPanel inst={farming} avgRank={3.42} interrupts={4} stopAt={null} />);
     expect(screen.getByText("12")).toBeInTheDocument(); // Games
     expect(screen.getByText("+86")).toBeInTheDocument(); // Trophies
-    expect(screen.getByText("3.4")).toBeInTheDocument(); // Avg rank today
+    expect(screen.getByText("3.4")).toBeInTheDocument(); // Avg rank
     expect(screen.getByText("1")).toBeInTheDocument(); // Disconnects
     expect(screen.getByText("1 h 12 min")).toBeInTheDocument(); // Duration
     expect(screen.getByText("4")).toBeInTheDocument(); // Interrupts
     expect(screen.queryByText(/Session ended/)).not.toBeInTheDocument();
   });
 
-  it("reads a missing session as zeros, not as blanks", () => {
+  it("reads a missing session in words, not as blanks", () => {
     render(
       <SessionPanel
         inst={makeInstance({ name: "Pie64", state: "starting", games_played: null, session: null })}
@@ -50,9 +50,11 @@ describe("SessionPanel", () => {
         stopAt={null}
       />,
     );
-    expect(screen.getByText("none")).toBeInTheDocument(); // Avg rank today
+    expect(figure("Avg rank")).toHaveTextContent("No games yet");
+    expect(figure("Trophies")).toHaveTextContent("Not yet");
+    expect(screen.queryByText("none")).not.toBeInTheDocument();
     expect(screen.getByText("0 min")).toBeInTheDocument(); // Duration
-    expect(screen.getAllByText("0").length).toBeGreaterThanOrEqual(3);
+    expect(screen.getAllByText("0")).toHaveLength(3); // Games, Disconnects, Interrupts
   });
 
   it("keeps the last live figures and captions the end of the session", () => {
@@ -75,7 +77,7 @@ describe("SessionPanel", () => {
     );
     expect(screen.getByText("12")).toBeInTheDocument(); // the figures do not blank out
     expect(screen.getByText("+86")).toBeInTheDocument();
-    expect(screen.getByText("Session ended 14:15")).toBeInTheDocument();
+    expect(screen.getByText("Session ended Sep 11, 14:15")).toBeInTheDocument();
   });
 
   it("takes the real stop time once the feed's stop line arrives", () => {
@@ -90,12 +92,12 @@ describe("SessionPanel", () => {
     );
     // Nothing has said when it stopped yet, so the caption is the moment the panel
     // noticed. The feed's own stop line arrives a poll later and is the better answer.
-    expect(screen.getByText(/^Session ended \d\d:\d\d$/)).toBeInTheDocument();
+    expect(screen.getByText(/^Session ended \w\w\w \d+, \d\d:\d\d$/)).toBeInTheDocument();
 
     rerender(
       <SessionPanel inst={stopped} avgRank={null} interrupts={0} stopAt="2026-09-11T14:15:40" />,
     );
-    expect(screen.getByText("Session ended 14:15")).toBeInTheDocument();
+    expect(screen.getByText("Session ended Sep 11, 14:15")).toBeInTheDocument();
   });
 
   it("seeds a cold load from last_session and captions when it ended", () => {
@@ -112,10 +114,10 @@ describe("SessionPanel", () => {
         stopAt={null}
       />,
     );
-    expect(screen.getByText("Session ended 22:14")).toBeInTheDocument();
+    expect(screen.getByText("Session ended Sep 12, 22:14")).toBeInTheDocument();
     expect(figure("Games")).toHaveTextContent("12");
     expect(figure("Trophies")).toHaveTextContent("+86");
-    expect(figure("Avg rank today")).toHaveTextContent("3.4");
+    expect(figure("Avg rank")).toHaveTextContent("3.4");
     expect(figure("Disconnects")).toHaveTextContent("1");
     expect(figure("Duration")).toHaveTextContent("1 h 14 min");
     expect(figure("Interrupts")).toHaveTextContent("2");
@@ -136,8 +138,8 @@ describe("SessionPanel", () => {
       />,
     );
     expect(figure("Games")).toHaveTextContent("0");
-    expect(figure("Trophies")).toHaveTextContent("0");
-    expect(figure("Avg rank today")).toHaveTextContent("none");
+    expect(figure("Trophies")).toHaveTextContent("Not yet");
+    expect(figure("Avg rank")).toHaveTextContent("No games yet");
     expect(figure("Duration")).toHaveTextContent("0 min");
   });
 
@@ -161,6 +163,44 @@ describe("SessionPanel", () => {
     );
     // Frozen on what it saw live, not on the 99 games last_session carries.
     expect(figure("Games")).toHaveTextContent("4");
-    expect(screen.getByText("Session ended 23:05")).toBeInTheDocument();
+    expect(screen.getByText("Session ended Sep 12, 23:05")).toBeInTheDocument();
+  });
+  it("says Not yet when only one end of the trophy pair was recorded", () => {
+    render(
+      <SessionPanel
+        inst={makeInstance({
+          name: "Pie64",
+          state: "farming",
+          games_played: 3,
+          session: { ...SESSION, last_trophies: null },
+        })}
+        avgRank={2.5}
+        interrupts={0}
+        stopAt={null}
+      />,
+    );
+    expect(figure("Trophies")).toHaveTextContent("Not yet");
+  });
+
+  it("groups thousands in the counts and keeps a phrase out of the mono column", () => {
+    render(
+      <SessionPanel
+        inst={makeInstance({
+          name: "Pie64",
+          state: "farming",
+          games_played: 1234,
+          session: SESSION,
+        })}
+        avgRank={null}
+        interrupts={0}
+        stopAt={null}
+      />,
+    );
+    expect(figure("Games")).toHaveTextContent("1,234");
+    expect(figure("Games").className).toContain("font-mono");
+    const rank = figure("Avg rank");
+    expect(rank).toHaveTextContent("No games yet");
+    expect(rank.className).not.toContain("font-mono");
+    expect(rank.className).toContain("text-muted");
   });
 });

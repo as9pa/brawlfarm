@@ -61,13 +61,13 @@ describe("Settings > Behavior", () => {
       ["Opportunity cost", "Skip brawlers whose next tier is far off."],
       ["Gas aware", "Move away from the gas earlier."],
       ["Bush hide", "Hide in bushes when the map allows."],
-      ["Close game on stop", "Close Brawl Stars when the worker stops."],
-      ["DND at start", "Turn on Do Not Disturb when the worker starts."],
+      ["Close game on stop", "Close Brawl Stars when the instance stops."],
+      ["DND at start", "Turn on Do Not Disturb when the instance starts."],
     ]) {
       expect(screen.getByRole("switch", { name })).toBeInTheDocument();
       expect(screen.getByText(sentence)).toBeInTheDocument();
     }
-    expect(screen.getByText("Applies to a worker the next time it starts.")).toBeInTheDocument();
+    expect(screen.getByText("Applies the next time an instance starts.")).toBeInTheDocument();
 
     await userEvent.click(screen.getByRole("switch", { name: "Gas aware" }));
     await waitFor(() => {
@@ -97,7 +97,7 @@ describe("Settings > Behavior", () => {
       ["Phase classify", "Work out the match phase from the screen."],
       ["Ability buttons", "Use the gadget and super buttons."],
       ["Recalibration tripwire", "Warn when a detector looks season-blind."],
-      ["DND off on stop", "Turn Do Not Disturb back off when the worker stops."],
+      ["DND off on stop", "Turn Do Not Disturb back off when the instance stops."],
     ]) {
       expect(screen.getByRole("switch", { name })).toBeInTheDocument();
       expect(screen.getByText(sentence)).toBeInTheDocument();

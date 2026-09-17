@@ -129,7 +129,9 @@ export function Thumb({
         >
           {error !== null && (
             <>
-              <span className="text-[13px] text-bad">{`Screenshot failed: ${error.detail}`}</span>
+              <span className="text-[13px] text-bad">
+                No screenshot yet. Check that the instance is running.
+              </span>
               <span className="text-[12px] text-muted">Retrying in 15 s.</span>
             </>
           )}

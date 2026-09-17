@@ -58,7 +58,7 @@ describe("api", () => {
     );
     expect(error).toMatchObject({
       status: 422,
-      detail: "Validation failed",
+      detail: "Some values were not accepted. Fix the fields listed and try again.",
       lines: [
         "body.goal_trophies: Input should be greater than or equal to 0",
         "query.limit: Input should be less than or equal to 1000",
@@ -66,10 +66,33 @@ describe("api", () => {
     });
   });
 
-  it("falls back to the status when the body carries no detail", async () => {
-    stubFetch(() => jsonResponse({ oops: true }, 500));
+  // One sentence per status the API answers with, each ending in the next step the
+  // reader can take, plus the generic for a status the map does not name.
+  const STATUS_SENTENCES: readonly [number, string][] = [
+    [400, "That request was not valid. Check the values and try again."],
+    [401, "The panel is not signed in to brawlfarm. Check the API token in Settings."],
+    [403, "The panel is not allowed to do that. Check the API token in Settings."],
+    [404, "That is not there any more. Refresh the page."],
+    [409, "Something changed while you were editing. Refresh and try again."],
+    [422, "Some values were not accepted. Fix the fields listed and try again."],
+    [500, "brawlfarm hit an internal error. Check the panel log, then try again."],
+    [503, "brawlfarm is not ready yet. Wait a moment and try again."],
+  ];
+
+  it.each(STATUS_SENTENCES)("says what to do next about a %i", async (status, detail) => {
+    stubFetch(() => jsonResponse({ oops: true }, status));
     const error = await api("/api/stats").catch((failure: unknown) => failure);
-    expect(error).toMatchObject({ status: 500, detail: "Request failed (HTTP 500)" });
+    expect(error).toMatchObject({ status, detail });
+  });
+
+  it("falls back to the status when the body carries no detail", async () => {
+    stubFetch(() => jsonResponse({ oops: true }, 418));
+    const error = await api("/api/stats").catch((failure: unknown) => failure);
+    expect(error).toMatchObject({
+      status: 418,
+      detail:
+        "Something went wrong (HTTP 418). Try again, and check the panel log if it keeps failing.",
+    });
   });
 
   it("turns an unreachable server into the panel's own sentence", async () => {

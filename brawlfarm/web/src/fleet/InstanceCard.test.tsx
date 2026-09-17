@@ -9,6 +9,7 @@ import { useLocation } from "react-router";
 
 import { InstanceCard, breakCaption, nextValue, retryMinutes } from "./InstanceCard";
 import type { InstanceState } from "../api/types";
+import { NOT_SET } from "../lib/copy";
 import { resetToasts, useToasts } from "../lib/toast";
 import { makeInstance } from "../test/fixtures";
 import { jpegResponse, jsonResponse, stubFetch } from "../test/http";
@@ -69,13 +70,13 @@ describe("retryMinutes, breakCaption and nextValue", () => {
 
   it("shows the next moment as a time, a countdown, or none", () => {
     expect(nextValue(makeInstance({ state: "farming", until: "2026-09-11T21:30:00" }))).toBe("21:30");
-    expect(nextValue(makeInstance({ state: "stopped", until: null }))).toBe("none");
+    expect(nextValue(makeInstance({ state: "stopped", until: null }))).toBe(NOT_SET);
     expect(
       nextValue(
         makeInstance({ state: "offline", until: null, note: "BlueStacks window not found. Retrying in 4 min." }),
       ),
     ).toBe("4 min");
-    expect(nextValue(makeInstance({ state: "offline", until: null, note: "" }))).toBe("soon");
+    expect(nextValue(makeInstance({ state: "offline", until: null, note: "" }))).toBe("Soon");
   });
 });
 
@@ -93,7 +94,7 @@ describe("InstanceCard", () => {
     expect(link).toHaveAttribute("href", "/instances/Pie64");
     expect(link).toHaveTextContent("Pie64");
     expect(screen.getByText("5555")).toBeInTheDocument();
-    expect(screen.getByText("queuing")).toBeInTheDocument();
+    expect(screen.getByText("Queuing")).toBeInTheDocument();
   });
 
   it("stretches that one link over the whole card", async () => {
@@ -147,10 +148,10 @@ describe("InstanceCard", () => {
     expect(screen.getByText("Next break").nextSibling).toHaveTextContent("21:30");
   });
 
-  it("says none for a session that has not started", () => {
+  it("says Not started for a session that has not started", () => {
     stubScreens();
     renderWithProviders(<InstanceCard inst={makeInstance({ state: "stopped", session: null, until: null })} />);
-    expect(screen.getByText("Session").nextSibling).toHaveTextContent("none");
+    expect(screen.getByText("Session").nextSibling).toHaveTextContent("Not started");
     expect(screen.getByText("Next session")).toBeInTheDocument();
   });
 
@@ -200,9 +201,22 @@ describe("InstanceCard", () => {
       const { unmount } = renderWithProviders(<InstanceCard inst={makeInstance({ state })} />);
       const stop = screen.getByRole("button", { name: "Stop" });
       expect(stop).toBeDisabled();
-      expect(stop).toHaveAttribute("title", "Not running");
+      expect(stop).toHaveAttribute("title", "Already stopped");
       unmount();
     }
+  });
+
+  it("offers Start on a card that is not running and Restart on one that is", () => {
+    stubScreens();
+    const { unmount } = renderWithProviders(<InstanceCard inst={makeInstance({ state: "stopped" })} />);
+    expect(screen.getByRole("button", { name: "Start" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Restart" })).not.toBeInTheDocument();
+    unmount();
+
+    stubScreens();
+    renderWithProviders(<InstanceCard inst={makeInstance({ state: "farming" })} />);
+    expect(screen.getByRole("button", { name: "Restart" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Start" })).not.toBeInTheDocument();
   });
 
   it("stops with an undo that starts it again, without following the card link", async () => {

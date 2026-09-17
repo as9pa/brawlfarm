@@ -22,6 +22,7 @@ import { type KeyboardEvent, type MouseEvent, useState } from "react";
 
 import type { StatsPoint, StatsRange, StatsSeries } from "../api/types";
 import { Table, type Column } from "../components/ui/Table";
+import { NOT_RECORDED } from "../lib/copy";
 import { formatMoment } from "./format";
 
 export interface TrophyChartProps {
@@ -52,7 +53,6 @@ const PLOT_H = 180;
 const PAD_Y = 10; // so a point at the very top or bottom is not half a stroke off the box
 const VALUE_PAD = 0.05; // the brief's 5 %
 const EMPTY = "No games in this range.";
-const NONE = "none";
 /** The line box at 11 px type, the gap the end labels are nudged by. Two y-axis labels
  * closer together than this would overprint each other. */
 const LABEL_H = 12;
@@ -155,7 +155,7 @@ export function TrophyChart({ series, instances, range }: TrophyChartProps) {
           time: clock(new Date(moments[active]).toISOString()),
           lines: ordered.map((s) => {
             const value = valueAt(s.points, moments[active]);
-            return { name: s.instance, text: value === null ? NONE : String(value) };
+            return { name: s.instance, text: value === null ? NOT_RECORDED : String(value) };
           }),
         };
   const liveText =
@@ -199,7 +199,7 @@ export function TrophyChart({ series, instances, range }: TrophyChartProps) {
       label: s.instance,
       mono: true,
       render: (row: { t: string; values: (number | null)[] }) =>
-        row.values[index] === null ? NONE : String(row.values[index]),
+        row.values[index] === null ? NOT_RECORDED : String(row.values[index]),
     })),
   ];
   const rows = moments.map((ms) => ({

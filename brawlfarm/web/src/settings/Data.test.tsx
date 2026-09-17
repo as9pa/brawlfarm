@@ -132,7 +132,7 @@ describe("Settings > Data", () => {
   it("deletes one instance's folder once its name has been typed", async () => {
     const { calls } = server();
     mount();
-    expect(await screen.findByText("Delete one instance's data")).toBeInTheDocument();
+    expect(await screen.findByText("Delete one instance’s data")).toBeInTheDocument();
     expect(screen.getByText("instances/Pie64")).toBeInTheDocument();
     expect(screen.getByText("instances/Pie64_3")).toBeInTheDocument();
 

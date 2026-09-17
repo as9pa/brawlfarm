@@ -38,7 +38,7 @@ import { failureMessage, toast } from "../lib/toast";
 import { phaseLabel } from "../lib/states";
 
 export const HINT =
-  "What the workers see. The page reads; calibration.toml and the templates folder write.";
+  "What brawlfarm sees. The page reads; calibration.toml and the templates folder write.";
 
 /** An instance in one of these writes no new frame, so the page scores the last one once
  * and stops polling. Same three as the Instance page's Stop button. */

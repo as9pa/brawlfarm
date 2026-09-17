@@ -133,7 +133,7 @@ describe("Fleet", () => {
     ]);
     renderWithProviders(<Fleet />);
     expect(
-      await screen.findByText("Pie64 bot crashed: err=adb did not answer"),
+      await screen.findByText("Pie64 crashed. Press Restart on its card."),
     ).toBeInTheDocument();
   });
 

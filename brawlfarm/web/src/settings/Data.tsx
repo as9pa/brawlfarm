@@ -86,7 +86,7 @@ export function Data({ settingsPatch }: { settingsPatch: SettingsPatch }) {
       </div>
 
       <div>
-        <h3 className="text-[13px] font-semibold">Delete one instance&apos;s data</h3>
+        <h3 className="text-[13px] font-semibold">Delete one instance’s data</h3>
         <ul className="mt-2">
           {settings.instances.map((instance) => (
             <li

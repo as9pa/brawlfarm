@@ -21,7 +21,7 @@ import { timeline } from "../lib/schedule";
 import { hhmm } from "../lib/time";
 import { failureMessage, toast } from "../lib/toast";
 
-const EMPTY = "No sessions drawn yet. The supervisor draws today on its next tick.";
+const EMPTY = "No sessions drawn yet. brawlfarm draws today’s sessions within a minute.";
 // The draw happens on a supervisor tick, not on the request, so ask again twice: once for
 // a tick that was already due, once for the poke this PUT sent.
 const REDRAW_REFETCH_MS = [2000, 10_000];
@@ -159,14 +159,16 @@ export function Schedule({ name }: { name: string }) {
       {payload.override === null ? null : (
         <div className="flex items-center gap-2">
           <Chip tone={payload.override.mode === "run" ? "ok" : "warn"}>
-            {`Override: ${payload.override.mode} until ${hhmm(payload.override.until)}`}
+            {payload.override.mode === "run"
+              ? `Running until ${hhmm(payload.override.until)}`
+              : `Paused until ${hhmm(payload.override.until)}`}
           </Chip>
           {/* An icon, not a word: the chip beside it already says what is being cleared,
               and aria-label carries the sentence for a screen reader. Clearing the chip
               is its own confirmation, so there is no toast. */}
           <button
             type="button"
-            aria-label="Clear override"
+            aria-label="Resume schedule"
             onClick={() => void patch({ clear_override: true }, null)}
             className="rounded-[6px] p-1 text-muted transition-colors duration-[120ms] hover:text-text"
           >
@@ -201,7 +203,10 @@ export function Schedule({ name }: { name: string }) {
           variant="quiet"
           size="sm"
           onClick={() => {
-            void patch({ redraw: true }, "Redrawing today; new sessions appear after the next tick");
+            void patch(
+              { redraw: true },
+              "Redrawing today… new sessions appear within a minute.",
+            );
             for (const delay of REDRAW_REFETCH_MS) {
               timers.current.push(setTimeout(refetch, delay));
             }

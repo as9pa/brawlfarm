@@ -21,7 +21,7 @@ export interface ObserveCardProps {
 }
 
 export const OBSERVE_BLOCKED_MESSAGE =
-  "Stop this instance first. Recording your own play never starts on top of a farming worker.";
+  "Stop this instance first. Recording your own play never starts on top of a farming instance.";
 
 export function ObserveCard({
   instance,
@@ -52,7 +52,7 @@ export function ObserveCard({
       {!blocked && observing && (
         <p className="text-[12px] text-muted">
           {`Recording ${instance} while you play. It watches and never taps.`}
-          {answering ? ` ${status.frames} frames so far.` : " Waiting for the worker to start."}
+          {answering ? ` ${status.frames} frames so far.` : " Waiting for the recording to start…"}
         </p>
       )}
 

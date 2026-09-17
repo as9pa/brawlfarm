@@ -151,7 +151,7 @@ describe("Calibration", () => {
     expect(screen.getByRole("heading", { name: "Calibration" })).toBeInTheDocument();
     expect(
       await screen.findByText(
-        "What the workers see. The page reads; calibration.toml and the templates folder write.",
+        "What brawlfarm sees. The page reads; calibration.toml and the templates folder write.",
       ),
     ).toBeInTheDocument();
     // Pie64_1 is listed first and is stopped, so the running Pie64 is the one preselected.

@@ -29,6 +29,16 @@ export function hhmm(iso: string): string {
   return `${pad(at.getHours())}:${pad(at.getMinutes())}`;
 }
 
+const DAY = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
+
+/** "Sep 17, 05:25": the same wall clock as hhmm with the day in front, for a caption that
+ * can still be on screen the morning after the moment it describes. */
+export function dayTime(iso: string): string {
+  const at = new Date(iso);
+  if (Number.isNaN(at.getTime())) return "";
+  return `${DAY.format(at)}, ${hhmm(iso)}`;
+}
+
 export function hhmmss(iso: string): string {
   const at = new Date(iso);
   if (Number.isNaN(at.getTime())) return "";

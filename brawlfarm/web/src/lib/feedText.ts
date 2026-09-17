@@ -1,6 +1,8 @@
-/** The event-kind-to-sentence table. Its one export is feedText; everything else here is
- * the table, kept out of the Feed component so that file stays about scrolling. */
+/** The event-kind-to-sentence table. It exports feedText and the kinds it spells out;
+ * everything else here is the table, kept out of the Feed component so that file stays
+ * about scrolling. */
 import type { FeedRecord } from "../api/types";
+import { ELLIPSIS, REQUIRED_SIZE, count, sentence, sizeWords } from "./copy";
 import { signed } from "./format";
 import { type Tone, feedTone } from "./states";
 
@@ -23,7 +25,7 @@ const PLAIN: Record<string, string> = {
   ingame_modal_cleared: "In-game dialog closed",
   gas_relocate: "Moved away from the gas",
   bush_hide: "Hiding in a bush",
-  start: "Worker started",
+  start: "Started farming",
   launch_game: "Brawl Stars opened",
   dnd: "DND enabled",
   dnd_off: "DND disabled",
@@ -49,8 +51,24 @@ function has(fields: Fields, key: string): boolean {
   return fields[key] !== null && fields[key] !== undefined;
 }
 
+/** Tokens a reader expects in upper case; the split-on-underscore word list would
+ * otherwise print an api_error kind as "Api" and a dnd_off one as "Dnd". */
+const UPPER_WORDS = new Set(["api", "adb", "dnd", "ocr"]);
+
 function words(event: string): string {
-  return event.replaceAll("_", " ");
+  return event
+    .split("_")
+    .map((word) => (UPPER_WORDS.has(word) ? word.toUpperCase() : word))
+    .join(" ");
+}
+
+/** The fields the unlisted-kind fallback prints, in the order it prints them; score is
+ * printed after them in its own words. */
+const HUMAN_FIELDS = ["brawler", "reason", "target", "quest"] as const;
+
+/** A value worth printing: a name or a number, never a flag or a nested object. */
+function human(value: unknown): boolean {
+  return typeof value === "string" || typeof value === "number";
 }
 
 /**
@@ -89,7 +107,7 @@ export function feedText(record: FeedRecord): { text: string; tone: Tone } {
       };
     }
     case "trophies":
-      return { text: `Trophies: ${num(f, "total")}`, tone };
+      return { text: `Trophies: ${count(num(f, "total"))}`, tone };
     case "farming":
       return { text: `Farming ${str(f, "brawler")}`, tone };
     case "select_brawler":
@@ -118,7 +136,8 @@ export function feedText(record: FeedRecord): { text: string; tone: Tone } {
       return { text: `Rotated to ${str(f, "brawler")}: ${str(f, "reason")}`, tone };
     case "wrong_mode":
       return {
-        text: f.recovered === true ? "Wrong mode detected, switched back" : "Wrong mode detected",
+        text:
+          f.recovered === true ? "Picked the wrong mode and switched back" : "Picked the wrong mode",
         tone,
       };
     case "skin_reward":
@@ -128,9 +147,12 @@ export function feedText(record: FeedRecord): { text: string; tone: Tone } {
     case "disconnect":
       return { text: `Disconnected, reconnecting (${num(f, "count")})`, tone };
     case "recover":
-      return { text: `Recovering: ${str(f, "reason")}, attempt ${num(f, "attempt")}`, tone };
+      return {
+        text: `Recovering from ${str(f, "reason")}, attempt ${num(f, "attempt")}${ELLIPSIS}`,
+        tone,
+      };
     case "recover_dismissed":
-      return { text: `Recovery dismissed: ${str(f, "reason")}`, tone };
+      return { text: `Recovery no longer needed: ${str(f, "reason")}`, tone };
     case "crash":
       return { text: `Crash: ${str(f, "err")}`, tone };
     case "adb_error":
@@ -139,19 +161,23 @@ export function feedText(record: FeedRecord): { text: string; tone: Tone } {
         tone,
       };
     case "bad_resolution": {
-      // Array.isArray widens an unknown to any[], so the pair is annotated back to
-      // unknown and printed through show() like every other field in the table.
+      // Array.isArray widens an unknown to any[], so each pair is annotated back to
+      // unknown and printed through sizeWords() like every other size in the panel. A
+      // core version that starts sending the size it wants is honoured without an edit.
       const got: readonly unknown[] = Array.isArray(f.got) ? f.got : [];
-      return {
-        text: `Wrong resolution: ${show(got[0])} x ${show(got[1])}, need 1600 x 900`,
-        tone,
-      };
+      const need: readonly unknown[] = Array.isArray(f.need) ? f.need : [];
+      const wanted = has(f, "need") ? sizeWords(need[0], need[1]) : REQUIRED_SIZE;
+      // A malformed got pair leaves sizeWords() empty; the sentence then says what is
+      // wrong without a dangling colon, because the needed size is the useful half.
+      const size = sizeWords(got[0], got[1]);
+      const head = size === "" ? "Wrong resolution" : `Wrong resolution: ${size}`;
+      return { text: `${head}. brawlfarm needs ${wanted}.`, tone };
     }
     case "recalibrate":
       return { text: `Recalibration needed: ${str(f, "surface")}`, tone };
     case "stop":
       return {
-        text: `Worker stopped: ${str(f, "reason")} (${num(f, "games")} games, ${num(f, "minutes")} min)`,
+        text: `Stopped farming: ${str(f, "reason")} (${count(num(f, "games"))} games, ${count(num(f, "minutes"))} min)`,
         tone,
       };
     case "game_closed":
@@ -171,12 +197,42 @@ export function feedText(record: FeedRecord): { text: string; tone: Tone } {
   // Every remaining *_error kind: api_error, farmplan_error, dnd_off_error, and the ones
   // the core has not added yet.
   if (record.event.endsWith("_error")) {
-    const what = words(record.event.slice(0, -"_error".length));
+    const what = sentence(words(record.event.slice(0, -"_error".length)));
     return { text: `${what} failed: ${str(f, "err")}`, tone };
   }
-  const rest = Object.entries(f)
-    .filter(([, v]) => v !== null && v !== undefined)
-    .map(([k, v]) => `${k}=${String(v)}`)
-    .join(", ");
-  return { text: rest === "" ? words(record.event) : `${words(record.event)}: ${rest}`, tone };
+  // Every kind with no sentence of its own: the event name as a sentence, then only the
+  // fields a reader recognises. A boolean, an object or a key HUMAN_FIELDS does not name
+  // is never printed, because the old key=value join leaked all three into the feed.
+  const parts = HUMAN_FIELDS.filter((key) => human(f[key])).map((key) => str(f, key));
+  if (human(f.score)) parts.push(`match ${Math.round(num(f, "score") * 100)}%`);
+  const head = sentence(words(record.event));
+  return { text: parts.length === 0 ? head : `${head}: ${parts.join(", ")}`, tone };
 }
+
+/** Every kind above, for the test that catches a kind losing its sentence to the fallback. */
+export const HANDLED_KINDS: readonly string[] = [
+  ...Object.keys(PLAIN),
+  "phase",
+  "games_logged",
+  "recap",
+  "trophies",
+  "farming",
+  "select_brawler",
+  "quest_pick",
+  "rotate_brawler",
+  "wrong_mode",
+  "skin_reward",
+  "game_left_foreground",
+  "disconnect",
+  "recover",
+  "recover_dismissed",
+  "crash",
+  "adb_error",
+  "bad_resolution",
+  "recalibrate",
+  "stop",
+  "game_closed",
+  "account_maxed",
+  "maxed_fallback_switch",
+  "step",
+];

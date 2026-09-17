@@ -30,10 +30,10 @@ const STATE_TONES: Record<InstanceState, Tone> = {
 };
 
 const PHASE_LABELS: Record<string, string> = {
-  at_menu: "at menu",
-  queuing: "queuing",
-  playing: "playing",
-  returning: "returning",
+  at_menu: "At the menu",
+  queuing: "Queuing",
+  playing: "Playing",
+  returning: "Returning",
 };
 
 const ALERT_KIND_LABELS: Record<string, string> = {
@@ -92,9 +92,9 @@ export function knownState(state: string | undefined): InstanceState {
 }
 
 /** The worker writes its own phase strings; one it has not taught us is shown as it
- * arrived, because "no status yet" would be a lie. */
+ * arrived, because "No status yet" would be a lie. */
 export function phaseLabel(phase: string | null): string {
-  if (phase === null || phase === "") return "no status yet";
+  if (phase === null || phase === "") return "No status yet";
   return PHASE_LABELS[phase] ?? phase;
 }
 

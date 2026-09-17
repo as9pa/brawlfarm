@@ -64,8 +64,8 @@ const BASIC: readonly Toggle[] = [
   behavior("opportunity_cost", "Opportunity cost", "Skip brawlers whose next tier is far off."),
   behavior("gas_aware", "Gas aware", "Move away from the gas earlier."),
   behavior("bush_hide", "Bush hide", "Hide in bushes when the map allows."),
-  behavior("close_game_on_stop", "Close game on stop", "Close Brawl Stars when the worker stops."),
-  behavior("dnd_at_start", "DND at start", "Turn on Do Not Disturb when the worker starts."),
+  behavior("close_game_on_stop", "Close game on stop", "Close Brawl Stars when the instance stops."),
+  behavior("dnd_at_start", "DND at start", "Turn on Do Not Disturb when the instance starts."),
 ];
 
 const ADVANCED: readonly Toggle[] = [
@@ -82,7 +82,7 @@ const ADVANCED: readonly Toggle[] = [
   advanced(
     "dnd_off_on_stop",
     "DND off on stop",
-    "Turn Do Not Disturb back off when the worker stops.",
+    "Turn Do Not Disturb back off when the instance stops.",
   ),
 ];
 
@@ -126,7 +126,7 @@ export function Behavior({ settingsPatch }: { settingsPatch: SettingsPatch }) {
         {showAdvanced && <div className="mt-2">{rows(ADVANCED)}</div>}
       </div>
 
-      <p className="mt-4 text-[12px] text-muted">Applies to a worker the next time it starts.</p>
+      <p className="mt-4 text-[12px] text-muted">Applies the next time an instance starts.</p>
     </div>
   );
 }

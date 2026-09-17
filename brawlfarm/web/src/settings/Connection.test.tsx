@@ -72,7 +72,7 @@ describe("Settings > Connection", () => {
       "href",
       "/setup",
     );
-    expect(screen.getByText("Applies to a worker the next time it starts.")).toBeInTheDocument();
+    expect(screen.getByText("Applies the next time an instance starts.")).toBeInTheDocument();
 
     fireEvent.change(box, { target: { value: "D:/portable/adb.exe" } });
     fireEvent.blur(box);

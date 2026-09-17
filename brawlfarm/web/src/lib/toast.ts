@@ -28,7 +28,7 @@ export interface ToastItem {
  * -- including the "cannot reach brawlfarm" wording a dead server produces -- and one
  * plain fallback for a failure that came from somewhere else entirely. */
 export function failureMessage(error: unknown): string {
-  return error instanceof ApiError ? error.detail : "Request failed";
+  return error instanceof ApiError ? error.detail : "That did not go through. Try again.";
 }
 
 export const TOAST_MS = 4000;

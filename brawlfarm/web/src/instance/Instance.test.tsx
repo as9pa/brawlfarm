@@ -113,7 +113,9 @@ describe("Instance", () => {
   it("reports an unknown instance with the API's own words", async () => {
     stubPage([makeInstance({ name: "Pie64_1" })]);
     mountPage();
-    expect(await screen.findByText("unknown instance")).toBeInTheDocument();
+    expect(
+      await screen.findByText("No instance by that name. Open Fleet to pick one."),
+    ).toBeInTheDocument();
   });
 
   it("heads the page with the name, state, port, tag, phase and a screenshot link", async () => {
@@ -131,7 +133,7 @@ describe("Instance", () => {
     expect(await screen.findByRole("heading", { level: 2, name: "Pie64" })).toBeInTheDocument();
     expect(screen.getByText("Farming")).toBeInTheDocument();
     expect(screen.getByText("5555")).toBeInTheDocument();
-    expect(screen.getByText("playing")).toBeInTheDocument();
+    expect(screen.getByText("Playing")).toBeInTheDocument();
     expect(screen.getByText("#2P0YLQ9")).toHaveAttribute("data-private");
     const shot = screen.getByRole("link", { name: "Screenshot" });
     expect(shot).toHaveAttribute("href", "/api/instances/Pie64/screenshot.png");
@@ -190,7 +192,7 @@ describe("Instance", () => {
     mountPage();
     const stop = await screen.findByRole("button", { name: "Stop" });
     expect(stop).toBeDisabled();
-    expect(stop).toHaveAttribute("title", "Not running");
+    expect(stop).toHaveAttribute("title", "Already stopped");
     expect(screen.queryByRole("button", { name: "Retry now" })).not.toBeInTheDocument();
   });
 

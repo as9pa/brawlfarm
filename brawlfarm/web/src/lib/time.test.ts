@@ -1,7 +1,7 @@
 /** The clock strings the screens print: ages, wall-clock times and durations. */
 import { describe, expect, it } from "vitest";
 
-import { age, duration, hhmm, hhmmss, hoursText, since } from "./time";
+import { age, dayTime, duration, hhmm, hhmmss, hoursText, since } from "./time";
 
 const NOW = Date.parse("2026-09-11T20:00:00");
 
@@ -54,5 +54,16 @@ describe("duration and hoursText", () => {
     expect(hoursText(3.6667)).toBe("3 h 40 min");
     expect(hoursText(0.5)).toBe("30 min");
     expect(hoursText(0)).toBe("0 min");
+  });
+});
+
+describe("dayTime", () => {
+  it("carries the day in front of the wall-clock time", () => {
+    expect(dayTime("2026-09-17T05:25:00")).toBe("Sep 17, 05:25");
+    expect(dayTime("2026-09-11T14:15:40")).toBe("Sep 11, 14:15");
+  });
+
+  it("answers the empty string for a stamp it cannot read, the same as hhmm", () => {
+    expect(dayTime("not a date")).toBe("");
   });
 });

@@ -33,6 +33,7 @@ import { Button } from "../components/ui/Button";
 import { StateChip } from "../components/ui/StateChip";
 import { Thumb } from "../components/ui/Thumb";
 import { useVisiblePolling } from "../live/useVisiblePolling";
+import { NOT_SET, NOT_STARTED } from "../lib/copy";
 import { signed } from "../lib/format";
 import { phaseLabel } from "../lib/states";
 import { duration, hhmm } from "../lib/time";
@@ -81,9 +82,9 @@ export function breakCaption(until: string | null): string {
 export function nextValue(inst: InstancePayload): string {
   if (inst.state === "offline") {
     const minutes = retryMinutes(inst.note);
-    return minutes === null ? "soon" : `${minutes} min`;
+    return minutes === null ? "Soon" : `${minutes} min`;
   }
-  return inst.until === null ? "none" : hhmm(inst.until);
+  return inst.until === null ? NOT_SET : hhmm(inst.until);
 }
 
 function Metric({ label, value }: { label: string; value: string }) {
@@ -214,7 +215,7 @@ export function InstanceCard({ inst }: InstanceCardProps) {
         <Metric label="Trophies today" value={signed(inst.today.trophies)} />
         <Metric
           label="Session"
-          value={sessionMinutes === null ? "none" : duration(sessionMinutes)}
+          value={sessionMinutes === null ? NOT_STARTED : duration(sessionMinutes)}
         />
         <Metric label={NEXT_LABELS[inst.state]} value={nextValue(inst)} />
       </div>
@@ -224,13 +225,15 @@ export function InstanceCard({ inst }: InstanceCardProps) {
           variant="quiet"
           size="sm"
           disabled={!stoppable}
-          disabledReason="Not running"
+          disabledReason="Already stopped"
           onClick={onStop}
         >
           Stop
         </Button>
+        {/* The same restart either way: a stopped instance has nothing to stop first, so
+            the label says what the press will do rather than what the endpoint is called. */}
         <Button variant="quiet" size="sm" onClick={onRestart}>
-          Restart
+          {stoppable ? "Restart" : "Start"}
         </Button>
         <span className="flex-1" />
         <Button

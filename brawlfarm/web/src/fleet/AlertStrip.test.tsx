@@ -36,20 +36,61 @@ const CRASH = makeAlert({
   detail: "err=adb did not answer",
 });
 
+/** One row per panel kind, then a kind the panel does not write a sentence for. Every row
+ * carries the same raw detail, so a sentence that leaked it would fail the exact match. */
+const SENTENCES: [string, string, string][] = [
+  [
+    "offline",
+    "Instance offline",
+    "Pie64 has been offline for 8 min. Check that the BlueStacks window is open, then press Retry now on its card.",
+  ],
+  [
+    "recover",
+    "Recovering",
+    "Pie64 got stuck on a screen and is working its way back. Open it to watch.",
+  ],
+  ["wrong_mode", "Wrong mode", "Pie64 picked the wrong mode and switched back. Nothing to do."],
+  [
+    "bad_resolution",
+    "Wrong resolution",
+    "Pie64 is not at 1600 by 900. Set the BlueStacks display to 1600 by 900 and restart it.",
+  ],
+  ["crash", "Bot crashed", "Pie64 crashed. Press Restart on its card."],
+  [
+    "recalibrate",
+    "Recalibration due",
+    "Pie64 needs recalibration. Open Calibration and record a new session.",
+  ],
+  ["stop", "Farm stopped", "Pie64: farm stopped. Open Alerts for the details."],
+];
+
 describe("AlertStrip", () => {
-  it("writes an offline alert as a sentence with its age", () => {
+  it.each(SENTENCES)("says one sentence with an action for %s", (kind, title, expected) => {
+    stubFetch(() => jsonResponse({ ok: true }));
+    const alert = makeAlert({
+      kind,
+      title,
+      detail: "score=0.456, recovered=True",
+      ts: new Date(Date.now() - 8 * 60_000).toISOString(),
+    });
+    renderWithProviders(<AlertStrip alert={alert} unread={1} onOpen={vi.fn()} />);
+    expect(screen.getByText(expected)).toBeInTheDocument();
+  });
+
+  it("keeps the kind's own chip beside the sentence", () => {
     stubFetch(() => jsonResponse({ ok: true }));
     renderWithProviders(<AlertStrip alert={OFFLINE} unread={1} onOpen={vi.fn()} />);
-    expect(
-      screen.getByText("Pie64_1 has been offline for 8 min. BlueStacks window not found."),
-    ).toBeInTheDocument();
     expect(screen.getByText("Offline")).toBeInTheDocument();
   });
 
-  it("writes every other kind as instance, title and detail", () => {
+  it("shows none of the raw fields the API packed into the detail", () => {
     stubFetch(() => jsonResponse({ ok: true }));
-    renderWithProviders(<AlertStrip alert={CRASH} unread={1} onOpen={vi.fn()} />);
-    expect(screen.getByText("Pie64 bot crashed: err=adb did not answer")).toBeInTheDocument();
+    const alert = makeAlert({ detail: "score=0.456, recovered=True" });
+    const { container } = renderWithProviders(
+      <AlertStrip alert={alert} unread={1} onOpen={vi.fn()} />,
+    );
+    expect(container.textContent).not.toContain("=");
+    expect(container.textContent).not.toContain("True");
   });
 
   it("offers Retry now only for an offline alert", () => {
