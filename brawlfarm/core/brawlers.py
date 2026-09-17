@@ -150,36 +150,42 @@ def _norm(name: str | None) -> str:
 
 
 def _visible_cards(screen, owned_norm: set[str]) -> dict[str, tuple[int, int]]:
-    """OCR the visible grid and return {normalized name: card tap point}. The name
-    label sits bottom-right IN the card, so the tap point is the nearest column
-    center, BRAWLER_NAME_LABEL_DY above the label."""
+    """OCR the visible grid and return {normalized name: card tap point}. The name label
+    sits bottom-right IN the card (BRAWLER_NAME_LABEL_DX right of and
+    BRAWLER_NAME_LABEL_DY below the card center), so subtracting that offset lands near
+    the center, which is then snapped to the nearest column center (COL0_X + k * COL_W)
+    and the nearest of the 3 row centers. A column the grid region cuts in half is
+    dropped: only part of that card is on screen, so its center is not a tap point."""
+    region_left, _top, region_right, _bottom = config.BRAWLER_GRID_REGION
+    half_w = config.BRAWLER_CARD_W // 2
     cards: dict[str, tuple[int, int]] = {}
     for text, _conf, (lx, ly) in vision.read_lines_boxes(screen, region=config.BRAWLER_GRID_REGION):
         n = _norm(text)
         if n not in owned_norm:
             continue
-        col_x = min(config.BRAWLER_GRID_COLS_X, key=lambda cx: abs(cx - lx))
-        cy = ly - config.BRAWLER_NAME_LABEL_DY
-        if cy < 110:  # card mostly scrolled off the top — tapping its sliver misfires
-            continue
-        cards[n] = (col_x, cy)
+        cx, cy = lx - config.BRAWLER_NAME_LABEL_DX, ly - config.BRAWLER_NAME_LABEL_DY
+        col = round((cx - config.BRAWLER_GRID_COL0_X) / config.BRAWLER_GRID_COL_W)
+        card_x = config.BRAWLER_GRID_COL0_X + col * config.BRAWLER_GRID_COL_W
+        if card_x - half_w < region_left or card_x + half_w > region_right:
+            continue  # half-cut column: tapping it would land on the card's edge or past it
+        card_y = min(config.BRAWLER_GRID_ROWS_Y, key=lambda ry: abs(ry - cy))
+        cards[n] = (card_x, card_y)
     return cards
 
 
-def _scroll_grid(px: int) -> None:
-    """Scroll the grid by ~``px`` (positive = toward the END of the list). Swipes are
-    shortened by BRAWLER_SCROLL_FACTOR because the fling adds ~20% travel; long
-    durations keep the fling small and repeatable."""
-    swipe_px = min(int(abs(px) * config.BRAWLER_SCROLL_FACTOR), config.BRAWLER_SCROLL_MAX_PX)
-    swipe_px = max(swipe_px, config.BRAWLER_SCROLL_MIN_PX)
-    x = config.BRAWLER_SCROLL_X
-    if px > 0:  # content up
-        y1 = config.BRAWLER_SCROLL_BOTTOM_Y
-        y2 = y1 - swipe_px
-    else:  # back toward the top
-        y1 = config.BRAWLER_SCROLL_TOP_Y
-        y2 = y1 + swipe_px
-    adb.swipe(x, y1, x, y2, max(400, int(swipe_px * 2.2)))
+def _scroll_grid(direction: str) -> None:
+    """Swipe the column-major grid one screen sideways along the middle row. Dragging
+    "left" pulls the content left and reveals the columns further RIGHT (the later names
+    under the Name sort); "right" is the reverse. Directions only, never a pixel count:
+    the grid snaps back to whole columns, so a short swipe just undoes itself."""
+    if direction == "left":
+        x1, x2 = config.BRAWLER_SCROLL_X_RIGHT, config.BRAWLER_SCROLL_X_LEFT
+    elif direction == "right":
+        x1, x2 = config.BRAWLER_SCROLL_X_LEFT, config.BRAWLER_SCROLL_X_RIGHT
+    else:
+        raise ValueError(f"_scroll_grid direction must be 'left' or 'right', got {direction!r}")
+    y = config.BRAWLER_SCROLL_Y
+    adb.swipe(x1, y, x2, y, config.BRAWLER_SCROLL_MS)
     time.sleep(1.0)  # let the fling settle before re-reading the grid
 
 
@@ -256,7 +262,7 @@ def select_brawler_by_name_checked(
             px = row_h
         if abs(px) < 40:
             px = row_h // 2  # we're "there" but the card didn't OCR — nudge and retry
-        _scroll_grid(px)
+        _scroll_grid("left" if px > 0 else "right")
         log(f"[brawlers] scrolling {px:+}px toward {target} (attempt {attempt + 1})")
 
     log(f"[brawlers] couldn't reach {target!r} after scroll budget — leaving")
