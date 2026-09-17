@@ -24,6 +24,11 @@ const ARROW_STEP: Record<string, number> = {
   ArrowDown: 1,
 };
 
+/** The one focus ring, restated on the control so it survives an ancestor that sets
+ * outline-none. theme.css carries the same rule as the fallback. */
+const FOCUS_RING =
+  "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent";
+
 export function Segmented<T extends string>({
   value,
   options,
@@ -69,7 +74,7 @@ export function Segmented<T extends string>({
             aria-checked={selected}
             tabIndex={index === tabStop ? 0 : -1}
             onClick={() => onChange(option.value)}
-            className={`h-6 rounded-[4px] px-2 text-[12px] transition-colors duration-[120ms] ${selected ? "bg-accent text-accent-ink" : "text-muted hover:text-text"}`}
+            className={`h-6 rounded-[4px] px-2 text-[12px] transition-colors duration-[120ms] ${selected ? "bg-accent text-accent-ink" : "text-muted hover:text-text"} ${FOCUS_RING}`}
           >
             {option.label}
           </button>

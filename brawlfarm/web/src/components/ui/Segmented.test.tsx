@@ -87,4 +87,11 @@ describe("Segmented", () => {
     await userEvent.keyboard("{PageDown}");
     expect(onChange).not.toHaveBeenCalled();
   });
+
+  it("carries the shared focus ring on every option", () => {
+    render(<Segmented value="all" options={OPTIONS} onChange={vi.fn()} label="Feed filter" />);
+    for (const option of screen.getAllByRole("radio")) {
+      expect(option.className).toContain("focus-visible:outline-accent");
+    }
+  });
 });

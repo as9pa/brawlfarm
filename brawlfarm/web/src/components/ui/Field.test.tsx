@@ -76,4 +76,78 @@ describe("Field", () => {
     expect(input.className).toContain("w-full");
     expect(input.className).not.toContain("w-24");
   });
+
+  it("renders a help line under the control and points the input at it", () => {
+    render(
+      <Field label="ADB path" id="adb" value="" onChange={vi.fn()} help="Where adb.exe lives." />,
+    );
+    const input = screen.getByLabelText("ADB path");
+    expect(screen.getByText("Where adb.exe lives.")).toHaveAttribute("id", "adb-msg");
+    expect(input).toHaveAttribute("aria-describedby", "adb-msg");
+    expect(input).not.toHaveAttribute("aria-invalid");
+    expect(input.className).toContain("border-line");
+  });
+
+  it("lets an error replace the help line, announce itself and colour the border", () => {
+    render(
+      <Field
+        label="ADB path"
+        id="adb"
+        value=""
+        onChange={vi.fn()}
+        help="Where adb.exe lives."
+        error="That path does not exist."
+      />,
+    );
+    const input = screen.getByLabelText("ADB path");
+    expect(screen.queryByText("Where adb.exe lives.")).not.toBeInTheDocument();
+    const message = screen.getByRole("alert");
+    expect(message).toHaveTextContent("That path does not exist.");
+    expect(message).toHaveAttribute("id", "adb-msg");
+    expect(input).toHaveAttribute("aria-describedby", "adb-msg");
+    expect(input).toHaveAttribute("aria-invalid", "true");
+    expect(input.className).toContain("border-bad");
+    expect(input.className).not.toContain("border-line");
+  });
+
+  it("says nothing with neither message, so no row shifts", () => {
+    const { container } = render(
+      <Field label="Goal" id="goal" value="1000" onChange={vi.fn()} type="number" />,
+    );
+    const input = screen.getByLabelText("Goal");
+    expect(input).not.toHaveAttribute("aria-describedby");
+    expect(input).not.toHaveAttribute("aria-invalid");
+    expect(container.querySelector("#goal-msg")).toBeNull();
+  });
+
+  it("passes the typing hints straight to the input", () => {
+    render(
+      <Field
+        label="Port"
+        id="port"
+        value="5555"
+        onChange={vi.fn()}
+        inputMode="numeric"
+        spellCheck={false}
+        autoComplete="off"
+      />,
+    );
+    const input = screen.getByLabelText("Port");
+    expect(input).toHaveAttribute("inputmode", "numeric");
+    expect(input).toHaveAttribute("spellcheck", "false");
+    expect(input).toHaveAttribute("autocomplete", "off");
+  });
+
+  it("keeps the spellchecker off the masked token by default", () => {
+    render(
+      <Field
+        label="Brawl Stars API token"
+        id="token"
+        value="a-token-that-is-not-real"
+        onChange={vi.fn()}
+        type="password"
+      />,
+    );
+    expect(screen.getByLabelText("Brawl Stars API token")).toHaveAttribute("spellcheck", "false");
+  });
 });

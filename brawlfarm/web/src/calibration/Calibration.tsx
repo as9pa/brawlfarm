@@ -155,7 +155,7 @@ export function Calibration() {
       {instance !== undefined && <StateChip state={instance.state} />}
 
       <div className="ml-auto">
-        <Button variant="quiet" size="sm" onClick={openFolder}>
+        <Button variant="secondary" size="sm" onClick={openFolder}>
           Open calibration folder
         </Button>
       </div>

@@ -1,7 +1,24 @@
-/** Signed trophy deltas and the singular nouns the feed sentences need. */
+/**
+ * Signed trophy deltas, grouped figures, clock strings and the singular nouns the feed
+ * sentences need.
+ *
+ * The locale is pinned rather than inferred: every formatter in format.ts names en-US, so
+ * these assertions hold on a machine whose own locale groups with a dot or writes the day
+ * first. The timezone is the host's, which is why the clock cases use a stamp with no
+ * zone: the API writes local wall clock and the formatter reads it back as local wall
+ * clock.
+ */
 import { describe, expect, it } from "vitest";
 
-import { plural, signed } from "./format";
+import { clock, dateTime, num, plural, signed } from "./format";
+
+describe("num", () => {
+  it("groups the thousands and leaves zero and a negative readable", () => {
+    expect(num(12345)).toBe("12,345");
+    expect(num(0)).toBe("0");
+    expect(num(-1234567)).toBe("-1,234,567");
+  });
+});
 
 describe("signed", () => {
   it("puts a plus on a gain and leaves a plain zero alone", () => {
@@ -9,6 +26,35 @@ describe("signed", () => {
     expect(signed(-12)).toBe("-12");
     expect(signed(0)).toBe("0");
     expect(signed(-0)).toBe("0");
+  });
+
+  it("groups a four-figure delta the same way num does", () => {
+    expect(signed(1250)).toBe("+1,250");
+    expect(signed(-1250)).toBe("-1,250");
+  });
+});
+
+describe("clock", () => {
+  it("writes a 24-hour wall clock with both fields padded", () => {
+    expect(clock("2026-09-17T05:25:00")).toBe("05:25");
+    expect(clock("2026-09-17T20:18:00")).toBe("20:18");
+    // Midnight is 00, never 24: the h23 cycle is named rather than left to the locale.
+    expect(clock("2026-09-17T00:07:00")).toBe("00:07");
+  });
+
+  it("answers the empty string for a stamp it cannot read", () => {
+    expect(clock("not a time")).toBe("");
+    expect(clock("")).toBe("");
+  });
+});
+
+describe("dateTime", () => {
+  it("puts the day in front of the same wall clock", () => {
+    expect(dateTime("2026-09-17T05:25:00")).toBe("Sep 17, 05:25");
+  });
+
+  it("answers the empty string for a stamp it cannot read", () => {
+    expect(dateTime("not a time")).toBe("");
   });
 });
 

@@ -10,15 +10,50 @@
  *
  * An Undo is usually an API call, so a failed one has to land somewhere: it becomes a
  * second toast carrying the API's own sentence, never a silent unhandled rejection and
- * never an exception thrown out of the click handler.
+ * never an exception thrown out of the click handler. A Retry is the same call again and
+ * fails the same way, so it answers for itself the same way.
+ *
+ * The tone reaches the reader three ways, because the colour alone reaches nobody who
+ * cannot see it: the hairline takes the tone's colour, ok and bad take an icon, and a bad
+ * toast is announced as an alert rather than politely.
  */
+import { CircleAlert, CircleCheck } from "lucide-react";
 import { useEffect, useState } from "react";
 
 import { Button } from "./Button";
 import { ApiError } from "../../api/client";
-import { type ToastItem, dismissToast, toast, useToasts } from "../../lib/toast";
+import {
+  type ToastItem,
+  type ToastTone,
+  dismissToast,
+  failureMessage,
+  toast,
+  useToasts,
+} from "../../lib/toast";
 
 const UNDO_FAILED = "Undo failed";
+
+const TONE_BAR: Record<ToastTone, string> = {
+  ok: "bg-ok",
+  bad: "bg-bad",
+  info: "bg-accent",
+};
+
+/** The icon sits on top of the colour rather than carrying the meaning on its own, so an
+ * info toast goes without one instead of reaching for a shape that says nothing. */
+const TONE_ICON: Record<ToastTone, typeof CircleCheck | null> = {
+  ok: CircleCheck,
+  bad: CircleAlert,
+  info: null,
+};
+
+/** The icon takes the tone's colour too, so the strip reads as one thing rather than a
+ * grey mark sitting above a coloured hairline. */
+const TONE_ICON_COLOUR: Record<ToastTone, string> = {
+  ok: "text-ok",
+  bad: "text-bad",
+  info: "",
+};
 
 /** jsdom and any non-browser render have no matchMedia; no implementation means the
  * reader has stated no preference. */
@@ -60,6 +95,20 @@ export function Toast({ item }: ToastProps) {
     };
   }, [item.id, item.durationMs]);
 
+  const isBad = item.tone === "bad";
+  // A retry is a failure's answer, so it reaches the screen on a bad toast only: offering
+  // it on a polite note would ask the reader to redo something that went through.
+  // Never two actions in one strip either: a reader offered both has to work out which
+  // one puts it back, so the undo stands, being the one that undoes something.
+  const retry = isBad && item.undo === undefined ? item.retry : undefined;
+  const Icon = TONE_ICON[item.tone];
+
+  useEffect(() => {
+    if (item.undo !== undefined && item.retry !== undefined) {
+      console.error("toast: a toast offered both an undo and a retry; the retry was dropped");
+    }
+  }, [item.id, item.undo, item.retry]);
+
   const onUndo = () => {
     dismissToast(item.id);
     // The call is made inside the promise, not handed to Promise.resolve, which would
@@ -73,23 +122,51 @@ export function Toast({ item }: ToastProps) {
     });
   };
 
+  const onRetry = () => {
+    dismissToast(item.id);
+    // Inside the promise for the same reason the undo is: a retry that throws on its way
+    // to its request has to reach the reader rather than die in the console.
+    new Promise<void>((resolve) => {
+      resolve(retry?.());
+    }).catch((failure: unknown) => {
+      console.error("toast: retry failed", failure);
+      // The follow-up carries no retry of its own: one that re-arms on every failure is a
+      // loop the reader has to click their way out of.
+      toast(failureMessage(failure), { tone: "bad" });
+    });
+  };
+
   return (
     <div
-      aria-live="polite"
+      role={isBad ? "alert" : undefined}
+      aria-live={isBad ? undefined : "polite"}
       className="pointer-events-auto w-[320px] overflow-hidden rounded-[10px] border border-line bg-panel"
     >
       <div className="flex items-center gap-3 px-3 py-2">
+        {Icon !== null && (
+          <Icon
+            size={14}
+            strokeWidth={1.6}
+            aria-hidden="true"
+            className={TONE_ICON_COLOUR[item.tone]}
+          />
+        )}
         <span className="flex-1 text-[13px] text-text">{item.message}</span>
         {item.undo !== undefined && (
-          <Button variant="text" size="sm" onClick={onUndo}>
+          <Button variant="quiet" size="sm" onClick={onUndo}>
             Undo
+          </Button>
+        )}
+        {retry !== undefined && (
+          <Button variant="quiet" size="sm" onClick={onRetry}>
+            Retry
           </Button>
         )}
       </div>
       <div
         aria-hidden="true"
         data-drain=""
-        className="h-px bg-accent"
+        className={`h-px ${TONE_BAR[item.tone]}`}
         style={{
           width: drained ? "0%" : "100%",
           transition: drained ? `width ${item.durationMs}ms linear` : undefined,

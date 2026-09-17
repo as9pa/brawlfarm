@@ -111,7 +111,7 @@ export function StepBlueStacks({ setup }: StepProps) {
       </div>
 
       <div className="mt-5 flex items-center gap-2">
-        <Button variant="quiet" disabled={scanning} onClick={() => run(typed === "" ? undefined : typed)}>
+        <Button variant="secondary" disabled={scanning} onClick={() => run(typed === "" ? undefined : typed)}>
           Scan again
         </Button>
         <Button

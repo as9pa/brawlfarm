@@ -200,7 +200,7 @@ export function Schedule({ name }: { name: string }) {
           Start
         </Button>
         <Button
-          variant="quiet"
+          variant="secondary"
           size="sm"
           onClick={() => {
             void patch(

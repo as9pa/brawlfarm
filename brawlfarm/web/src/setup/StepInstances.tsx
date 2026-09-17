@@ -202,7 +202,7 @@ export function StepInstances({ setup }: StepProps) {
       width: "72px",
       render: (row) => (
         <Button
-          variant="text"
+          variant="quiet"
           size="sm"
           disabled={row.adb_port === null || status[row.name] === "testing"}
           disabledReason="This instance has no ADB port"
@@ -231,10 +231,10 @@ export function StepInstances({ setup }: StepProps) {
         />
 
         <div className="flex flex-wrap items-center gap-2">
-          <Button variant="quiet" disabled={scanning} onClick={run}>
+          <Button variant="secondary" disabled={scanning} onClick={run}>
             Scan again
           </Button>
-          <Button variant="text" size="sm" onClick={() => setAdding((on) => !on)}>
+          <Button variant="quiet" size="sm" onClick={() => setAdding((on) => !on)}>
             Add a port
           </Button>
         </div>
@@ -249,7 +249,7 @@ export function StepInstances({ setup }: StepProps) {
               type="number"
               min={1}
             />
-            <Button variant="quiet" onClick={addPort}>
+            <Button variant="secondary" onClick={addPort}>
               Add
             </Button>
           </div>
@@ -261,7 +261,7 @@ export function StepInstances({ setup }: StepProps) {
       </div>
 
       <div className="mt-5 flex items-center gap-2">
-        <Button variant="quiet" onClick={back}>
+        <Button variant="secondary" onClick={back}>
           Back
         </Button>
         <Button

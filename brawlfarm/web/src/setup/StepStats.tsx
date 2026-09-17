@@ -102,6 +102,8 @@ export function StepStats({ setup }: StepProps) {
             onChange={token.onChange}
             type="password"
             width="full"
+            spellCheck={false}
+            autoComplete="off"
           />
           {tokenError !== undefined && <p className="mt-1 text-[12px] text-bad">{tokenError}</p>}
         </div>
@@ -130,10 +132,10 @@ export function StepStats({ setup }: StepProps) {
       </div>
 
       <div className="mt-5 flex flex-wrap items-center gap-2">
-        <Button variant="quiet" onClick={back}>
+        <Button variant="secondary" onClick={back}>
           Back
         </Button>
-        <Button variant="text" size="sm" onClick={skip}>
+        <Button variant="quiet" size="sm" onClick={skip}>
           Skip for now
         </Button>
         <Button variant="primary" onClick={next}>

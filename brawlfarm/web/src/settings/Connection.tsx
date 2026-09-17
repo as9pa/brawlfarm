@@ -113,6 +113,8 @@ export function Connection({ settingsPatch }: { settingsPatch: SettingsPatch }) 
             onChange={token.onChange}
             type="password"
             width="full"
+            spellCheck={false}
+            autoComplete="off"
           />
         </div>
       </SettingRow>

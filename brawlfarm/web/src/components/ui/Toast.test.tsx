@@ -172,6 +172,121 @@ describe("Toaster", () => {
     expect(bar.style.transition).toBe("");
   });
 
+  it.each([
+    ["info", "bg-accent"],
+    ["ok", "bg-ok"],
+    ["bad", "bg-bad"],
+  ] as const)("colours the hairline for a %s toast", (tone, expected) => {
+    const { container } = render(<Toaster />);
+    act(() => {
+      toast("Plan saved", { tone });
+    });
+    expect(drainBar(container)).toHaveClass(expected);
+  });
+
+  it.each([
+    ["ok", "text-ok"],
+    ["bad", "text-bad"],
+  ] as const)("colours the %s icon to match the hairline", (tone, expected) => {
+    const { container } = render(<Toaster />);
+    act(() => {
+      toast("Plan saved", { tone });
+    });
+    const icon = container.querySelector("svg");
+    expect(icon).not.toBeNull();
+    expect(icon).toHaveClass(expected);
+  });
+
+  it("calls a bad toast out rather than announcing it politely", () => {
+    render(<Toaster />);
+    act(() => {
+      toast("That did not go through. Try again.", { tone: "bad" });
+    });
+    const strip = screen.getByRole("alert");
+    expect(strip).toHaveTextContent("That did not go through. Try again.");
+    expect(strip).not.toHaveAttribute("aria-live");
+  });
+
+  it("offers Retry on a bad toast, runs it once and closes", () => {
+    const retry = vi.fn();
+    render(<Toaster />);
+    act(() => {
+      toast("That did not go through. Try again.", { tone: "bad", retry });
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Retry" }));
+    expect(retry).toHaveBeenCalledTimes(1);
+    expect(screen.queryByText("That did not go through. Try again.")).not.toBeInTheDocument();
+  });
+
+  it("offers no Retry on a toast that is not reporting a failure", () => {
+    render(<Toaster />);
+    act(() => {
+      toast("Plan saved", { tone: "info", retry: vi.fn() });
+    });
+    expect(screen.queryByRole("button")).not.toBeInTheDocument();
+  });
+
+  it("offers no action on a bad toast with nothing to retry", () => {
+    render(<Toaster />);
+    act(() => {
+      toast("That did not go through. Try again.", { tone: "bad" });
+    });
+    expect(screen.queryByRole("button")).not.toBeInTheDocument();
+  });
+
+  it("still offers Undo on an ok toast", () => {
+    render(<Toaster />);
+    act(() => {
+      toast("Stopping Pie64 after this match", { tone: "ok", undo: vi.fn() });
+    });
+    expect(screen.getByRole("button", { name: "Undo" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Retry" })).not.toBeInTheDocument();
+  });
+
+  it("keeps Undo and drops Retry when a caller offers both", () => {
+    const logged = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    render(<Toaster />);
+    act(() => {
+      toast("Stopping Pie64 after this match", { undo: vi.fn(), retry: vi.fn() });
+    });
+    expect(screen.getByRole("button", { name: "Undo" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Retry" })).not.toBeInTheDocument();
+    expect(logged).toHaveBeenCalledTimes(1);
+    expect(String(logged.mock.calls[0][0])).toContain("retry");
+  });
+
+  it("says why a retry failed in one toast that does not offer another retry", async () => {
+    vi.useRealTimers();
+    const logged = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const retry = vi.fn(() => Promise.reject(new ApiError(503, "adb did not answer")));
+    const { container } = render(<Toaster />);
+    act(() => {
+      toast("That did not go through. Try again.", { tone: "bad", retry });
+    });
+    await userEvent.click(screen.getByRole("button", { name: "Retry" }));
+    expect(await screen.findByText("adb did not answer")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Retry" })).not.toBeInTheDocument();
+    // One follow-up, not one per rejection path: a second toast would be waiting behind
+    // this one with its own drain bar.
+    expect(container.querySelectorAll("[data-drain]")).toHaveLength(1);
+    expect(logged).toHaveBeenCalledTimes(1);
+  });
+
+  it("reports a retry that threw exactly as it reports one that rejected", async () => {
+    vi.useRealTimers();
+    const logged = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const retry = vi.fn(() => {
+      throw new ApiError(503, "adb did not answer");
+    });
+    render(<Toaster />);
+    act(() => {
+      toast("That did not go through. Try again.", { tone: "bad", retry });
+    });
+    await userEvent.click(screen.getByRole("button", { name: "Retry" }));
+    expect(await screen.findByText("adb did not answer")).toBeInTheDocument();
+    expect(logged).toHaveBeenCalledTimes(1);
+  });
+
   it("renders nothing at all when the queue is empty", () => {
     const { container } = render(<Toaster />);
     expect(container).toBeEmptyDOMElement();

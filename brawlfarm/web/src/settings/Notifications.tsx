@@ -184,7 +184,7 @@ export function Notifications({ settingsPatch }: { settingsPatch: SettingsPatch 
 
       <div className="mt-4 flex items-center gap-2">
         <Button
-          variant="quiet"
+          variant="secondary"
           disabled={!hasChannel || sending}
           disabledReason={hasChannel ? undefined : "Add a channel first"}
           onClick={sendTest}

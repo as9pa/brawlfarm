@@ -120,10 +120,10 @@ export function Fleet() {
             at level one leaves the document with no outline to speak of. */}
         <h2 className="text-[28px] font-semibold tracking-tight">Fleet</h2>
         <span className="flex-1 text-[13px] text-muted">{plural(fleet.length, "instance")}</span>
-        <Button variant="quiet" size="sm" onClick={onStartAll}>
+        <Button variant="secondary" size="sm" onClick={onStartAll}>
           Start all
         </Button>
-        <Button variant="quiet" size="sm" onClick={onStopAll}>
+        <Button variant="secondary" size="sm" onClick={onStopAll}>
           Stop all
         </Button>
       </header>

@@ -57,7 +57,7 @@ export function TopBar() {
         {pill.label}
       </span>
 
-      <Button variant="quiet" size="sm" onClick={openAlertsDrawer}>
+      <Button variant="secondary" size="sm" onClick={openAlertsDrawer}>
         <Bell size={16} strokeWidth={1.6} aria-hidden="true" />
         Alerts
         {unread > 0 && (

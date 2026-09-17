@@ -19,7 +19,7 @@ describe("Drawer", () => {
 
   it("is a modal dialog named by its title, with its actions in the header", () => {
     render(
-      <Drawer open onClose={vi.fn()} title="Alerts" actions={<Button variant="text">Dismiss all</Button>}>
+      <Drawer open onClose={vi.fn()} title="Alerts" actions={<Button variant="quiet">Dismiss all</Button>}>
         <p>rows</p>
       </Drawer>,
     );
@@ -42,7 +42,7 @@ describe("Drawer", () => {
   it("keeps Tab inside the panel", async () => {
     render(
       <Drawer open onClose={vi.fn()} title="Alerts">
-        <Button variant="text">Dismiss</Button>
+        <Button variant="quiet">Dismiss</Button>
       </Drawer>,
     );
     const close = screen.getByRole("button", { name: "Close" });
@@ -60,7 +60,7 @@ describe("Drawer", () => {
   it("leaves focus alone when the caller re-renders with a fresh onClose", () => {
     const panel = (
       <Drawer open onClose={() => undefined} title="Alerts">
-        <Button variant="text">Dismiss</Button>
+        <Button variant="quiet">Dismiss</Button>
       </Drawer>
     );
     const { rerender } = render(panel);
@@ -69,7 +69,7 @@ describe("Drawer", () => {
     // not re-run the focus effect, whose cleanup returns focus to whatever opened the panel.
     rerender(
       <Drawer open onClose={() => undefined} title="Alerts">
-        <Button variant="text">Dismiss</Button>
+        <Button variant="quiet">Dismiss</Button>
       </Drawer>,
     );
     expect(screen.getByRole("button", { name: "Dismiss" })).toHaveFocus();

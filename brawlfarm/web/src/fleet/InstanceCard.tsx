@@ -180,7 +180,7 @@ export function InstanceCard({ inst }: InstanceCardProps) {
           note={inst.note}
           onRetry={
             <span className="relative z-10">
-              <Button variant="text" size="sm" onClick={onRetry}>
+              <Button variant="quiet" size="sm" onClick={onRetry}>
                 Retry now
               </Button>
             </span>
@@ -222,7 +222,7 @@ export function InstanceCard({ inst }: InstanceCardProps) {
 
       <div className="relative z-10 mt-3 flex items-center gap-2 border-t border-line pt-2">
         <Button
-          variant="quiet"
+          variant="secondary"
           size="sm"
           disabled={!stoppable}
           disabledReason="Already stopped"
@@ -232,12 +232,12 @@ export function InstanceCard({ inst }: InstanceCardProps) {
         </Button>
         {/* The same restart either way: a stopped instance has nothing to stop first, so
             the label says what the press will do rather than what the endpoint is called. */}
-        <Button variant="quiet" size="sm" onClick={onRestart}>
+        <Button variant="secondary" size="sm" onClick={onRestart}>
           {stoppable ? "Restart" : "Start"}
         </Button>
         <span className="flex-1" />
         <Button
-          variant="text"
+          variant="quiet"
           size="sm"
           onClick={() => {
             void navigate(`/instances/${inst.name}`);

@@ -86,15 +86,15 @@ export function AlertStrip({ alert, unread, onOpen }: AlertStripProps) {
         {alertSentence(alert, nowMs)}
       </p>
       {alert.kind === "offline" && (
-        <Button variant="text" size="sm" onClick={onRetry}>
+        <Button variant="quiet" size="sm" onClick={onRetry}>
           Retry now
         </Button>
       )}
-      <Button variant="text" size="sm" onClick={onDismiss}>
+      <Button variant="quiet" size="sm" onClick={onDismiss}>
         Dismiss
       </Button>
       {unread > 1 && (
-        <Button variant="text" size="sm" onClick={onOpen}>
+        <Button variant="quiet" size="sm" onClick={onOpen}>
           {`${unread - 1} more`}
         </Button>
       )}
