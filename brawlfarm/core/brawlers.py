@@ -137,10 +137,10 @@ def select_lowest_trophy_brawler(log=print) -> str | None:
 # --- select BY NAME (farm plan) ------------------------------------------------
 # The farm plan (core/farmplan.py) can name an explicit brawler to grind. Flow:
 # BRAWLERS screen -> sort "Name" (alphabetical, digits first) -> filters OFF ->
-# self-correcting scroll loop (OCR the visible card names, estimate how many rows to
-# the target from the API's alphabetical OWNED list, swipe, re-check) -> tap the card
-# -> VERIFY the name on the detail screen (config.BRAWLER_NAME_REGION) -> SELECT.
-# Geometry + the inertia correction live in config (BRAWLER_GRID_* / BRAWLER_SCROLL_*).
+# name-directed scan (OCR the visible card names, compare the target with the names
+# on screen, swipe one screen sideways toward it, re-check) -> tap the card -> VERIFY
+# the name on the detail screen (config.BRAWLER_NAME_REGION) -> SELECT.
+# Geometry lives in config (BRAWLER_GRID_* / BRAWLER_SCROLL_*).
 
 
 def _norm(name: str | None) -> str:
@@ -150,44 +150,50 @@ def _norm(name: str | None) -> str:
 
 
 def _visible_cards(screen, owned_norm: set[str]) -> dict[str, tuple[int, int]]:
-    """OCR the visible grid and return {normalized name: card tap point}. The name
-    label sits bottom-right IN the card, so the tap point is the nearest column
-    center, BRAWLER_NAME_LABEL_DY above the label."""
+    """OCR the visible grid and return {normalized name: card tap point}. The name label
+    sits bottom-right IN the card (BRAWLER_NAME_LABEL_DX right of and
+    BRAWLER_NAME_LABEL_DY below the card center), so subtracting that offset lands near
+    the center, which is then snapped to the nearest column center (COL0_X + k * COL_W)
+    and the nearest of the 3 row centers. A column the grid region cuts in half is
+    dropped: only part of that card is on screen, so its center is not a tap point."""
+    region_left, _top, region_right, _bottom = config.BRAWLER_GRID_REGION
+    half_w = config.BRAWLER_CARD_W // 2
     cards: dict[str, tuple[int, int]] = {}
     for text, _conf, (lx, ly) in vision.read_lines_boxes(screen, region=config.BRAWLER_GRID_REGION):
         n = _norm(text)
         if n not in owned_norm:
             continue
-        col_x = min(config.BRAWLER_GRID_COLS_X, key=lambda cx: abs(cx - lx))
-        cy = ly - config.BRAWLER_NAME_LABEL_DY
-        if cy < 110:  # card mostly scrolled off the top — tapping its sliver misfires
-            continue
-        cards[n] = (col_x, cy)
+        cx, cy = lx - config.BRAWLER_NAME_LABEL_DX, ly - config.BRAWLER_NAME_LABEL_DY
+        col = round((cx - config.BRAWLER_GRID_COL0_X) / config.BRAWLER_GRID_COL_W)
+        card_x = config.BRAWLER_GRID_COL0_X + col * config.BRAWLER_GRID_COL_W
+        if card_x - half_w < region_left or card_x + half_w > region_right:
+            continue  # half-cut column: tapping it would land on the card's edge or past it
+        card_y = min(config.BRAWLER_GRID_ROWS_Y, key=lambda ry: abs(ry - cy))
+        cards[n] = (card_x, card_y)
     return cards
 
 
-def _scroll_grid(px: int) -> None:
-    """Scroll the grid by ~``px`` (positive = toward the END of the list). Swipes are
-    shortened by BRAWLER_SCROLL_FACTOR because the fling adds ~20% travel; long
-    durations keep the fling small and repeatable."""
-    swipe_px = min(int(abs(px) * config.BRAWLER_SCROLL_FACTOR), config.BRAWLER_SCROLL_MAX_PX)
-    swipe_px = max(swipe_px, config.BRAWLER_SCROLL_MIN_PX)
-    x = config.BRAWLER_SCROLL_X
-    if px > 0:  # content up
-        y1 = config.BRAWLER_SCROLL_BOTTOM_Y
-        y2 = y1 - swipe_px
-    else:  # back toward the top
-        y1 = config.BRAWLER_SCROLL_TOP_Y
-        y2 = y1 + swipe_px
-    adb.swipe(x, y1, x, y2, max(400, int(swipe_px * 2.2)))
+def _scroll_grid(direction: str) -> None:
+    """Swipe the column-major grid one screen sideways along the middle row. Dragging
+    "left" pulls the content left and reveals the columns further RIGHT (the later names
+    under the Name sort); "right" is the reverse. Directions only, never a pixel count:
+    the grid snaps back to whole columns, so a short swipe just undoes itself."""
+    if direction == "left":
+        x1, x2 = config.BRAWLER_SCROLL_X_RIGHT, config.BRAWLER_SCROLL_X_LEFT
+    elif direction == "right":
+        x1, x2 = config.BRAWLER_SCROLL_X_LEFT, config.BRAWLER_SCROLL_X_RIGHT
+    else:
+        raise ValueError(f"_scroll_grid direction must be 'left' or 'right', got {direction!r}")
+    y = config.BRAWLER_SCROLL_Y
+    adb.swipe(x1, y, x2, y, config.BRAWLER_SCROLL_MS)
     time.sleep(1.0)  # let the fling settle before re-reading the grid
 
 
 def select_brawler_by_name_checked(
     target: str, owned_names: list[str], log=print
 ) -> tuple[str | None, str | None]:
-    """Open BRAWLERS, sort alphabetically, scroll to ``target`` (one of the API's
-    OWNED brawler names) and select it — verifying the detail-screen name by OCR
+    """Open BRAWLERS, sort alphabetically, scan sideways for ``target`` (one of the
+    API's OWNED brawler names) and select it, verifying the detail-screen name by OCR
     before tapping SELECT, and bailing safely (back to menu, return None) on any
     mismatch. Returns ``(name, suspicion)``: the verified name or None, plus a short
     detail string when the season-rollover tripwire saw the BRAWLERS screen verify
@@ -195,13 +201,10 @@ def select_brawler_by_name_checked(
     otherwise; see ops-resilience.md §B — the grid layout/label style may have
     shifted). Assumes we start at/near the menu."""
     target_n = _norm(target)
-    owned_sorted = sorted(owned_names, key=str.upper)  # digits-first, like the game
-    owned_norm_list = [_norm(n) for n in owned_sorted]
-    owned_norm = set(owned_norm_list)
+    owned_norm = {_norm(n) for n in owned_names}
     if target_n not in owned_norm:
         log(f"[brawlers] target {target!r} is not in the owned list — leaving")
         return None, recalib.SKIP  # never navigated: no observation (review #56)
-    t_row = owned_norm_list.index(target_n) // 3
 
     adb.tap(*config.BRAWLERS_BUTTON)
     opened = False
@@ -223,7 +226,9 @@ def select_brawler_by_name_checked(
     _ensure_toggle_off(config.BRAWLER_QUEST_TOGGLE, "Quest", log)
     _ensure_toggle_off(config.BRAWLER_HEART_TOGGLE, "Heart", log)
 
-    row_h = config.BRAWLER_GRID_ROW_H
+    # Which way the next swipe goes. The Name sort runs the roster left to right, so the
+    # names after the ones on screen are further right, which is where a blind scan starts.
+    direction = "left"
     saw_names = False  # tripwire: did the grid OCR EVER read an owned name?
     for attempt in range(config.BRAWLER_SELECT_MAX_SWIPES):
         screen = adb.screencap()
@@ -243,21 +248,17 @@ def select_brawler_by_name_checked(
             log(f"[brawlers] detail screen shows {shown!r}, wanted {target!r} — backing out")
             _exit_to_menu()
             return None, None
-        # Not visible: estimate how far off we are from any recognized card.
-        offsets = []
-        for n, (_x, y) in cards.items():
-            r = owned_norm_list.index(n) // 3
-            # row r's center is at y; the target row's center is offset by full rows.
-            offsets.append((t_row - r) * row_h + y - config.BRAWLER_GRID_TARGET_Y)
-        if offsets:
-            px = int(sum(offsets) / len(offsets))
-        else:
-            # OCR matched nothing (transition frame?) — probe forward a row.
-            px = row_h
-        if abs(px) < 40:
-            px = row_h // 2  # we're "there" but the card didn't OCR — nudge and retry
-        _scroll_grid(px)
-        log(f"[brawlers] scrolling {px:+}px toward {target} (attempt {attempt + 1})")
+        # Not visible: the names on screen say which way the target is. Before the
+        # smallest one it's in the columns to the left, after the largest one in the
+        # columns to the right. Between the two it's a gap in the grid (not owned on
+        # this account, or a misread), so keep going the way we were and never bounce.
+        if cards:
+            if target_n < min(cards):
+                direction = "right"
+            elif target_n > max(cards):
+                direction = "left"
+        _scroll_grid(direction)
+        log(f"[brawlers] scrolling {direction} toward {target} (attempt {attempt + 1})")
 
     log(f"[brawlers] couldn't reach {target!r} after scroll budget — leaving")
     _exit_to_menu()

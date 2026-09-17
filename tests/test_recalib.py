@@ -101,7 +101,7 @@ def _patch_brawler_nav(monkeypatch, cards):
     monkeypatch.setattr(brawlers, "_set_sort", lambda item, log: True)
     monkeypatch.setattr(brawlers, "_ensure_toggle_off", lambda c, n, log: None)
     monkeypatch.setattr(brawlers, "_visible_cards", lambda s, owned: dict(cards))
-    monkeypatch.setattr(brawlers, "_scroll_grid", lambda px: None)
+    monkeypatch.setattr(brawlers, "_scroll_grid", lambda direction: None)
     monkeypatch.setattr(brawlers, "_exit_to_menu", lambda: None)
     monkeypatch.setattr(brawlers.time, "sleep", lambda s: None)
 
