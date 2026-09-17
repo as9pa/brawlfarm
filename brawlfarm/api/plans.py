@@ -1,14 +1,14 @@
 """GET and PUT /api/instances/{name}/plan: the instance's farmplan.json, typed.
 
 core/farmplan.py stores an untyped dict and validates nothing, so the model here is the
-only gate: four keys, no others, so a typo in the editor cannot write a field the worker
+only gate: five keys, no others, so a typo in the editor cannot write a field the worker
 will never read. Legacy files on disk carry extra keys and retired modes -- GET drops the
 extras and load_plan aliases the modes, because the editor must always have something to
 show.
 
 The worker re-reads the plan live (at startup and on every trophy snapshot, roughly once
 a minute), so a PUT takes effect without restarting anything. Both routes return the same
-enriched shape: the four stored keys plus the brawler being farmed, the owned roster from
+enriched shape: the five stored keys plus the brawler being farmed, the owned roster from
 api/roster.py, the next three names plan_queue would reach for, and a roster_status
 saying why the roster is missing when it is. PUT returns it too, so the editor never has
 to re-read the plan to refresh its rows after a save.
@@ -31,7 +31,7 @@ MAXED_FALLBACK_MAX = 32  # a brawler name; anything longer is a paste accident
 
 
 class FarmPlan(BaseModel):
-    """The four keys core/farmplan.py stores (its DEFAULT_PLAN), with types."""
+    """The five keys core/farmplan.py stores (its DEFAULT_PLAN), with types."""
 
     model_config = ConfigDict(extra="forbid")
 
@@ -39,6 +39,10 @@ class FarmPlan(BaseModel):
     prestige_start: Literal["highest", "lowest"] = "highest"
     goal_trophies: int = Field(default=1000, ge=0)
     maxed_fallback: str | None = Field(default=None, max_length=MAXED_FALLBACK_MAX)
+    # Ladder-only, opt-in: with it on the worker reads the quests screen once at session
+    # start and picks an owned brawler that clears a quest. A plan file written before
+    # the key existed has no such key, so it loads as False.
+    quest_aware: bool = False
 
     @field_validator("maxed_fallback")
     @classmethod

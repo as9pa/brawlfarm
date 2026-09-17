@@ -29,7 +29,16 @@ router = APIRouter()
 # full inventory. Anything unlisted is "other" and shows under All only, so a new event
 # kind in the core is never silently invisible.
 MATCHES = frozenset(
-    {"phase", "games_logged", "recap", "trophies", "farming", "select_brawler", "rotate_brawler"}
+    {
+        "phase",
+        "games_logged",
+        "recap",
+        "trophies",
+        "farming",
+        "select_brawler",
+        "rotate_brawler",
+        "quest_pick",
+    }
 )
 INTERRUPTS = frozenset(
     {

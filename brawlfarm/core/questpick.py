@@ -245,13 +245,13 @@ def _candidates(names: str) -> tuple[str, ...]:
     return tuple(name for name in found if name)
 
 
-def resolve(
+def resolve_quest(
     quests: Sequence[Quest],
     owned: Sequence[str],
     trophies: Mapping[str, int] | None = None,
     prefer: str | None = None,
-) -> str | None:
-    """The owned brawler that clears the first quest it can, or None.
+) -> tuple[str, Quest] | None:
+    """The owned brawler that clears the first quest it can and the quest it clears, or None.
 
     Any one candidate clears its quest, so the pick among the ones the roster owns goes:
     ``prefer`` when the quest lists it, else the lowest-trophy one when ``trophies`` is
@@ -264,6 +264,8 @@ def resolve(
 
     The roster's own spelling comes back, never the quest's, so the name that leaves here
     is one ``brawlers.select_brawler_by_name_checked`` can verify on the detail screen.
+    The quest comes back with it because the feed line names the quest that was cleared;
+    :func:`resolve` is the same answer without it.
     """
     by_norm = {norm_name(name): name for name in owned}
     wanted = norm_name(prefer)
@@ -274,9 +276,21 @@ def resolve(
         if not owned_names:
             continue
         if wanted in owned_names:
-            return by_norm[wanted]
+            return by_norm[wanted], quest
         if trophies is None:
-            return by_norm[owned_names[0]]
+            return by_norm[owned_names[0]], quest
         # min is stable, so equal trophies keep the screen's order.
-        return by_norm[min(owned_names, key=lambda name: trophies.get(name, 0))]
+        return by_norm[min(owned_names, key=lambda name: trophies.get(name, 0))], quest
     return None
+
+
+def resolve(
+    quests: Sequence[Quest],
+    owned: Sequence[str],
+    trophies: Mapping[str, int] | None = None,
+    prefer: str | None = None,
+) -> str | None:
+    """The owned brawler that clears the first quest it can, or None: :func:`resolve_quest`
+    without the quest it cleared."""
+    found = resolve_quest(quests, owned, trophies=trophies, prefer=prefer)
+    return None if found is None else found[0]

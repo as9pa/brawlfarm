@@ -210,6 +210,18 @@ def test_maxed_fallback_default_is_none():
     assert farmplan.DEFAULT_PLAN.get("maxed_fallback") is None
 
 
+def test_quest_aware_default_is_false():
+    assert farmplan.DEFAULT_PLAN.get("quest_aware") is False
+
+
+def test_a_plan_file_without_quest_aware_loads_as_false(tmp_path):
+    # Every farmplan.json on disk predates the key: it must read as off, not crash.
+    (tmp_path / "farmplan.json").write_text(
+        '{"mode": "ladder", "goal_trophies": 800}', encoding="utf-8"
+    )
+    assert farmplan.load_plan(data_dir=tmp_path)["quest_aware"] is False
+
+
 def test_maxed_fallback_survives_save_load(tmp_path):
     farmplan.save_plan({"mode": "prestige", "maxed_fallback": "FRANK"}, data_dir=tmp_path)
     plan = farmplan.load_plan(data_dir=tmp_path)

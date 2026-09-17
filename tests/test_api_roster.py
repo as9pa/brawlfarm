@@ -206,6 +206,7 @@ def test_get_carries_the_current_brawler_the_roster_and_the_queue(api) -> None:
         "prestige_start",
         "goal_trophies",
         "maxed_fallback",
+        "quest_aware",
         "current",
         "roster",
         "queue",
