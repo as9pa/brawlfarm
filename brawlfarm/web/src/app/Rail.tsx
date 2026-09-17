@@ -17,8 +17,13 @@ const SECTIONS: { to: string; label: string; soon: boolean }[] = [
   { to: "/settings", label: "Settings", soon: false },
 ];
 
+/** The one focus ring, restated on the control so it survives an ancestor that sets
+ * outline-none. theme.css carries the same rule as the fallback. */
+const FOCUS_RING =
+  "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent";
+
 function linkClass(isActive: boolean): string {
-  return `flex items-center gap-2 rounded-[6px] border-l-2 px-2 py-1.5 text-[13px] transition-colors duration-[120ms] ${
+  return `flex items-center gap-2 rounded-[6px] border-l-2 px-2 py-1.5 text-[13px] transition-colors duration-[120ms] ${FOCUS_RING} ${
     isActive ? "border-accent bg-panel-2 text-text" : "border-transparent text-muted hover:text-text"
   }`;
 }

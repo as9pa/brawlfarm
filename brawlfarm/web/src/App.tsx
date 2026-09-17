@@ -28,17 +28,32 @@ import { Stats } from "./stats/Stats";
 /** A burst of state changes (a tick touching five instances) is one refetch, not five. */
 const INSTANCE_DEBOUNCE_MS = 250;
 
+/** The theme-color meta this file owns. index.html carries two with a media query, which
+ * cover the "system" setting; this one has none, so it wins whenever the setting names a
+ * theme, and it is removed again on the way back to "system". */
+const THEME_COLOR_OVERRIDE = 'meta[name="theme-color"]:not([media])';
+
 function useThemeBootstrap(): void {
   const { data } = useQuery({ queryKey: queryKeys.settings(), queryFn: getSettings });
   const theme = data?.app.theme;
 
   useEffect(() => {
     if (theme === undefined) return;
+    const existing = document.head.querySelector(THEME_COLOR_OVERRIDE);
     if (theme === "system") {
       delete document.documentElement.dataset.theme;
-    } else {
-      document.documentElement.dataset.theme = theme;
+      existing?.remove();
+      return;
     }
+    document.documentElement.dataset.theme = theme;
+    // Read the colour back out of the live stylesheet rather than keeping a fourth copy of
+    // the palette in here. jsdom has no stylesheet behind the variable and answers with an
+    // empty string, which is nothing worth writing.
+    const ground = getComputedStyle(document.documentElement).getPropertyValue("--ground").trim();
+    if (ground === "") return;
+    const meta = existing ?? document.head.appendChild(document.createElement("meta"));
+    meta.setAttribute("name", "theme-color");
+    meta.setAttribute("content", ground);
   }, [theme]);
 }
 

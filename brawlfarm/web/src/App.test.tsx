@@ -137,6 +137,32 @@ describe("App", () => {
     });
   });
 
+  it("puts a skip link first and points it at the main region", async () => {
+    stubApi();
+    render(<App />);
+    expect(await screen.findByRole("link", { name: "Open Pie64" })).toBeInTheDocument();
+    const skip = screen.getByRole("link", { name: "Skip to content" });
+    // First in the DOM is first in the tab order, which is the only thing that makes a
+    // skip link worth having.
+    expect(document.querySelectorAll("a[href], button, [tabindex]")[0]).toBe(skip);
+    expect(skip).toHaveAttribute("href", "#main-content");
+    const main = document.getElementById("main-content");
+    expect(main?.tagName).toBe("MAIN");
+    // Without the tabindex the link moves the scroll position and leaves focus behind.
+    expect(main).toHaveAttribute("tabindex", "-1");
+  });
+
+  it("writes no theme-color override when the computed ground colour is empty", async () => {
+    // jsdom has no stylesheet behind --ground, so there is no colour to write and the
+    // effect must not leave an empty meta behind for the browser chrome to read.
+    stubApi("dark");
+    render(<App />);
+    await waitFor(() => {
+      expect(document.documentElement.dataset.theme).toBe("dark");
+    });
+    expect(document.head.querySelector('meta[name="theme-color"]:not([media])')).toBeNull();
+  });
+
   it("refetches the instances when an instance event arrives", async () => {
     vi.useFakeTimers();
     const { calls } = stubApi();

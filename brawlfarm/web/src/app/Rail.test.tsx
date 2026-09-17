@@ -63,4 +63,12 @@ describe("Rail", () => {
     );
     expect(screen.getByRole("link", { name: "Fleet" })).not.toHaveAttribute("aria-current");
   });
+
+  it("carries the shared focus ring on its links", async () => {
+    stubInstances();
+    renderWithProviders(<Rail />);
+    expect((await screen.findByRole("link", { name: "Fleet" })).className).toContain(
+      "focus-visible:outline-accent",
+    );
+  });
 });

@@ -4,6 +4,11 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="color-scheme" content="dark light" />
+    <!-- The browser chrome on the first paint, before React runs. These two cover the
+         "system" setting; App.tsx adds a third with no media when the setting names a
+         theme, which overrides them. -->
+    <meta name="theme-color" content="#F3F4F6" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#0C0F14" media="(prefers-color-scheme: dark)" />
     <title>brawlfarm</title>
     <link
       rel="icon"
