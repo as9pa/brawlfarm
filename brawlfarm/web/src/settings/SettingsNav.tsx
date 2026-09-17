@@ -37,7 +37,7 @@ export const SETTINGS_SECTIONS: readonly SettingsSection[] = [
     label: "Connection",
     description: "How brawlfarm reaches BlueStacks and the Brawl Stars API.",
   },
-  { id: "behavior", label: "Behavior", description: "How a worker plays." },
+  { id: "behavior", label: "Behavior", description: "How an instance plays." },
   { id: "schedule", label: "Schedule", description: "The default for new instances." },
   { id: "notifications", label: "Notifications", description: "Where alerts go." },
   { id: "data", label: "Data", description: "Files on this machine." },

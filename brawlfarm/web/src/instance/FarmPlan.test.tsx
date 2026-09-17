@@ -242,7 +242,7 @@ describe("FarmPlan", () => {
     // The help line is the switch's own description, not loose text sitting beside it.
     const help = document.getElementById(String(switches[1].getAttribute("aria-describedby")));
     expect(help).toHaveTextContent(
-      "Applies at session start only. The worker reads the quests screen and picks an owned " +
+      "Applies at session start only. The instance reads the quests screen and picks an owned " +
         "brawler that clears a quest. Your plan target wins when it clears one; otherwise the " +
         "lowest-trophy candidate.",
     );

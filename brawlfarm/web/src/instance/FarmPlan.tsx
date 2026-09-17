@@ -303,7 +303,7 @@ export function FarmPlan({ name }: { name: string }) {
             onChange={(quest_aware) => save({ quest_aware })}
           />
           <p id={questHelpId} className="text-[12px] text-muted">
-            Applies at session start only. The worker reads the quests screen and picks an owned
+            Applies at session start only. The instance reads the quests screen and picks an owned
             brawler that clears a quest. Your plan target wins when it clears one; otherwise the
             lowest-trophy candidate.
           </p>
