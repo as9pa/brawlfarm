@@ -24,6 +24,11 @@ surfaces "the constant doesn't exist" is the rail, and this test pins the
 forbidden ones that DO exist near tappable mirrors (ACCEPT sits at the fixed
 mirror of REJECT; LOG OUT sits below SWITCH ACCOUNT).
 
+Two coordinate rails ride along (phase 10a, the quest sweep): REROLL QUEST is
+calibrated as a landmark only and must not be named outside config.py at all, and
+every swipe lane endpoint must clear the tappable controls by a margin, because a
+swipe that starts or ends on a button can register as a tap.
+
 A self-test feeds the detector synthetic violations and asserts it fires, so
 the rail can't rot into a vacuous pass.
 """
@@ -31,6 +36,7 @@ the rail can't rot into a vacuous pass.
 from __future__ import annotations
 
 import ast
+import math
 import re
 from pathlib import Path
 
@@ -182,3 +188,77 @@ def test_detector_stays_quiet_on_allowed_taps():
     for snippet in SYNTHETIC_OK:
         hits = find_violations(ast.parse(snippet), names, coords)
         assert not hits, f"false positive on an allowed tap:\n{snippet}"
+
+
+# --- the quest sweep rails (phase 10a) ------------------------------------------------
+
+PACKAGE = CORE.parent
+REROLL_NAME = "QUEST_REROLL_BUTTON"
+SWIPE_CLEARANCE_PX = 120
+
+# Every tappable surface a swipe lane must stay clear of: the reroll button and the
+# exits on QUESTS, the mega-quest card it sits above, and the BRAWLERS top-bar controls
+# (the roster lane pages the grid under them).
+CLEARANCE_TARGETS = (
+    "QUEST_REROLL_BUTTON",
+    "HOME_BUTTON",
+    "QUESTS_CLOSE_BUTTON",
+    "QUESTS_MEGA_CARD",
+    "BRAWLER_SEARCH_FIELD",
+    "BRAWLER_QUEST_TOGGLE",
+    "BRAWLER_HEART_TOGGLE",
+)
+
+
+def swipe_endpoints() -> list[tuple[str, tuple[int, int]]]:
+    """Both endpoints of both swipe lanes, built from config, never hardcoded, so a
+    recalibration of any lane is re-checked against the clearance rule."""
+    return [
+        ("QUEST_SWIPE start", (config.QUEST_SWIPE_X_START, config.QUEST_SWIPE_Y)),
+        ("QUEST_SWIPE end", (config.QUEST_SWIPE_X_END, config.QUEST_SWIPE_Y)),
+        ("BRAWLER_SCROLL left", (config.BRAWLER_SCROLL_X_LEFT, config.BRAWLER_SCROLL_Y)),
+        ("BRAWLER_SCROLL right", (config.BRAWLER_SCROLL_X_RIGHT, config.BRAWLER_SCROLL_Y)),
+    ]
+
+
+def test_reroll_button_is_named_only_in_config():
+    """REROLL QUEST is calibrated so the quest swipe lane can be measured against it,
+    and for nothing else. No module may even name it, so it cannot reach a tap by any
+    route the AST detector can't see (an alias, a helper, a computed argument)."""
+    assert hasattr(config, REROLL_NAME), (
+        f"config.py no longer defines {REROLL_NAME}: the quest sweep rails key off it"
+    )
+    sources = sorted(PACKAGE.rglob("*.py"))
+    assert sources, f"no modules under {PACKAGE}: the rail would pass vacuously"
+    config_py = Path(config.__file__).resolve()
+    offenders: list[str] = []
+    for py in sources:
+        if py.resolve() == config_py:
+            continue
+        for lineno, line in enumerate(py.read_text(encoding="utf-8").splitlines(), 1):
+            if REROLL_NAME in line:
+                offenders.append(f"{py.relative_to(PACKAGE)}:{lineno}: {line.strip()}")
+    assert not offenders, (
+        f"{REROLL_NAME} is a landmark only (a reroll throws a quest away): it may "
+        "appear in config.py and nowhere else in the package:\n" + "\n".join(offenders)
+    )
+
+
+def test_swipe_lanes_clear_every_tappable_control():
+    endpoints = swipe_endpoints()
+    targets = {name: getattr(config, name) for name in CLEARANCE_TARGETS}
+    for name, coord in targets.items():
+        assert isinstance(coord, tuple) and len(coord) == 2, (
+            f"config.{name} is no longer an (x, y) pair: the clearance rail can't "
+            "measure against it"
+        )
+    offenders: list[str] = []
+    for label, (x, y) in endpoints:
+        for name, (tx, ty) in targets.items():
+            gap = math.hypot(x - tx, y - ty)
+            if gap <= SWIPE_CLEARANCE_PX:
+                offenders.append(f"{label} {(x, y)} sits {gap:.0f} px from {name} {(tx, ty)}")
+    assert not offenders, (
+        f"a swipe endpoint is within {SWIPE_CLEARANCE_PX} px of a tappable control "
+        "(a swipe that starts or ends on a button can register as a tap):\n" + "\n".join(offenders)
+    )
