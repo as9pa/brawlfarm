@@ -28,7 +28,7 @@ safe answer, because the caller falls back to the farm plan or the lowest-trophy
 from __future__ import annotations
 
 import re
-from collections.abc import Iterable, Sequence
+from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
 
 from brawlfarm.core import config
@@ -245,17 +245,38 @@ def _candidates(names: str) -> tuple[str, ...]:
     return tuple(name for name in found if name)
 
 
-def resolve(quests: Sequence[Quest], owned: Sequence[str]) -> str | None:
+def resolve(
+    quests: Sequence[Quest],
+    owned: Sequence[str],
+    trophies: Mapping[str, int] | None = None,
+    prefer: str | None = None,
+) -> str | None:
     """The owned brawler that clears the first quest it can, or None.
+
+    Any one candidate clears its quest, so the pick among the ones the roster owns goes:
+    ``prefer`` when the quest lists it, else the lowest-trophy one when ``trophies`` is
+    given (a candidate the map misses counts as 0, and ties go to the one the screen
+    listed first), else simply the first one. A quest with nothing owned falls through to
+    the next quest, the way a quest naming one unowned brawler always has.
+
+    ``trophies`` is keyed by ``norm_name``, as ``farmplan.owned_trophy_map`` builds it;
+    ``prefer`` is normalized here, so the owner may type it however they like.
 
     The roster's own spelling comes back, never the quest's, so the name that leaves here
     is one ``brawlers.select_brawler_by_name_checked`` can verify on the detail screen.
     """
     by_norm = {norm_name(name): name for name in owned}
+    wanted = norm_name(prefer)
     for quest in quests:
         if quest.kind != KIND_BRAWLER:
             continue
-        owned_name = by_norm.get(quest.target)
-        if owned_name is not None:
-            return owned_name
+        owned_names = [name for name in quest.candidates if name in by_norm]
+        if not owned_names:
+            continue
+        if wanted in owned_names:
+            return by_norm[wanted]
+        if trophies is None:
+            return by_norm[owned_names[0]]
+        # min is stable, so equal trophies keep the screen's order.
+        return by_norm[min(owned_names, key=lambda name: trophies.get(name, 0))]
     return None

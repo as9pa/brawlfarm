@@ -203,6 +203,51 @@ def test_resolve_answers_none_for_nothing_at_all() -> None:
     assert questpick.resolve([], OWNED) is None
 
 
+def test_resolve_takes_the_first_owned_candidate_when_a_quest_names_several() -> None:
+    quests = questpick.parse(["Win 5 battles with Crow, El Primo or Shelly"])
+    assert questpick.resolve(quests, OWNED) == "El Primo"
+
+
+def test_resolve_prefers_the_named_brawler_over_the_lowest_trophy_one() -> None:
+    quests = questpick.parse(["Win 5 battles with Shelly, El Primo or 8-Bit"])
+    trophies = {"SHELLY": 200, "ELPRIMO": 900, "8BIT": 400}
+    assert questpick.resolve(quests, OWNED, trophies, prefer="el primo") == "El Primo"
+
+
+def test_resolve_ignores_a_preferred_name_the_quest_does_not_list() -> None:
+    quests = questpick.parse(["Win 5 battles with Shelly or El Primo"])
+    trophies = {"SHELLY": 800, "ELPRIMO": 100}
+    assert questpick.resolve(quests, OWNED, trophies, prefer="Crow") == "El Primo"
+
+
+def test_resolve_takes_the_lowest_trophy_owned_candidate() -> None:
+    quests = questpick.parse(["Win 5 battles with Shelly, El Primo or 8-Bit"])
+    trophies = {"SHELLY": 640, "ELPRIMO": 300, "8BIT": 720}
+    assert questpick.resolve(quests, OWNED, trophies) == "El Primo"
+
+
+def test_resolve_breaks_a_trophy_tie_by_candidate_order() -> None:
+    quests = questpick.parse(["Win 5 battles with 8-Bit, Shelly or El Primo"])
+    trophies = {"SHELLY": 500, "ELPRIMO": 500, "8BIT": 500}
+    assert questpick.resolve(quests, OWNED, trophies) == "8-Bit"
+
+
+def test_resolve_counts_a_candidate_the_trophy_map_misses_as_zero() -> None:
+    quests = questpick.parse(["Win 5 battles with Shelly or El Primo"])
+    assert questpick.resolve(quests, OWNED, {"SHELLY": 300}) == "El Primo"
+
+
+def test_resolve_falls_through_to_the_next_quest_it_can_farm() -> None:
+    quests = questpick.parse(["Win 5 battles with Crow or Mina", "Win 2 battles with Shelly"])
+    assert questpick.resolve(quests, OWNED, {"SHELLY": 900}) == "Shelly"
+
+
+def test_resolve_skips_class_and_mode_quests_even_with_a_preference() -> None:
+    """A preference never revives a quest the bot cannot farm."""
+    quests = questpick.parse(["Deal 20000 damage with Tanks", "Play 8 battles in Gem Grab"])
+    assert questpick.resolve(quests, OWNED, {"TANKS": 0, "GEMGRAB": 0}, prefer="Tanks") is None
+
+
 def test_name_normalization_matches_the_brawler_screens() -> None:
     """questpick keeps its own copy so it stays import-light; the two must not drift."""
     for name in ("EL PRIMO", "8-BIT", "LARRY & LAWRIE", "Shelly", None):

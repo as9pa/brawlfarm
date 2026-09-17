@@ -72,7 +72,7 @@ import json
 from collections import deque
 from pathlib import Path
 
-from brawlfarm.core import config
+from brawlfarm.core import config, questpick
 from brawlfarm.core.jsonio import atomic_write_json
 
 PRESTIGE_GOAL = 1000  # the per-brawler trophy milestone ("prestige")
@@ -546,6 +546,20 @@ def resolve_target(api, exclude: set[str] | tuple = ()) -> tuple[str | None, int
     blist = api.get_player().get("brawlers") or []
     target, goal = choose_target(plan, blist, exclude=exclude)
     return target, goal, [b.get("name") for b in blist if b.get("name")]
+
+
+def owned_trophy_map(api) -> dict[str, int]:
+    """{normalized name -> trophies} for the whole owned roster, for the quest-aware pick.
+
+    :func:`resolve_target` drops the trophies it already loaded and is left alone (the
+    controller tests monkeypatch it), so this costs one extra get_player call per session,
+    and only when quest_aware is on. The keys are ``questpick.norm_name``'s spelling,
+    because that is what ``questpick.resolve`` compares its candidates by. API errors
+    propagate, like resolve_target's."""
+    blist = api.get_player().get("brawlers") or []
+    return {
+        questpick.norm_name(b.get("name")): b.get("trophies") or 0 for b in blist if b.get("name")
+    }
 
 
 def recent_winstreak(
