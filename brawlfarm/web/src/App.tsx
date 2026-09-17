@@ -18,6 +18,7 @@ import { Calibration } from "./calibration/Calibration";
 import { createQueryClient, queryKeys } from "./api/queries";
 import { getSettings } from "./api/settings";
 import { Toaster } from "./components/ui/Toast";
+import { Kit } from "./dev/Kit";
 import { Fleet } from "./fleet/Fleet";
 import { Instance } from "./instance/Instance";
 import { onReconnect, subscribe } from "./live/useEvents";
@@ -118,6 +119,9 @@ function Panel() {
   return (
     <Routes>
       <Route path="/setup" element={<Setup />} />
+      {/* Vite replaces import.meta.env.DEV with false in a production build, so Rollup
+          drops this branch and tree-shakes the kit page out of the bundle. */}
+      {import.meta.env.DEV && <Route path="/dev/kit" element={<Kit />} />}
       <Route path="*" element={<ShellRoutes />} />
     </Routes>
   );
