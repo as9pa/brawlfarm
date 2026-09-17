@@ -58,10 +58,12 @@ const ROWS: Row[] = [
   ["adb_error with streak", { event: "adb_error", category: E, fields: { err: "device offline", streak: 3 } }, "ADB error: device offline (streak 3)", "bad"],
   ["bad_resolution", { event: "bad_resolution", category: E, fields: { got: [1920, 1080] } }, "Wrong resolution: 1920 by 1080. brawlfarm needs 1600 by 900.", "bad"],
   ["bad_resolution with a need", { event: "bad_resolution", category: E, fields: { got: [1920, 1080], need: [1600, 900] } }, "Wrong resolution: 1920 by 1080. brawlfarm needs 1600 by 900.", "bad"],
+  ["bad_resolution with a malformed pair", { event: "bad_resolution", category: E, fields: { got: ["wide"] } }, "Wrong resolution. brawlfarm needs 1600 by 900.", "bad"],
   ["recalibrate", { event: "recalibrate", category: E, fields: { surface: "menu", detail: "drifted" } }, "Recalibration needed: menu", "bad"],
   ["other _error", { event: "select_brawler_error", category: E, fields: { err: "no brawler row" } }, "Select brawler failed: no brawler row", "bad"],
   ["quest_pick_error", { event: "quest_pick_error", category: E, fields: { err: "HTTP 503" } }, "Quest pick failed: HTTP 503", "bad"],
-  ["api_error", { event: "api_error", category: E, fields: { where: "trophies", err: "HTTP 503" } }, "Api failed: HTTP 503", "bad"],
+  ["api_error", { event: "api_error", category: E, fields: { where: "trophies", err: "HTTP 503" } }, "API failed: HTTP 503", "bad"],
+  ["dnd_off_error", { event: "dnd_off_error", category: E, fields: { err: "no panel" } }, "DND off failed: no panel", "bad"],
   ["unlisted _error", { event: "foo_error", category: E, fields: { err: "boom" } }, "Foo failed: boom", "bad"],
   ["start", { event: "start", category: O, fields: { max_games: 40, max_minutes: 90 } }, "Started farming", "idle"],
   ["stop", { event: "stop", category: O, fields: { reason: "panel", games: 12, minutes: 47 } }, "Stopped farming: panel (12 games, 47 min)", "idle"],
@@ -74,7 +76,7 @@ const ROWS: Row[] = [
   ["maxed_fallback_switch", { event: "maxed_fallback_switch", category: O, fields: { fallback: "SHELLY" } }, "Switched to the maxed fallback SHELLY", "idle"],
   ["step ok", { event: "step", category: O, fields: { step: 2, label: "Daily streak claimed", status: "ok" } }, "Daily streak claimed", "idle"],
   ["step error", { event: "step", category: O, fields: { step: 3, label: "Brawler selected", status: "error" } }, "Brawler selected", "bad"],
-  ["unknown with fields", { event: "gas_edges_v2", category: O, fields: { edges: 4, n: 1 } }, "Gas edges v2", "idle"],
+  ["unknown with human fields", { event: "gas_edges_v2", category: O, fields: { edges: 4, n: 1 } }, "Gas edges v2", "idle"],
   ["unknown without fields", { event: "something_new", category: O, fields: {} }, "Something new", "idle"],
   ["unknown with the fallback's own fields", { event: "shiny_new", category: O, fields: { brawler: "TARA", recovered: true, score: 0.4567 } }, "Shiny new: TARA, match 46%", "idle"],
   ["unknown with no fields", { event: "shiny_new", category: O, fields: {} }, "Shiny new", "idle"],
@@ -90,8 +92,8 @@ describe("feedText", () => {
   it("covers every event name the brief's table names", () => {
     const events = ROWS.map(([, o]) => o.event);
     expect(events.filter((e) => e === undefined)).toHaveLength(0);
-    expect(ROWS).toHaveLength(64);
-    expect(new Set(events).size).toBe(43); // 39 named kinds plus the four fallback cases
+    expect(ROWS).toHaveLength(66);
+    expect(new Set(events).size).toBe(44); // 39 named kinds plus the five fallback cases
   });
   // Every kind that has a sentence of its own above. The API's kind list lives in Python,
   // so a kind the core adds has to be added here by hand; the *_error kinds are left out

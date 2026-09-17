@@ -47,7 +47,7 @@ describe("toast", () => {
     act(() => {
       toast("Plan saved");
       toast("Stopping Pie64 after this match", { undo: vi.fn() });
-      toast("Redrawing today; new sessions appear after the next tick", { durationMs: 9000 });
+      toast("Redrawing today… new sessions appear within a minute.", { durationMs: 9000 });
     });
     expect(result.current.map((item) => item.durationMs)).toEqual([TOAST_MS, TOAST_UNDO_MS, 9000]);
   });

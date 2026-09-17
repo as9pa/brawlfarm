@@ -51,8 +51,15 @@ function has(fields: Fields, key: string): boolean {
   return fields[key] !== null && fields[key] !== undefined;
 }
 
+/** Tokens a reader expects in upper case; the split-on-underscore word list would
+ * otherwise print an api_error kind as "Api" and a dnd_off one as "Dnd". */
+const UPPER_WORDS = new Set(["api", "adb", "dnd", "ocr"]);
+
 function words(event: string): string {
-  return event.replaceAll("_", " ");
+  return event
+    .split("_")
+    .map((word) => (UPPER_WORDS.has(word) ? word.toUpperCase() : word))
+    .join(" ");
 }
 
 /** The fields the unlisted-kind fallback prints, in the order it prints them; score is
@@ -160,10 +167,11 @@ export function feedText(record: FeedRecord): { text: string; tone: Tone } {
       const got: readonly unknown[] = Array.isArray(f.got) ? f.got : [];
       const need: readonly unknown[] = Array.isArray(f.need) ? f.need : [];
       const wanted = has(f, "need") ? sizeWords(need[0], need[1]) : REQUIRED_SIZE;
-      return {
-        text: `Wrong resolution: ${sizeWords(got[0], got[1])}. brawlfarm needs ${wanted}.`,
-        tone,
-      };
+      // A malformed got pair leaves sizeWords() empty; the sentence then says what is
+      // wrong without a dangling colon, because the needed size is the useful half.
+      const size = sizeWords(got[0], got[1]);
+      const head = size === "" ? "Wrong resolution" : `Wrong resolution: ${size}`;
+      return { text: `${head}. brawlfarm needs ${wanted}.`, tone };
     }
     case "recalibrate":
       return { text: `Recalibration needed: ${str(f, "surface")}`, tone };

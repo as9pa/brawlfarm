@@ -9,6 +9,7 @@ import { useLocation } from "react-router";
 
 import { InstanceCard, breakCaption, nextValue, retryMinutes } from "./InstanceCard";
 import type { InstanceState } from "../api/types";
+import { NOT_SET } from "../lib/copy";
 import { resetToasts, useToasts } from "../lib/toast";
 import { makeInstance } from "../test/fixtures";
 import { jpegResponse, jsonResponse, stubFetch } from "../test/http";
@@ -69,7 +70,7 @@ describe("retryMinutes, breakCaption and nextValue", () => {
 
   it("shows the next moment as a time, a countdown, or none", () => {
     expect(nextValue(makeInstance({ state: "farming", until: "2026-09-11T21:30:00" }))).toBe("21:30");
-    expect(nextValue(makeInstance({ state: "stopped", until: null }))).toBe("none");
+    expect(nextValue(makeInstance({ state: "stopped", until: null }))).toBe(NOT_SET);
     expect(
       nextValue(
         makeInstance({ state: "offline", until: null, note: "BlueStacks window not found. Retrying in 4 min." }),

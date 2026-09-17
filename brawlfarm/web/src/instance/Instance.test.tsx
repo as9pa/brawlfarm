@@ -190,7 +190,7 @@ describe("Instance", () => {
     mountPage();
     const stop = await screen.findByRole("button", { name: "Stop" });
     expect(stop).toBeDisabled();
-    expect(stop).toHaveAttribute("title", "Not running");
+    expect(stop).toHaveAttribute("title", "Already stopped");
     expect(screen.queryByRole("button", { name: "Retry now" })).not.toBeInTheDocument();
   });
 

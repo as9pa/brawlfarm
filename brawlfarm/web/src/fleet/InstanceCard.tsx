@@ -33,7 +33,7 @@ import { Button } from "../components/ui/Button";
 import { StateChip } from "../components/ui/StateChip";
 import { Thumb } from "../components/ui/Thumb";
 import { useVisiblePolling } from "../live/useVisiblePolling";
-import { NOT_STARTED } from "../lib/copy";
+import { NOT_SET, NOT_STARTED } from "../lib/copy";
 import { signed } from "../lib/format";
 import { phaseLabel } from "../lib/states";
 import { duration, hhmm } from "../lib/time";
@@ -84,7 +84,7 @@ export function nextValue(inst: InstancePayload): string {
     const minutes = retryMinutes(inst.note);
     return minutes === null ? "soon" : `${minutes} min`;
   }
-  return inst.until === null ? "none" : hhmm(inst.until);
+  return inst.until === null ? NOT_SET : hhmm(inst.until);
 }
 
 function Metric({ label, value }: { label: string; value: string }) {

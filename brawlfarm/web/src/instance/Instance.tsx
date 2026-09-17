@@ -95,7 +95,7 @@ function Header({ inst, onDone }: { inst: InstancePayload; onDone: () => void })
           variant="quiet"
           size="sm"
           disabled={!stoppable}
-          disabledReason="Not running"
+          disabledReason="Already stopped"
           onClick={() => {
             void run(settled(stopInstance(inst.name)), () => {
               toast(`Stopping ${inst.name} after this match`, {
