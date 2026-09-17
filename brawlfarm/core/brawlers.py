@@ -193,7 +193,7 @@ def select_brawler_by_name_checked(
     target: str, owned_names: list[str], log=print
 ) -> tuple[str | None, str | None]:
     """Open BRAWLERS, sort alphabetically, scan sideways for ``target`` (one of the
-    API's OWNED brawler names) and select it — verifying the detail-screen name by OCR
+    API's OWNED brawler names) and select it, verifying the detail-screen name by OCR
     before tapping SELECT, and bailing safely (back to menu, return None) on any
     mismatch. Returns ``(name, suspicion)``: the verified name or None, plus a short
     detail string when the season-rollover tripwire saw the BRAWLERS screen verify
