@@ -105,9 +105,11 @@ describe("FarmPlan", () => {
   });
 
   it("lists the queue with its trophies and can show the whole roster", async () => {
-    mount();
+    mount(makePlan({ queue: ["TARA", "PIPER"] }));
     renderWithProviders(<FarmPlan name="Pie64" />);
     expect(await screen.findByText("TARA")).toBeInTheDocument();
+    // A queued brawler the roster has not answered for reads Not yet, never none.
+    expect(screen.getByText("PIPER").closest("li")?.textContent).toBe("PIPERNot yet");
     expect(screen.queryByTestId("plan-roster")).not.toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: "Show all brawlers" }));
     const rows = screen.getByTestId("plan-roster").querySelectorAll("li");

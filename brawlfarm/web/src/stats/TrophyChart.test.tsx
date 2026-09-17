@@ -110,15 +110,15 @@ describe("TrophyChart", () => {
     await userEvent.keyboard("{End}");
     const live = screen.getByTestId("chart-live");
     expect(live).toHaveAttribute("aria-live", "polite");
-    expect(live).toHaveTextContent("22:00, Pie64: 25, Pie64_1: 12, Pie64_3: none");
+    expect(live).toHaveTextContent("22:00, Pie64: 25, Pie64_1: 12, Pie64_3: Not recorded");
   });
 
-  it("reads none for a series with no point yet at that moment", async () => {
+  it("reads Not recorded for a series with no point yet at that moment", async () => {
     mount();
     plot().focus();
     await userEvent.keyboard("{Home}");
     expect(screen.getByTestId("chart-readout")).toHaveTextContent("Pie64_1");
-    expect(screen.getByTestId("chart-readout")).toHaveTextContent("none");
+    expect(screen.getByTestId("chart-readout")).toHaveTextContent("Not recorded");
   });
 
   it("swaps to a table of the same points and back, with the toggle reading Table both ways", async () => {

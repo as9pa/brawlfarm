@@ -15,6 +15,7 @@ import { useState } from "react";
 import type { StatsBrawler } from "../api/types";
 import { BrawlerIcon } from "../components/ui/BrawlerIcon";
 import { Table, type Column } from "../components/ui/Table";
+import { NOT_RECORDED } from "../lib/copy";
 import { signed } from "../lib/format";
 
 export interface BrawlerTableProps {
@@ -23,7 +24,6 @@ export interface BrawlerTableProps {
 
 type SortKey = "name" | "games" | "net" | "avg_rank" | "top4_rate";
 
-const NONE = "none";
 const EMPTY = "No games in this range.";
 
 function netTone(net: number): string {
@@ -80,14 +80,14 @@ export function BrawlerTable({ rows }: BrawlerTableProps) {
       label: "Avg rank",
       mono: true,
       sortable: true,
-      render: (row) => (row.avg_rank === null ? NONE : row.avg_rank.toFixed(1)),
+      render: (row) => (row.avg_rank === null ? NOT_RECORDED : row.avg_rank.toFixed(1)),
     },
     {
       key: "top4_rate",
       label: "Top 4",
       mono: true,
       sortable: true,
-      render: (row) => (row.top4_rate === null ? NONE : `${Math.round(row.top4_rate)}%`),
+      render: (row) => (row.top4_rate === null ? NOT_RECORDED : `${Math.round(row.top4_rate)}%`),
     },
   ];
 

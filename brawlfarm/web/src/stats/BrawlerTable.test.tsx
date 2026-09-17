@@ -78,6 +78,8 @@ describe("BrawlerTable", () => {
         ]}
       />,
     );
+    // Both of NORI's empty cells read Not recorded, never the word none.
+    expect(screen.getAllByText("Not recorded")).toHaveLength(2);
     await userEvent.click(screen.getByRole("button", { name: /Avg rank/ }));
     expect(names()).toEqual(["COLT", "NORI"]);
     await userEvent.click(screen.getByRole("button", { name: /Avg rank/ }));

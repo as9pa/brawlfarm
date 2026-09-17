@@ -140,42 +140,64 @@ function pieces(source: string): Piece[] {
 }
 
 const INTERNAL = /\b(workers?|supervisors?|ticks?)\b/i;
+const EVERY_INTERNAL = /\b(workers?|supervisors?|ticks?)\b/gi;
 const PYTHON_TRUE = /\bTrue\b/;
 const RAW_FLOAT = /=0\./;
 const KEY_VALUE = /[A-Za-z_]\w*=\s*$/;
-/** A query string is key=value by design and no reader sees it, so a chunk carrying a
- * URL's own punctuation is not a leaked field. */
-const QUERY = /^[/]|[?&]/;
+/** A query string is key=value by design and no reader sees it: the key follows the path,
+ * the question mark or an ampersand. Anchored, so a stray & elsewhere excuses nothing. */
+const QUERY = /^[/?]|&[A-Za-z_]\w*=\s*$/;
 const TAG = /<[^<>]*>/g;
 /** One name or member chain alone on a line, which is the shape an interpolation or a
- * wrapped argument leaves behind. Prose has spaces in it. */
+ * wrapped argument leaves behind. */
 const BARE_NAME = /^[\w$.]+,?$/;
-/** A line of JSX text is prose and nothing else: an operator or a brace means the piece
- * is code, and code may call things whatever it likes. */
-const CODE_CHARS = /[{}()[\]=;:&|<>]/;
+/** What sits in front of an identifier: a member chain, an argument, an index. */
+const CODE_BEFORE = /[.$([{]/;
+/** What follows one: another member, a call, an assignment, a key's colon. */
+const CODE_AFTER = /^\s*[.=:([{)\]}]/;
 
-/** The words a reader would see in this piece, which is the piece itself for a string
- * literal and the text between the tags for a line of JSX. */
-function readable(piece: Piece): string {
-  if (piece.kind !== "code") return piece.text;
-  const bare = piece.text.replace(TAG, " ");
-  if (CODE_CHARS.test(bare) || !/[A-Za-z]/.test(bare)) return "";
-  if (BARE_NAME.test(bare.trim())) return "";
-  return bare;
+/**
+ * Whether a banned word in this text reads as prose rather than as code. Punctuation in
+ * the line decides nothing, because JSX text is full of it: "Note: the worker keeps
+ * watching." is a sentence. What decides is the company the word keeps, so `tick.hour`,
+ * `(tick)` and `const tick =` stay quiet while a word between two words does not.
+ */
+function prose(text: string): boolean {
+  for (const match of text.matchAll(EVERY_INTERNAL)) {
+    const before = text.slice(0, match.index).trimEnd().slice(-1);
+    const after = text.slice(match.index + match[0].length);
+    if (CODE_BEFORE.test(before) || CODE_AFTER.test(after)) continue;
+    return true;
+  }
+  return false;
 }
 
-function scan(rel: string): string[] {
+/** Whether this piece says one of the words to a reader. A string literal is read whole;
+ * JSX text is what is left once the tags are out of the way. */
+function banned(piece: Piece): boolean {
+  if (piece.kind !== "code") return INTERNAL.test(piece.text);
+  const bare = piece.text.replace(TAG, " ");
+  if (BARE_NAME.test(bare.trim())) return false;
+  return prose(bare);
+}
+
+/** Every hit in one file's text, which the fixture rows below call with a source of their
+ * own rather than a file on disk. */
+function hitsIn(rel: string, source: string): string[] {
   const hits: string[] = [];
-  const report = (piece: Piece) =>
-    hits.push(`${rel}:${piece.line}: ${piece.text.trim()}`);
-  for (const piece of pieces(TREE[rel])) {
-    if (INTERNAL.test(readable(piece))) report(piece);
+  const report = (piece: Piece) => hits.push(`${rel}:${piece.line}: ${piece.text.trim()}`);
+  for (const piece of pieces(source)) {
+    if (banned(piece)) report(piece);
     else if (PYTHON_TRUE.test(piece.text)) report(piece);
     else if (RAW_FLOAT.test(piece.text)) report(piece);
     else if (piece.kind === "interp" && KEY_VALUE.test(piece.text) && !QUERY.test(piece.text))
       report(piece);
   }
   return hits;
+}
+
+function scan(rel: string): string[] {
+  return hitsIn(rel, TREE[rel]);
 }
 
 describe("the words a reader never sees", () => {
@@ -194,5 +216,36 @@ describe("the words a reader never sees", () => {
       .filter((hit) => !ALLOWED.includes(hit));
     // One message with every hit, so a failure names all of them at once.
     expect(hits.join("\n")).toBe("");
+  });
+
+  // The guard's own shapes, as fixtures rather than files in the tree, so the proof of
+  // what it catches and what it lets past travels with the test.
+  const FIXTURES: readonly [string, string, string][] = [
+    [
+      "a punctuated JSX sentence",
+      "<p>Note: the worker keeps watching.</p>",
+      "<p>Note: the worker keeps watching.</p>",
+    ],
+    [
+      "JSX text wrapped onto its own line",
+      "      Applies while the supervisor is up, whatever else happens.",
+      "Applies while the supervisor is up, whatever else happens.",
+    ],
+    ['a sentence in a string literal', 'const s = "One tick later.";', "One tick later."],
+    ["a word that only starts the same way", "<p>Ticket 7 is open.</p>", ""],
+    ["an identifier outside a literal", "const workers = listWorkers(all);", ""],
+    ["an interval body", "const tick = setInterval(() => poke(), AGE_TICK_MS);", ""],
+    ["a member chain in an interpolation", "style={{ left: `${tick.leftPct}%` }}", ""],
+    ["a query string", "const url = `/api/feed?kind=${kind}&limit=${n}`;", ""],
+    ["a leaked field", "const line = `score=${score}`;", "score="],
+    ["a Python flag", 'const flag = "True";', "True"],
+    ["a raw score", "const line = `match=0.87`;", "match=0.87"],
+  ];
+
+  it.each(FIXTURES)("checks %s", (_label, source, expected) => {
+    const found = hitsIn("fixture.tsx", source).map((hit) =>
+      hit.replace(/^fixture\.tsx:\d+: /, ""),
+    );
+    expect(found).toEqual(expected === "" ? [] : [expected]);
   });
 });

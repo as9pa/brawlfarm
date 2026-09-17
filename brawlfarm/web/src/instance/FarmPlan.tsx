@@ -348,7 +348,7 @@ export function FarmPlan({ name }: { name: string }) {
                 <BrawlerIcon name={brawler} />
                 <span className="font-mono">{brawler}</span>
                 <span className="ml-auto font-mono text-[12px] tabular-nums text-muted">
-                  {trophiesOf.get(brawler.toUpperCase()) ?? "none"}
+                  {trophiesOf.get(brawler.toUpperCase()) ?? NOT_YET}
                 </span>
               </li>
             ))}
