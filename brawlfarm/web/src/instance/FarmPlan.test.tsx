@@ -258,6 +258,21 @@ describe("FarmPlan", () => {
     });
   });
 
+  it("hides Pick quest brawlers in prestige mode without writing anything", async () => {
+    const calls = mount(makePlan({ mode: "prestige", quest_aware: true }));
+    renderWithProviders(<FarmPlan name="Pie64" />);
+    expect(await screen.findByRole("switch", { name: "Maxed fallback" })).toBeInTheDocument();
+    expect(screen.queryByRole("switch", { name: "Pick quest brawlers" })).toBeNull();
+    expect(puts(calls)).toEqual([]); // hiding it is not a save
+
+    // Ladder shows it again in the state the plan still holds.
+    await userEvent.click(screen.getByRole("radio", { name: "Ladder" }));
+    expect(await screen.findByRole("switch", { name: "Pick quest brawlers" })).toHaveAttribute(
+      "aria-checked",
+      "true",
+    );
+  });
+
   it("puts an icon in front of the current brawler, every queue row and the full list", async () => {
     mount(
       makePlan({

@@ -290,17 +290,24 @@ export function FarmPlan({ name }: { name: string }) {
         </>
       ) : null}
 
-      <Switch
-        label="Pick quest brawlers"
-        checked={plan.quest_aware}
-        describedBy={questHelpId}
-        onChange={(quest_aware) => save({ quest_aware })}
-      />
-      <p id={questHelpId} className="text-[12px] text-muted">
-        Applies at session start only. The worker reads the quests screen and picks an owned
-        brawler that clears a quest. Your plan target wins when it clears one; otherwise the
-        lowest-trophy candidate.
-      </p>
+      {/* The worker ignores the flag in prestige mode, so prestige hides the switch rather
+          than offering one that does nothing. Hiding writes nothing: the stored quest_aware
+          is still there when the plan goes back to ladder. */}
+      {prestige ? null : (
+        <>
+          <Switch
+            label="Pick quest brawlers"
+            checked={plan.quest_aware}
+            describedBy={questHelpId}
+            onChange={(quest_aware) => save({ quest_aware })}
+          />
+          <p id={questHelpId} className="text-[12px] text-muted">
+            Applies at session start only. The worker reads the quests screen and picks an owned
+            brawler that clears a quest. Your plan target wins when it clears one; otherwise the
+            lowest-trophy candidate.
+          </p>
+        </>
+      )}
 
       <div className="flex flex-col gap-1">
         <span className="text-[12px] text-muted">Current brawler</span>
