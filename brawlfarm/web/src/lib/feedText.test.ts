@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 
 import type { FeedRecord } from "../api/types";
 import { makeFeedRecord } from "../test/fixtures";
-import { feedText } from "./feedText";
+import { HANDLED_KINDS, feedText } from "./feedText";
 
 type Row = [string, Partial<FeedRecord>, string, string];
 
@@ -27,7 +27,7 @@ const ROWS: Row[] = [
   ["recap without a delta", { event: "recap", category: M, fields: { trophies: null, games: 4, skins: 0 } }, "Session ended, 4 games", "ok"],
   ["recap with skins", { event: "recap", category: M, fields: { trophies: 20, games: 4, skins: 1 } }, "Session ended, 4 games, +20 trophies, 1 skin", "ok"],
   ["recap with skins plural", { event: "recap", category: M, fields: { trophies: 20, games: 4, skins: 2 } }, "Session ended, 4 games, +20 trophies, 2 skins", "ok"],
-  ["trophies", { event: "trophies", category: M, fields: { total: 41120 } }, "Trophies: 41120", "ok"],
+  ["trophies", { event: "trophies", category: M, fields: { total: 41120 } }, "Trophies: 41,120", "ok"],
   ["farming", { event: "farming", category: M, fields: { brawler: "NORI" } }, "Farming NORI", "ok"],
   ["select_brawler", { event: "select_brawler", category: M, fields: { brawler: "TARA", planned: true } }, "Brawler selected: TARA", "ok"],
   ["select_brawler with goal", { event: "select_brawler", category: M, fields: { brawler: "TARA", goal: 700 } }, "Brawler selected: TARA (goal 700)", "ok"],
@@ -39,8 +39,8 @@ const ROWS: Row[] = [
   ["quest_pick unreadable without a target", { event: "quest_pick", category: M, fields: { reason: "unreadable", brawler: null, quest: null, target: null } }, "Quest pick: quests screen not readable, using the lowest-trophy pick", "warn"],
   ["rotate_brawler", { event: "rotate_brawler", category: M, fields: { brawler: "SHELLY", reason: "absolute_floor" } }, "Rotated to SHELLY: absolute_floor", "ok"],
   ["reselect_brawler", { event: "reselect_brawler", category: I, fields: {} }, "Reselecting the brawler", "warn"],
-  ["wrong_mode recovered", { event: "wrong_mode", category: I, fields: { score: 0.9, recovered: true } }, "Wrong mode detected, switched back", "warn"],
-  ["wrong_mode stuck", { event: "wrong_mode", category: I, fields: { score: 0.9, recovered: false } }, "Wrong mode detected", "warn"],
+  ["wrong_mode recovered", { event: "wrong_mode", category: I, fields: { score: 0.9, recovered: true } }, "Picked the wrong mode and switched back", "warn"],
+  ["wrong_mode stuck", { event: "wrong_mode", category: I, fields: { score: 0.9, recovered: false } }, "Picked the wrong mode", "warn"],
   ["popup_close", { event: "popup_close", category: I, fields: {} }, "Popup closed", "warn"],
   ["team_invite_decline", { event: "team_invite_decline", category: I, fields: {} }, "Team invite declined", "warn"],
   ["daily_streak_claim", { event: "daily_streak_claim", category: I, fields: {} }, "Daily streak claimed", "warn"],
@@ -51,18 +51,20 @@ const ROWS: Row[] = [
   ["bush_hide", { event: "bush_hide", category: I, fields: { target: "east" } }, "Hiding in a bush", "warn"],
   ["game_left_foreground", { event: "game_left_foreground", category: I, fields: { pkg: "com.android.settings" } }, "Game left the foreground (com.android.settings)", "warn"],
   ["disconnect", { event: "disconnect", category: I, fields: { count: 2, other_device: false } }, "Disconnected, reconnecting (2)", "warn"],
-  ["recover", { event: "recover", category: I, fields: { reason: "stuck_menu", attempt: 1 } }, "Recovering: stuck_menu, attempt 1", "warn"],
-  ["recover_dismissed", { event: "recover_dismissed", category: I, fields: { reason: "stuck_menu" } }, "Recovery dismissed: stuck_menu", "warn"],
+  ["recover", { event: "recover", category: I, fields: { reason: "stuck_menu", attempt: 1 } }, "Recovering from stuck_menu, attempt 1…", "warn"],
+  ["recover_dismissed", { event: "recover_dismissed", category: I, fields: { reason: "stuck_menu" } }, "Recovery no longer needed: stuck_menu", "warn"],
   ["crash", { event: "crash", category: E, fields: { err: "adb did not answer" } }, "Crash: adb did not answer", "bad"],
   ["adb_error", { event: "adb_error", category: E, fields: { err: "device offline" } }, "ADB error: device offline", "bad"],
   ["adb_error with streak", { event: "adb_error", category: E, fields: { err: "device offline", streak: 3 } }, "ADB error: device offline (streak 3)", "bad"],
-  ["bad_resolution", { event: "bad_resolution", category: E, fields: { got: [1920, 1080] } }, "Wrong resolution: 1920 x 1080, need 1600 x 900", "bad"],
+  ["bad_resolution", { event: "bad_resolution", category: E, fields: { got: [1920, 1080] } }, "Wrong resolution: 1920 by 1080. brawlfarm needs 1600 by 900.", "bad"],
+  ["bad_resolution with a need", { event: "bad_resolution", category: E, fields: { got: [1920, 1080], need: [1600, 900] } }, "Wrong resolution: 1920 by 1080. brawlfarm needs 1600 by 900.", "bad"],
   ["recalibrate", { event: "recalibrate", category: E, fields: { surface: "menu", detail: "drifted" } }, "Recalibration needed: menu", "bad"],
-  ["other _error", { event: "select_brawler_error", category: E, fields: { err: "no brawler row" } }, "select brawler failed: no brawler row", "bad"],
-  ["quest_pick_error", { event: "quest_pick_error", category: E, fields: { err: "HTTP 503" } }, "quest pick failed: HTTP 503", "bad"],
-  ["api_error", { event: "api_error", category: E, fields: { where: "trophies", err: "HTTP 503" } }, "api failed: HTTP 503", "bad"],
-  ["start", { event: "start", category: O, fields: { max_games: 40, max_minutes: 90 } }, "Worker started", "idle"],
-  ["stop", { event: "stop", category: O, fields: { reason: "panel", games: 12, minutes: 47 } }, "Worker stopped: panel (12 games, 47 min)", "idle"],
+  ["other _error", { event: "select_brawler_error", category: E, fields: { err: "no brawler row" } }, "Select brawler failed: no brawler row", "bad"],
+  ["quest_pick_error", { event: "quest_pick_error", category: E, fields: { err: "HTTP 503" } }, "Quest pick failed: HTTP 503", "bad"],
+  ["api_error", { event: "api_error", category: E, fields: { where: "trophies", err: "HTTP 503" } }, "Api failed: HTTP 503", "bad"],
+  ["unlisted _error", { event: "foo_error", category: E, fields: { err: "boom" } }, "Foo failed: boom", "bad"],
+  ["start", { event: "start", category: O, fields: { max_games: 40, max_minutes: 90 } }, "Started farming", "idle"],
+  ["stop", { event: "stop", category: O, fields: { reason: "panel", games: 12, minutes: 47 } }, "Stopped farming: panel (12 games, 47 min)", "idle"],
   ["launch_game", { event: "launch_game", category: O, fields: { method: "monkey" } }, "Brawl Stars opened", "idle"],
   ["game_closed", { event: "game_closed", category: O, fields: { reason: "stop" } }, "Brawl Stars closed: stop", "idle"],
   ["dnd", { event: "dnd", category: O, fields: { ok: true } }, "DND enabled", "idle"],
@@ -72,8 +74,10 @@ const ROWS: Row[] = [
   ["maxed_fallback_switch", { event: "maxed_fallback_switch", category: O, fields: { fallback: "SHELLY" } }, "Switched to the maxed fallback SHELLY", "idle"],
   ["step ok", { event: "step", category: O, fields: { step: 2, label: "Daily streak claimed", status: "ok" } }, "Daily streak claimed", "idle"],
   ["step error", { event: "step", category: O, fields: { step: 3, label: "Brawler selected", status: "error" } }, "Brawler selected", "bad"],
-  ["unknown with fields", { event: "gas_edges_v2", category: O, fields: { edges: 4, n: 1 } }, "gas edges v2: edges=4, n=1", "idle"],
-  ["unknown without fields", { event: "something_new", category: O, fields: {} }, "something new", "idle"],
+  ["unknown with fields", { event: "gas_edges_v2", category: O, fields: { edges: 4, n: 1 } }, "Gas edges v2", "idle"],
+  ["unknown without fields", { event: "something_new", category: O, fields: {} }, "Something new", "idle"],
+  ["unknown with the fallback's own fields", { event: "shiny_new", category: O, fields: { brawler: "TARA", recovered: true, score: 0.4567 } }, "Shiny new: TARA, match 46%", "idle"],
+  ["unknown with no fields", { event: "shiny_new", category: O, fields: {} }, "Shiny new", "idle"],
 ];
 
 describe("feedText", () => {
@@ -86,7 +90,52 @@ describe("feedText", () => {
   it("covers every event name the brief's table names", () => {
     const events = ROWS.map(([, o]) => o.event);
     expect(events.filter((e) => e === undefined)).toHaveLength(0);
-    expect(ROWS).toHaveLength(60);
-    expect(new Set(events).size).toBe(41); // 39 named kinds plus the two fallback cases
+    expect(ROWS).toHaveLength(64);
+    expect(new Set(events).size).toBe(43); // 39 named kinds plus the four fallback cases
+  });
+  // Every kind that has a sentence of its own above. The API's kind list lives in Python,
+  // so a kind the core adds has to be added here by hand; the *_error kinds are left out
+  // because they read through the suffix fallback rather than a case of their own.
+  const API_KINDS: readonly string[] = [
+    "phase",
+    "games_logged",
+    "recap",
+    "trophies",
+    "farming",
+    "select_brawler",
+    "quest_pick",
+    "rotate_brawler",
+    "reselect_brawler",
+    "wrong_mode",
+    "popup_close",
+    "team_invite_decline",
+    "daily_streak_claim",
+    "ceremony_cleared",
+    "skin_reward",
+    "ingame_modal_cleared",
+    "gas_relocate",
+    "bush_hide",
+    "game_left_foreground",
+    "disconnect",
+    "recover",
+    "recover_dismissed",
+    "crash",
+    "adb_error",
+    "bad_resolution",
+    "recalibrate",
+    "start",
+    "stop",
+    "launch_game",
+    "game_closed",
+    "dnd",
+    "dnd_off",
+    "mega_quest",
+    "account_maxed",
+    "maxed_fallback_switch",
+    "step",
+  ];
+
+  it("spells out every kind the API writes", () => {
+    expect(API_KINDS.filter((kind) => !HANDLED_KINDS.includes(kind))).toEqual([]);
   });
 });
