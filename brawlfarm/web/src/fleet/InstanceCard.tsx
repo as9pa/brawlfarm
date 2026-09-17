@@ -225,13 +225,15 @@ export function InstanceCard({ inst }: InstanceCardProps) {
           variant="quiet"
           size="sm"
           disabled={!stoppable}
-          disabledReason="Not running"
+          disabledReason="Already stopped"
           onClick={onStop}
         >
           Stop
         </Button>
+        {/* The same restart either way: a stopped instance has nothing to stop first, so
+            the label says what the press will do rather than what the endpoint is called. */}
         <Button variant="quiet" size="sm" onClick={onRestart}>
-          Restart
+          {stoppable ? "Restart" : "Start"}
         </Button>
         <span className="flex-1" />
         <Button

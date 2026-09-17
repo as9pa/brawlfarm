@@ -151,9 +151,11 @@ describe("Schedule", () => {
       }),
     );
     renderWithProviders(<Schedule name="Pie64" />);
-    expect(await screen.findByText("Override: stop until 18:00")).toBeInTheDocument();
+    const chip = await screen.findByText("Paused until 18:00");
+    expect(chip).toBeInTheDocument();
+    expect(chip.textContent).not.toMatch(/\bstop\b|override/i);
     // An icon button: its aria-label is the only accessible name it has.
-    await userEvent.click(screen.getByRole("button", { name: "Clear override" }));
+    await userEvent.click(screen.getByRole("button", { name: "Resume schedule" }));
     await waitFor(() => {
       expect(countOf(calls, "PUT", SCHEDULE)).toBe(1);
     });
@@ -162,12 +164,25 @@ describe("Schedule", () => {
     expect(toastMessages()).toEqual([]);
   });
 
+  it("names a run override by what it is doing", async () => {
+    mount(
+      makeSchedule({
+        override: { mode: "run", until: "2026-09-11T07:00:00", set_at: "2026-09-11T06:00:00" },
+      }),
+    );
+    renderWithProviders(<Schedule name="Pie64" />);
+    const chip = await screen.findByText("Running until 07:00");
+    expect(chip).toBeInTheDocument();
+    expect(chip.textContent).not.toMatch(/\brun\b|override/i);
+    expect(screen.getByRole("button", { name: "Resume schedule" })).toBeInTheDocument();
+  });
+
   it("says so when the day has not been drawn", async () => {
     mount(makeSchedule({ sessions: [], plan_date: null }));
     renderWithProviders(<Schedule name="Pie64" />);
     expect(
       await screen.findByText(
-        "No sessions drawn yet. The supervisor draws today on its next tick.",
+        "No sessions drawn yet. brawlfarm draws today’s sessions within a minute.",
       ),
     ).toBeInTheDocument();
   });
@@ -205,7 +220,9 @@ describe("Schedule redraw", () => {
     fireEvent.click(screen.getByRole("button", { name: "Redraw today" }));
     await tick(0);
     expect(lastBody(calls, "PUT", SCHEDULE)).toEqual({ redraw: true });
-    expect(toastMessages()).toEqual(["Redrawing today; new sessions appear after the next tick"]);
+    expect(toastMessages()).toEqual([
+      "Redrawing today… new sessions appear within a minute.",
+    ]);
     // Every patch invalidates the key, so the PUT has already asked once by itself. The
     // two timers are what this test is about, so count from there.
     const asked = countOf(calls, "GET", SCHEDULE);

@@ -200,9 +200,22 @@ describe("InstanceCard", () => {
       const { unmount } = renderWithProviders(<InstanceCard inst={makeInstance({ state })} />);
       const stop = screen.getByRole("button", { name: "Stop" });
       expect(stop).toBeDisabled();
-      expect(stop).toHaveAttribute("title", "Not running");
+      expect(stop).toHaveAttribute("title", "Already stopped");
       unmount();
     }
+  });
+
+  it("offers Start on a card that is not running and Restart on one that is", () => {
+    stubScreens();
+    const { unmount } = renderWithProviders(<InstanceCard inst={makeInstance({ state: "stopped" })} />);
+    expect(screen.getByRole("button", { name: "Start" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Restart" })).not.toBeInTheDocument();
+    unmount();
+
+    stubScreens();
+    renderWithProviders(<InstanceCard inst={makeInstance({ state: "farming" })} />);
+    expect(screen.getByRole("button", { name: "Restart" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Start" })).not.toBeInTheDocument();
   });
 
   it("stops with an undo that starts it again, without following the card link", async () => {
