@@ -95,11 +95,13 @@ export function Toast({ item }: ToastProps) {
     };
   }, [item.id, item.durationMs]);
 
-  // Never two actions in one strip: a reader offered both has to work out which one puts
-  // it back. The undo is the one that undoes something, so it stands and the retry goes.
-  const retry = item.undo === undefined ? item.retry : undefined;
-  const Icon = TONE_ICON[item.tone];
   const isBad = item.tone === "bad";
+  // A retry is a failure's answer, so it reaches the screen on a bad toast only: offering
+  // it on a polite note would ask the reader to redo something that went through.
+  // Never two actions in one strip either: a reader offered both has to work out which
+  // one puts it back, so the undo stands, being the one that undoes something.
+  const retry = isBad && item.undo === undefined ? item.retry : undefined;
+  const Icon = TONE_ICON[item.tone];
 
   useEffect(() => {
     if (item.undo !== undefined && item.retry !== undefined) {

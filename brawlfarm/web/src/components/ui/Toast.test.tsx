@@ -218,6 +218,14 @@ describe("Toaster", () => {
     expect(screen.queryByText("That did not go through. Try again.")).not.toBeInTheDocument();
   });
 
+  it("offers no Retry on a toast that is not reporting a failure", () => {
+    render(<Toaster />);
+    act(() => {
+      toast("Plan saved", { tone: "info", retry: vi.fn() });
+    });
+    expect(screen.queryByRole("button")).not.toBeInTheDocument();
+  });
+
   it("offers no action on a bad toast with nothing to retry", () => {
     render(<Toaster />);
     act(() => {
