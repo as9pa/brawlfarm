@@ -24,7 +24,7 @@ function puts(calls: FetchCall[]): unknown[] {
 }
 
 /** Serve `body` on GET and echo the PUT back merged over it, which is what task 7's
- * route does: the same enriched shape, with the four stored keys replaced. */
+ * route does: the same enriched shape, with the five stored keys replaced. */
 function mount(body = makePlan(), putStatus = 200): FetchCall[] {
   return stubFetch((url, init) => {
     if (url === "/api/connection/check") return jsonResponse(makeConnection());
@@ -64,6 +64,7 @@ describe("FarmPlan", () => {
       prestige_start: "highest",
       goal_trophies: 1000,
       maxed_fallback: null,
+      quest_aware: false,
     });
     expect(toastMessages()).toEqual(["Plan saved"]);
     expect(screen.getByText(/^Saved \d\d:\d\d$/)).toBeInTheDocument();
@@ -199,6 +200,7 @@ describe("FarmPlan", () => {
       prestige_start: "highest",
       goal_trophies: 1000,
       maxed_fallback: null,
+      quest_aware: false,
     });
 
     // The worker still has NORI, so the switch has to follow the cache back on.
@@ -211,6 +213,49 @@ describe("FarmPlan", () => {
     });
     expect(screen.getByLabelText("Fallback brawler")).toHaveValue("NORI");
     expect(toastMessages()).toEqual([]);
+  });
+
+  it("offers Pick quest brawlers under Maxed fallback, with its help line", async () => {
+    mount();
+    renderWithProviders(<FarmPlan name="Pie64" />);
+    const switches = await screen.findAllByRole("switch");
+    expect(switches.map((one) => one.textContent)).toEqual([
+      "Maxed fallback",
+      "Pick quest brawlers",
+    ]);
+    expect(switches[1]).toHaveAttribute("aria-checked", "false");
+    // The help line is the switch's own description, not loose text sitting beside it.
+    const help = document.getElementById(String(switches[1].getAttribute("aria-describedby")));
+    expect(help).toHaveTextContent(
+      "Applies at session start only. The worker reads the quests screen and picks an owned " +
+        "brawler that clears a quest. Your plan target wins when it clears one; otherwise the " +
+        "lowest-trophy candidate.",
+    );
+  });
+
+  it("puts Pick quest brawlers back on when turning it off fails", async () => {
+    const calls = mount(makePlan({ quest_aware: true }), 500);
+    renderWithProviders(<FarmPlan name="Pie64" />);
+    await userEvent.click(await screen.findByRole("switch", { name: "Pick quest brawlers" }));
+    await waitFor(() => {
+      expect(puts(calls)).toHaveLength(1);
+    });
+    expect(puts(calls)[0]).toEqual({
+      mode: "ladder",
+      prestige_start: "highest",
+      goal_trophies: 1000,
+      maxed_fallback: null,
+      quest_aware: false,
+    });
+
+    // The cache is the source of truth after a failed save, so the switch goes back on.
+    expect(await screen.findByText("adb did not answer")).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByRole("switch", { name: "Pick quest brawlers" })).toHaveAttribute(
+        "aria-checked",
+        "true",
+      );
+    });
   });
 
   it("puts an icon in front of the current brawler, every queue row and the full list", async () => {
@@ -317,6 +362,7 @@ describe("FarmPlan goal debounce", () => {
       prestige_start: "highest",
       goal_trophies: 850,
       maxed_fallback: null,
+      quest_aware: false,
     });
 
     keystroke(goal, "-4");
@@ -336,6 +382,24 @@ describe("FarmPlan pending writes", () => {
     resetToasts();
     vi.useRealTimers();
     vi.unstubAllGlobals();
+  });
+
+  it("Pick quest brawlers saves on the click, with no debounce to wait out", async () => {
+    const calls = mount();
+    renderWithProviders(<FarmPlan name="Pie64" />);
+    await tick(0);
+
+    fireEvent.click(screen.getByRole("switch", { name: "Pick quest brawlers" }));
+    await tick(0); // no clock advanced: the PUT is already on its way
+    expect(puts(calls)).toEqual([
+      {
+        mode: "ladder",
+        prestige_start: "highest",
+        goal_trophies: 1000,
+        maxed_fallback: null,
+        quest_aware: true,
+      },
+    ]);
   });
 
   it("switching Maxed fallback off cancels a name that was still pending", async () => {
@@ -364,7 +428,13 @@ describe("FarmPlan pending writes", () => {
     await tick(600);
 
     expect(puts(calls)).toEqual([
-      { mode: "ladder", prestige_start: "highest", goal_trophies: 1000, maxed_fallback: null },
+      {
+        mode: "ladder",
+        prestige_start: "highest",
+        goal_trophies: 1000,
+        maxed_fallback: null,
+        quest_aware: false,
+      },
     ]);
   });
 
@@ -378,10 +448,16 @@ describe("FarmPlan pending writes", () => {
     fireEvent.click(screen.getByRole("radio", { name: "Prestige" }));
     await tick(600);
 
-    // The body is always the four stored keys, so goal_trophies is there: what matters is
+    // The body is always the five stored keys, so goal_trophies is there: what matters is
     // that it is the plan's own 1000 and not the 850 typed into a box that is now gone.
     expect(puts(calls)).toEqual([
-      { mode: "prestige", prestige_start: "highest", goal_trophies: 1000, maxed_fallback: null },
+      {
+        mode: "prestige",
+        prestige_start: "highest",
+        goal_trophies: 1000,
+        maxed_fallback: null,
+        quest_aware: false,
+      },
     ]);
   });
 
@@ -413,7 +489,13 @@ describe("FarmPlan pending writes", () => {
     await tick(600);
 
     expect(puts(calls)).toEqual([
-      { mode: "ladder", prestige_start: "highest", goal_trophies: 1000, maxed_fallback: "TARA" },
+      {
+        mode: "ladder",
+        prestige_start: "highest",
+        goal_trophies: 1000,
+        maxed_fallback: "TARA",
+        quest_aware: false,
+      },
     ]);
     expect(screen.queryByLabelText("Fallback brawler")).not.toBeInTheDocument();
   });
@@ -442,7 +524,13 @@ describe("FarmPlan pending writes", () => {
     await tick(600);
 
     expect(puts(calls)).toEqual([
-      { mode: "ladder", prestige_start: "highest", goal_trophies: 850, maxed_fallback: null },
+      {
+        mode: "ladder",
+        prestige_start: "highest",
+        goal_trophies: 850,
+        maxed_fallback: null,
+        quest_aware: false,
+      },
     ]);
     expect(screen.getByLabelText("Goal")).toHaveValue(1000); // the plan's own value is back
   });

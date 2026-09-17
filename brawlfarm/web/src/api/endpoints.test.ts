@@ -63,6 +63,7 @@ describe("plans and schedule", () => {
         prestige_start: "highest",
         goal_trophies: 1000,
         maxed_fallback: null,
+        quest_aware: false,
         current: { brawler: "NORI", trophies: 812, goal: 1000 },
         roster: null,
         queue: [],
@@ -76,12 +77,13 @@ describe("plans and schedule", () => {
       prestige_start: "lowest",
       goal_trophies: 1000,
       maxed_fallback: null,
+      quest_aware: false,
     });
     expect(calls[1]).toEqual({
       url: "/api/instances/Pie64/plan",
       init: {
         method: "PUT",
-        body: '{"mode":"prestige","prestige_start":"lowest","goal_trophies":1000,"maxed_fallback":null}',
+        body: '{"mode":"prestige","prestige_start":"lowest","goal_trophies":1000,"maxed_fallback":null,"quest_aware":false}',
         headers: { "content-type": "application/json" },
       },
     });

@@ -25,13 +25,14 @@ import { toast } from "../lib/toast";
 const PRESTIGE_GOAL = 1000; // core/farmplan.PRESTIGE_GOAL: prestige finishes a brawler here
 const DEBOUNCE_MS = 500; // a typed field saves once the typing stops, not per keystroke
 
-/** The four keys the API stores, lifted out of the enriched response. */
+/** The five keys the API stores, lifted out of the enriched response. */
 function planOf(response: PlanResponse): FarmPlanBody {
   return {
     mode: response.mode,
     prestige_start: response.prestige_start,
     goal_trophies: response.goal_trophies,
     maxed_fallback: response.maxed_fallback,
+    quest_aware: response.quest_aware,
   };
 }
 
@@ -205,6 +206,7 @@ export function FarmPlan({ name }: { name: string }) {
       : Math.min(100, Math.round((plan.current.trophies / goal) * 100));
   const showFallback = fallbackOn ?? plan.maxed_fallback !== null;
   const listId = `${name}-roster`;
+  const questHelpId = `${name}-quest-help`;
 
   return (
     <section className="flex flex-col gap-3 rounded-[10px] border border-line bg-panel p-3">
@@ -287,6 +289,18 @@ export function FarmPlan({ name }: { name: string }) {
           </datalist>
         </>
       ) : null}
+
+      <Switch
+        label="Pick quest brawlers"
+        checked={plan.quest_aware}
+        describedBy={questHelpId}
+        onChange={(quest_aware) => save({ quest_aware })}
+      />
+      <p id={questHelpId} className="text-[12px] text-muted">
+        Applies at session start only. The worker reads the quests screen and picks an owned
+        brawler that clears a quest. Your plan target wins when it clears one; otherwise the
+        lowest-trophy candidate.
+      </p>
 
       <div className="flex flex-col gap-1">
         <span className="text-[12px] text-muted">Current brawler</span>
