@@ -36,7 +36,8 @@ _last_warn = float("-inf")
 
 
 def encode(screen, *, full: bool = False) -> bytes:
-    """``screen`` scaled to PREVIEW_SIZE and JPEG-encoded. Raises if cv2 cannot encode it.
+    """``screen`` JPEG-encoded, scaled to PREVIEW_SIZE unless ``full`` is set. Raises if cv2
+    cannot encode it.
 
     INTER_AREA is the right filter for shrinking: it averages the pixels it drops, so the
     game's thin UI text stays readable at half size instead of aliasing into noise.
