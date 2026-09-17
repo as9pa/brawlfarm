@@ -424,42 +424,39 @@ DAILY_STREAK_CLAIM = (1331, 703)  # green CLAIM button
 # so the farm plays it. Like the shop/pass actions: open from menu -> act -> exit via taps.
 # ⚠️ Coordinates calibrated live on 5585 (1600x900); the brawler UI can shift between updates.
 BRAWLERS_BUTTON = (110, 415)  # left-side menu BRAWLERS button (label OCR'd ~85,429)
-BRAWLERS_HEADER_REGION = (
-    0,
-    0,
-    900,
-    80,
-)  # OCR "BRAWLERS" here to confirm the screen is open
+# was (0, 0, 900, 80); "BRAWLERS 105/107" text (277,103,540,136) on 0006, 10 px margin
+BRAWLERS_HEADER_REGION = (267, 93, 550, 146)  # OCR "BRAWLERS" here to confirm the screen is open
 
-BRAWLER_SORT_LABEL = (
-    1010,
-    42,
-)  # current-sort label, top-centre; tap to open the dropdown
-BRAWLER_SORT_DROPDOWN_REGION = (
-    820,
-    80,
-    1200,
-    720,
-)  # OCR "Least Trophies" item (~1006,356)
+# was (1010, 42); "Least Trophies" text box (627,32,795,56) on 0006, "Name" centres on the
+# same x on 0066
+BRAWLER_SORT_LABEL = (711, 44)  # current-sort label, top-centre; tap to open the dropdown
+# was (820, 80, 1200, 720); open panel on 0014 and 0077; items centre x 705, pitch 67;
+# "Least Trophies" (705,359), "Name" (705,628)
+BRAWLER_SORT_DROPDOWN_REGION = (311, 98, 1109, 815)  # OCR the sort items here
 
 # Quest + Heart/Favorites filter toggles (top-right). ON shows an ORANGE check badge; OFF
 # none. The Quest clipboard's own check is BLUE (always present), so we gate on ORANGE only.
-BRAWLER_QUEST_TOGGLE = (1215, 55)  # clipboard toggle (tap point also covers its badge)
-BRAWLER_HEART_TOGGLE = (
-    1360,
-    55,
-)  # heart toggle (between its orange badge and the icon)
+# was (1215, 55); clipboard icon box (934,14,986,64) on 0006
+BRAWLER_QUEST_TOGGLE = (960, 39)  # clipboard toggle (tap point also covers its badge)
+# was (1360, 55); heart glyph box (1095,19,1148,61) on 0006
+BRAWLER_HEART_TOGGLE = (1121, 40)  # heart toggle (between its orange badge and the icon)
+# new, never-tap landmark; field box about (1160,18,1432,72) on 0006
+BRAWLER_SEARCH_FIELD = (1296, 45)  # top-bar search field: a landmark only, never tapped
+# UNVERIFIED: neither toggle was ON in session 1 (20260916-212232) or session 2
+# (20260916-223234); the clipboard's own blue tick is icon art, never the ON test
 BRAWLER_TOGGLE_ORANGE_LO = (5, 140, 140)
 BRAWLER_TOGGLE_ORANGE_HI = (22, 255, 255)
 BRAWLER_TOGGLE_ON_FRAC = 0.07  # orange fraction in a toggle's box above this => it's ON
 BRAWLER_TOGGLE_HALF = 45  # half-size of the box sampled around each toggle's center
 
-BRAWLER_FIRST_CARD = (330, 300)  # top-left grid card center = lowest after the sort
+# was (330, 300); top-left card centre at the resting scroll offset, 0015 (column 0 spans
+# x 277 to 637, row 1 spans y 147 to 364)
+BRAWLER_FIRST_CARD = (457, 255)  # top-left grid card center = lowest after the sort
 # Brawler detail screen: the blue SELECT button sits at a FIXED bottom-left spot, far from
-# the TRY button and the bottom-right UPGRADE button (Gems/Coins — never tapped). OCR mangles
+# the TRY button and the bottom-right UPGRADE button (Gems/Coins, never tapped). OCR mangles
 # the styled label ("SELET"), so we tap the fixed coordinate; tapping is idempotent (an
 # already-active brawler shows a greyed "SELECTED" that's a harmless no-op).
-BRAWLER_SELECT_BUTTON = (213, 818)
+BRAWLER_SELECT_BUTTON = (213, 818)  # confirmed on session 2 (measured (216, 816) on 0148)
 BRAWLER_NAME_REGION = (
     0,
     0,
@@ -467,30 +464,48 @@ BRAWLER_NAME_REGION = (
     250,
 )  # OCR the brawler name here for the log/return value
 
-# Select-BY-NAME (farm plan): sort the grid alphabetically ("Name" in the sort
-# dropdown — digits sort first, e.g. 8-BIT leads), then scroll a 3-cards-per-row grid
-# to the target and tap it. Geometry measured live on a farm account (1600x900, 2026-06-09):
-# column name-labels at x≈479/919/1358 with card centers ≈ (330, 770, 1210); row-1
-# card center y≈300 with its name label at y≈363 (label ~63 px BELOW center); row
-# pitch 364 px (labels 363 -> 727). Scrolling has fling inertia: a 364 px swipe at
-# 800 ms moved the grid ~436 px (~1.2x), so selection runs a SELF-CORRECTING loop
-# (OCR the visible card names -> estimate the row offset -> swipe -> re-check) instead
-# of trusting one big blind scroll. Owned brawlers list alphabetically BEFORE unowned
-# (BELLE/BERRY, unowned, were skipped between BEA and BIBI on a 51/103 account).
+# Select-BY-NAME (farm plan): sort the grid alphabetically ("Name" in the sort dropdown,
+# where digits sort first, e.g. 8-BIT leads), then scroll to the target and tap it. The
+# grid is HORIZONTAL and column-major: 3 rows per column, cards read top to bottom down a
+# column and then on to the next one, so walking forward through the names means swiping
+# LEFT. Geometry measured on the session-2 observe recording (Pie64/20260916-223234,
+# 1600x900, frames 0015 and 0020). Swipes carry fling inertia, so selection runs a
+# SELF-CORRECTING loop (OCR the visible card names, estimate the column offset, swipe,
+# re-check) instead of trusting one big blind scroll. Owned brawlers list alphabetically
+# BEFORE unowned (BELLE/BERRY, unowned, were skipped between BEA and BIBI on a 51/103
+# account).
+# The red shop offer panel holds x 0 to 125 (frames 0006 and 0015, red to x 116) with a live
+# buy control: never-tap, and no swipe endpoint may land below x 146.
 BRAWLER_SORT_NAME_ITEM = "Name"  # the alphabetical entry in the sort dropdown
-BRAWLER_GRID_COLS_X = (330, 770, 1210)  # card-center x of the 3 columns
-BRAWLER_GRID_ROW0_Y = 300  # row-1 card-center y when scrolled to the top
-BRAWLER_GRID_ROW_H = 364  # vertical row pitch
-BRAWLER_NAME_LABEL_DY = 63  # name label sits ~this far BELOW its card's center
-BRAWLER_GRID_REGION = (150, 80, 1430, 880)  # OCR band: the visible grid
-BRAWLER_GRID_TARGET_Y = 480  # scroll the target row to ~here (mid-grid) before tapping
-BRAWLER_SCROLL_X = 770  # swipe lane: middle column, clear of screen edges
-BRAWLER_SCROLL_FACTOR = 0.83  # swipe px ≈ wanted px * this (fling adds ~20%)
-BRAWLER_SCROLL_MAX_PX = 650  # max swipe length (grid is ~750 px tall)
-BRAWLER_SCROLL_MIN_PX = 120  # below this a swipe doesn't reliably register
-BRAWLER_SCROLL_BOTTOM_Y = 840  # swipe-up start / swipe-down end
-BRAWLER_SCROLL_TOP_Y = 140  # swipe-up end / swipe-down start
-BRAWLER_SELECT_MAX_SWIPES = 14  # bail-out budget for the find-the-card loop
+# replaces BRAWLER_GRID_COLS_X; column centres 457, 837, 1217, 1597 (the 4th is half cut)
+BRAWLER_GRID_COL0_X = 457  # card-center x of the leftmost column
+BRAWLER_GRID_COL_W = 380  # column pitch; column lefts 277, 657, 1037, 1417 on 0015
+# replaces BRAWLER_GRID_ROW0_Y and BRAWLER_GRID_ROW_H; row bands (147,364), (392,610),
+# (637,853) on 0015
+BRAWLER_GRID_ROWS_Y = (255, 501, 745)  # card-center y of the 3 rows
+# new; card spans 657 to 1017 on 0015; a column counts as visible only when its centre plus
+# half this fits inside BRAWLER_GRID_REGION
+BRAWLER_CARD_W = 361
+BRAWLER_CARD_H = 217  # new; row 1 spans 147 to 364 on 0015
+# was (150, 80, 1430, 880); OCR band past the offer panel (red ends at x 116 on 0006) and
+# below the top bar (ends y 72)
+BRAWLER_GRID_REGION = (146, 140, 1600, 860)  # OCR band: the visible grid
+# was absent; the label is right-aligned in the card, centre is 53 (ANGELO) to 79 (BEA)
+# right of the card centre on 0020, so snap to the nearest column after subtracting this
+BRAWLER_NAME_LABEL_DX = 66
+# was 63; label band is card top + 144 to card top + 182, centre 55 below the card centre
+# on 0020
+BRAWLER_NAME_LABEL_DY = 55  # name label sits ~this far BELOW its card's center
+# new; middle row centre, the lane x 500 to 1400 crosses card art and gaps only on 0015;
+# y 378 (the gap between rows 1 and 2) is the control-free alternative
+BRAWLER_SCROLL_Y = 501
+BRAWLER_SCROLL_X_RIGHT = 1400  # new; swipe-left start, swipe-right end
+# new; swipe-left end, swipe-right start; the offer panel ends at x 116 on 0006, never
+# swipe below x 146
+BRAWLER_SCROLL_X_LEFT = 500
+BRAWLER_SCROLL_MS = 600  # new; duration of one grid swipe
+# was 14; 105 owned brawlers make 35 columns and a 900 px swipe moves about 2.4 columns
+BRAWLER_SELECT_MAX_SWIPES = 20  # bail-out budget for the find-the-card loop
 
 # --- Mega quests -------------------------------------------------------------
 # The QUESTS button sits in the bottom menu bar. When a NEW MEGA QUEST is available to
