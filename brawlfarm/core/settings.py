@@ -87,7 +87,7 @@ def _exit_to_menu(log) -> None:
     """Return to the main menu using TAPS only (no BACK key). Each cycle taps ONLY what
     the screen proves is on it: a stray popup's detected red close_x, else SOCIAL
     SETTINGS' ✕ (that panel sits ON TOP of TEAM UP, so it is checked first), else the
-    TEAM UP panel's own red ✕ — it closes from the TOP-RIGHT, unlike the pass/brawlers
+    TEAM UP panel's own red ✕: it closes from the TOP-RIGHT, unlike the pass/brawlers
     screens' top-left arrow. Nothing readable means nothing is tapped this cycle: a
     panel still animating in reads on the next one. The old version rotated blind taps
     through HOME_BUTTON (1525, 47), which ON THE MENU is the hamburger (MENU_BURGER):

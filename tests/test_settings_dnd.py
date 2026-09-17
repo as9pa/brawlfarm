@@ -9,7 +9,7 @@ untested (r10 hardening). Pins the three load-bearing behaviors:
       on scheduled cap stops or the hard backstop (Controller.stop wiring —
       the deep version lives in test_stop_etiquette.py);
   (d) the calibration fix of 2026-09-17: each panel gets a measured TIME budget to
-      animate in, and the exit path taps only what OCR proves is on screen — never
+      animate in, and the exit path taps only what OCR proves is on screen, never
       the blind HOME_BUTTON rotation that hit the main menu's hamburger.
 
 House style (test_stop_etiquette.py): direct calls into settings.py with the
