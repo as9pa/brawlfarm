@@ -50,6 +50,61 @@ def test_lines_it_does_not_understand_are_dropped() -> None:
     assert questpick.parse(["QUESTS", "", "Collect 3 star points", "Win battles with"]) == []
 
 
+def test_parses_every_brawler_a_quest_names() -> None:
+    lines = [
+        "WIN 5 BATTLES WITH NITA, PAM OR MINA",
+        "WIN 5 BATTLES WITH PAM, LOLA OR MEEPLE",
+        "WIN 5 BATTLES WITH SPIKE, EDGAR OR JAE-YONG",
+        "WIN 5 BATTLES WITH MORTIS, DARRYL OR BUZZ",
+        "WIN 5 BATTLES WITH LEON, SURGE OR FINX",
+        "WIN 5 BATTLES WITH GALE, BYRON OR MINA",
+    ]
+    quests = questpick.parse(lines)
+    assert [quest.candidates for quest in quests] == [
+        ("NITA", "PAM", "MINA"),
+        ("PAM", "LOLA", "MEEPLE"),
+        ("SPIKE", "EDGAR", "JAEYONG"),
+        ("MORTIS", "DARRYL", "BUZZ"),
+        ("LEON", "SURGE", "FINX"),
+        ("GALE", "BYRON", "MINA"),
+    ]
+    assert [(quest.kind, quest.count) for quest in quests] == [(questpick.KIND_BRAWLER, 5)] * 6
+
+
+def test_target_is_the_first_candidate() -> None:
+    (quest,) = questpick.parse(["Win 5 battles with Shelly"])
+    assert quest.candidates == ("SHELLY",)
+    assert quest.target == quest.candidates[0]
+
+
+def test_parses_points_of_damage_with_several_brawlers() -> None:
+    (quest,) = questpick.parse(["DEAL 100,000 POINTS OF DAMAGE WITH BONNIE, MEEPLE OR FINX"])
+    assert quest.kind == questpick.KIND_BRAWLER
+    assert quest.candidates == ("BONNIE", "MEEPLE", "FINX")
+    assert quest.count == 100000
+
+
+def test_a_damage_quest_that_names_nobody_is_dropped() -> None:
+    assert questpick.parse(["DEAL 160,000 POINTS OF DAMAGE"]) == []
+
+
+def test_a_class_among_the_candidates_makes_it_a_class_quest() -> None:
+    (quest,) = questpick.parse(["Win 5 battles with Tanks or Assassins"])
+    assert quest.kind == questpick.KIND_CLASS
+    assert quest.candidates == ("TANKS", "ASSASSINS")
+
+
+def test_quests_the_bot_cannot_farm_are_dropped() -> None:
+    lines = [
+        "DEFEAT 24 ENEMIES",
+        "DEFEAT 15 ENEMIES IN BRAWL BALL OR ANY SHOWDOWN",
+        "PLAY 6 BATTLES",
+        "PLAY 5 MATCHES IN A TEAM",
+        'USE "PLAY AGAIN" 10 TIMES',
+    ]
+    assert questpick.parse(lines) == []
+
+
 def test_resolve_returns_the_rosters_own_spelling() -> None:
     quests = questpick.parse(["Win 5 battles with LARRY AND LAWRIE", "Win 2 battles with Shelly"])
     assert questpick.resolve(quests, OWNED) == "Shelly"
