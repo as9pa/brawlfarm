@@ -147,10 +147,10 @@ describe("InstanceCard", () => {
     expect(screen.getByText("Next break").nextSibling).toHaveTextContent("21:30");
   });
 
-  it("says none for a session that has not started", () => {
+  it("says Not started for a session that has not started", () => {
     stubScreens();
     renderWithProviders(<InstanceCard inst={makeInstance({ state: "stopped", session: null, until: null })} />);
-    expect(screen.getByText("Session").nextSibling).toHaveTextContent("none");
+    expect(screen.getByText("Session").nextSibling).toHaveTextContent("Not started");
     expect(screen.getByText("Next session")).toBeInTheDocument();
   });
 

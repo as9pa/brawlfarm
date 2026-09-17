@@ -19,6 +19,7 @@ import { ErrorBlock } from "../components/ui/ErrorBlock";
 import { Field } from "../components/ui/Field";
 import { Segmented } from "../components/ui/Segmented";
 import { Switch } from "../components/ui/Switch";
+import { count, NO_BRAWLER_YET, NOT_YET, QUEUE_EMPTY } from "../lib/copy";
 import { hhmm } from "../lib/time";
 import { toast } from "../lib/toast";
 
@@ -245,7 +246,7 @@ export function FarmPlan({ name }: { name: string }) {
       ) : null}
 
       {prestige ? (
-        <p className="text-[12px] text-muted">Goal 1000, the prestige threshold</p>
+        <p className="text-[12px] text-muted">Goal {count(PRESTIGE_GOAL)}, the prestige threshold</p>
       ) : (
         <Field
           label="Goal"
@@ -313,9 +314,13 @@ export function FarmPlan({ name }: { name: string }) {
         <span className="text-[12px] text-muted">Current brawler</span>
         <div className="flex items-center gap-2">
           <BrawlerIcon name={plan.current.brawler} />
-          <span className="font-mono text-[13px]">{plan.current.brawler ?? "none"}</span>
+          {/* A name is mono because it is data; the stand-in sentence is prose. */}
+          <span className={plan.current.brawler === null ? "text-[13px]" : "font-mono text-[13px]"}>
+            {plan.current.brawler ?? NO_BRAWLER_YET}
+          </span>
           <span className="ml-auto font-mono text-[12px] tabular-nums text-muted">
-            {plan.current.trophies === null ? "none" : plan.current.trophies} / {goal}
+            {plan.current.trophies === null ? NOT_YET : count(plan.current.trophies)} /{" "}
+            {count(goal)}
           </span>
         </div>
         <div className="h-[3px] w-full bg-line">
@@ -335,7 +340,7 @@ export function FarmPlan({ name }: { name: string }) {
       <div className="flex flex-col gap-1">
         <span className="text-[12px] text-muted">Next in queue</span>
         {plan.queue.length === 0 ? (
-          <span className="text-[13px] text-muted">none</span>
+          <span className="text-[13px] text-muted">{QUEUE_EMPTY}</span>
         ) : (
           <ul>
             {plan.queue.map((brawler) => (

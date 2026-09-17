@@ -2,13 +2,14 @@
  * The last twenty games the workers logged, newest first.
  *
  * The API already orders them, so this never sorts: the list is a log, and a log that
- * reorders itself is a different thing. A null mode, map, brawler or rank reads "none"
- * rather than blank, so an empty cell always means the column is empty and never that
- * something failed to render.
+ * reorders itself is a different thing. A null mode, map, brawler or rank reads
+ * "Not recorded" rather than blank, so an empty cell always means the column is empty and
+ * never that something failed to render.
  */
 import type { StatsGame, StatsRange } from "../api/types";
 import { BrawlerIcon } from "../components/ui/BrawlerIcon";
 import { Table, type Column } from "../components/ui/Table";
+import { modeName, NOT_RECORDED } from "../lib/copy";
 import { signed } from "../lib/format";
 import { formatMoment } from "./format";
 
@@ -19,7 +20,6 @@ export interface RecentGamesProps {
   range: StatsRange;
 }
 
-const NONE = "none";
 const EMPTY = "No games in this range.";
 
 function trophyTone(change: number): string {
@@ -29,7 +29,11 @@ function trophyTone(change: number): string {
 }
 
 function muted(value: string | null) {
-  return value === null || value === "" ? <span className="text-muted">{NONE}</span> : value;
+  return value === null || value === "" ? (
+    <span className="text-muted">{NOT_RECORDED}</span>
+  ) : (
+    value
+  );
 }
 
 /** Built per render rather than once at module level, because the Time column reads the
@@ -60,7 +64,7 @@ function columnsFor(range: StatsRange): Column<StatsGame>[] {
         </span>
       ),
     },
-    { key: "mode", label: "Mode", render: (row) => muted(row.mode) },
+    { key: "mode", label: "Mode", render: (row) => muted(modeName(row.mode)) },
     { key: "map", label: "Map", render: (row) => muted(row.map) },
     {
       key: "rank",
@@ -68,21 +72,27 @@ function columnsFor(range: StatsRange): Column<StatsGame>[] {
       mono: true,
       width: "60px",
       render: (row) =>
-        row.rank === null ? <span className="text-muted">{NONE}</span> : String(row.rank),
+        row.rank === null ? (
+          <span className="text-muted">{NOT_RECORDED}</span>
+        ) : (
+          String(row.rank)
+        ),
     },
     {
       key: "trophy_change",
       label: "Trophies",
       mono: true,
       width: "80px",
-      render: (row) =>
-        row.trophy_change === null ? (
-          <span className="text-muted">{NONE}</span>
-        ) : (
+      render: (row) => {
+        if (row.trophy_change === null) return <span className="text-muted">{NOT_RECORDED}</span>;
+        // A game that moved no trophies is a fact, not a gain: "+0" claims otherwise.
+        if (row.trophy_change === 0) return <span className="text-muted">0</span>;
+        return (
           <span data-testid="recent-trophies" className={trophyTone(row.trophy_change)}>
             {signed(row.trophy_change)}
           </span>
-        ),
+        );
+      },
     },
   ];
 }

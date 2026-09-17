@@ -33,6 +33,7 @@ import { Button } from "../components/ui/Button";
 import { StateChip } from "../components/ui/StateChip";
 import { Thumb } from "../components/ui/Thumb";
 import { useVisiblePolling } from "../live/useVisiblePolling";
+import { NOT_STARTED } from "../lib/copy";
 import { signed } from "../lib/format";
 import { phaseLabel } from "../lib/states";
 import { duration, hhmm } from "../lib/time";
@@ -214,7 +215,7 @@ export function InstanceCard({ inst }: InstanceCardProps) {
         <Metric label="Trophies today" value={signed(inst.today.trophies)} />
         <Metric
           label="Session"
-          value={sessionMinutes === null ? "none" : duration(sessionMinutes)}
+          value={sessionMinutes === null ? NOT_STARTED : duration(sessionMinutes)}
         />
         <Metric label={NEXT_LABELS[inst.state]} value={nextValue(inst)} />
       </div>

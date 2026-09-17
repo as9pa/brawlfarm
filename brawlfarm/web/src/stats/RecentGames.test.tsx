@@ -1,4 +1,5 @@
-/** The last twenty games, newest first, with "none" where the API had nothing to say. */
+/** The last twenty games, newest first, with "Not recorded" where the API had nothing to
+ * say. */
 import { screen, within } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
@@ -52,7 +53,7 @@ describe("RecentGames", () => {
     expect(screen.getAllByTestId("brawler-icon")).toHaveLength(2);
   });
 
-  it("says none for a null mode, a null map and a null brawler", () => {
+  it("says Not recorded for a null mode, a null map and a null brawler", () => {
     renderWithProviders(
       <RecentGames
         rows={[game({ mode: null, map: null, brawler: null, rank: null })]}
@@ -60,10 +61,31 @@ describe("RecentGames", () => {
       />,
     );
     const cells = screen.getAllByRole("row")[1].querySelectorAll("td");
-    expect(cells[2]).toHaveTextContent("none");
-    expect(cells[3]).toHaveTextContent("none");
-    expect(cells[4]).toHaveTextContent("none");
-    expect(cells[5]).toHaveTextContent("none");
+    expect(cells[2]).toHaveTextContent("Not recorded");
+    expect(cells[3]).toHaveTextContent("Not recorded");
+    expect(cells[4]).toHaveTextContent("Not recorded");
+    expect(cells[5]).toHaveTextContent("Not recorded");
+    expect(screen.queryByText("none")).not.toBeInTheDocument();
+  });
+
+  it("names the mode the way the game does", () => {
+    renderWithProviders(<RecentGames rows={[game({ mode: "trioShowdown" })]} range="today" />);
+    const cells = screen.getAllByRole("row")[1].querySelectorAll("td");
+    expect(cells[3]).toHaveTextContent("Trio Showdown");
+  });
+
+  it("leaves a zero trophy change unsigned and says nothing was recorded for a null", () => {
+    renderWithProviders(
+      <RecentGames
+        rows={[game({ trophy_change: 0 }), game({ trophy_change: null, t: "2026-09-12T21:00:00" })]}
+        range="today"
+      />,
+    );
+    const rows = screen.getAllByRole("row");
+    const zero = rows[1].querySelectorAll("td")[6];
+    expect(zero).toHaveTextContent("0");
+    expect(zero.textContent).not.toContain("+");
+    expect(rows[2].querySelectorAll("td")[6]).toHaveTextContent("Not recorded");
   });
 
   it("signs and tints the trophy change", () => {
