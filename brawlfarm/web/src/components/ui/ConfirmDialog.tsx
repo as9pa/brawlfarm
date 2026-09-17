@@ -5,6 +5,9 @@
  * stays disabled, and says what to type, until the trimmed value equals `word` exactly.
  * Case sensitive: on a case-sensitive disk Pie64 and pie64 are two different folders.
  *
+ * `word` is optional. Left off, there is no box and the button alone confirms: the act is
+ * one a stray click should not cause, but not one worth making anybody type for.
+ *
  * The bad tone is one custom property on a wrapper rather than a new Button variant.
  * theme.css declares its colours with `@theme inline`, so `bg-accent` compiles to
  * `background-color: var(--accent)`: pointing --accent at --bad for this one subtree turns
@@ -22,7 +25,7 @@ export interface ConfirmDialogProps {
   onClose: () => void;
   title: string;
   body: ReactNode;
-  word: string;
+  word?: string;
   confirmLabel: string;
   tone: "bad";
   onConfirm: () => void | Promise<void>;
@@ -44,7 +47,7 @@ export function ConfirmDialog({
 }: ConfirmDialogProps) {
   const [typed, setTyped] = useState("");
   const boxId = useId();
-  const matches = typed.trim() === word;
+  const matches = word === undefined || typed.trim() === word;
 
   // The next thing this dialog confirms is a different instance, so a closed dialog cannot
   // keep the last name: reopening it would find the button already armed.
@@ -66,7 +69,7 @@ export function ConfirmDialog({
             <Button
               variant="primary"
               disabled={!matches}
-              disabledReason={`Type ${word} to confirm`}
+              disabledReason={word === undefined ? undefined : `Type ${word} to confirm`}
               onClick={() => {
                 // The caller owns the failure: it is the one that knows whether a refusal
                 // belongs in a toast, in a row, or under the section title.
@@ -81,14 +84,16 @@ export function ConfirmDialog({
     >
       <div className="space-y-3">
         <div>{body}</div>
-        <Field
-          label="Type to confirm"
-          id={boxId}
-          value={typed}
-          onChange={setTyped}
-          width="full"
-          placeholder={word}
-        />
+        {word !== undefined && (
+          <Field
+            label="Type to confirm"
+            id={boxId}
+            value={typed}
+            onChange={setTyped}
+            width="full"
+            placeholder={word}
+          />
+        )}
       </div>
     </Dialog>
   );

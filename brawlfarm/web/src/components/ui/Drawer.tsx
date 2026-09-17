@@ -4,8 +4,12 @@
  * Focus moves into the panel on open, Tab cycles inside it, Escape closes it, and focus
  * returns to whatever opened it: useFocusTrap owns all four, and Dialog shares the same
  * hook, so the two modals cannot drift apart.
+ *
+ * The page behind it does not scroll either: the body keeps its own overflow while the
+ * panel is open and gets the captured value back on close, never a hard-coded "", so a
+ * confirm opening over the drawer cannot unlock the page when it closes.
  */
-import { type ReactNode, useRef } from "react";
+import { type ReactNode, useEffect, useRef } from "react";
 
 import { Button } from "./Button";
 import { useFocusTrap } from "./useFocusTrap";
@@ -21,6 +25,15 @@ export interface DrawerProps {
 export function Drawer({ open, onClose, title, children, actions }: DrawerProps) {
   const panelRef = useRef<HTMLDivElement>(null);
   useFocusTrap(open, panelRef, onClose);
+
+  useEffect(() => {
+    if (!open) return;
+    const previous = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = previous;
+    };
+  }, [open]);
 
   if (!open) return null;
 
