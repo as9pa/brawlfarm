@@ -97,6 +97,23 @@ export function feedText(record: FeedRecord): { text: string; tone: Tone } {
         text: `Brawler selected: ${str(f, "brawler")}${has(f, "goal") ? ` (goal ${str(f, "goal")})` : ""}`,
         tone,
       };
+    case "quest_pick": {
+      // One sentence per reason. The two reasons that picked nothing name the plan target
+      // when the plan has one, and the lowest-trophy chain that runs when it does not.
+      const reason = str(f, "reason");
+      const using = has(f, "target") ? str(f, "target") : "the lowest-trophy pick";
+      if (reason === "chosen") {
+        return { text: `Quest pick: ${str(f, "quest")}, chose ${str(f, "brawler")}`, tone };
+      }
+      if (reason === "target_clears") {
+        return { text: `Quest pick: ${str(f, "target")} already clears ${str(f, "quest")}`, tone };
+      }
+      if (reason === "unreadable") {
+        // The screen the pick depends on was not read; the fallback is worth a warn dot.
+        return { text: `Quest pick: quests screen not readable, using ${using}`, tone: "warn" };
+      }
+      return { text: `Quest pick: no owned brawler clears a quest, using ${using}`, tone };
+    }
     case "rotate_brawler":
       return { text: `Rotated to ${str(f, "brawler")}: ${str(f, "reason")}`, tone };
     case "wrong_mode":

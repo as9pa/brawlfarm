@@ -7,7 +7,8 @@ controller (reader) share it through the same file bridge as status.json. Shape:
       "mode": "prestige" | "ladder",
       "prestige_start": "highest" | "lowest",   # which end of the <1000 pool to start
       "goal_trophies": 1000,                     # the ladder ceiling / prestige floor
-      "maxed_fallback": null                     # prestige-only, opt-in (see below)
+      "maxed_fallback": null,                    # prestige-only, opt-in (see below)
+      "quest_aware": false                       # ladder-only, opt-in (see below)
     }
 
 "maxed_fallback" (prestige-only, opt-in; default null = today's behavior): a brawler
@@ -20,6 +21,12 @@ later-stage statistics. This DELIBERATELY grinds one brawler past 1000 — an ex
 owner-sanctioned exception to the "never grind a brawler over 1000" rule, GATED
 STRICTLY to the all-maxed state (nothing else is left to farm). Matched by uppercase;
 a non-string / empty / not-owned value is treated as unset (falls back to the hold).
+
+"quest_aware" (ladder-only, opt-in; default false = today's behavior): with it on the
+controller reads the quest cards during its one session-start quests visit and farms an
+owned brawler that CLEARS a quest, capped at the goal so the pick never grinds one past
+it. The plan's own target still wins whenever it clears a quest itself, and a screen that
+will not read falls back to the plan. Prestige ignores the flag.
 
 "prestige" completes whole brawlers to 1000 (prestige) one at a time, starting
 from the highest- or lowest-trophy one still under 1000.
@@ -72,7 +79,7 @@ import json
 from collections import deque
 from pathlib import Path
 
-from brawlfarm.core import config
+from brawlfarm.core import config, questpick
 from brawlfarm.core.jsonio import atomic_write_json
 
 PRESTIGE_GOAL = 1000  # the per-brawler trophy milestone ("prestige")
@@ -96,6 +103,7 @@ DEFAULT_PLAN = {
     "prestige_start": "highest",
     "goal_trophies": PRESTIGE_GOAL,
     "maxed_fallback": None,  # prestige-only, opt-in: keep farming this brawler when maxed
+    "quest_aware": False,  # ladder-only, opt-in: let the session-start quests steer the pick
 }
 
 
@@ -546,6 +554,20 @@ def resolve_target(api, exclude: set[str] | tuple = ()) -> tuple[str | None, int
     blist = api.get_player().get("brawlers") or []
     target, goal = choose_target(plan, blist, exclude=exclude)
     return target, goal, [b.get("name") for b in blist if b.get("name")]
+
+
+def owned_trophy_map(api) -> dict[str, int]:
+    """{normalized name -> trophies} for the whole owned roster, for the quest-aware pick.
+
+    :func:`resolve_target` drops the trophies it already loaded and is left alone (the
+    controller tests monkeypatch it), so this costs one extra get_player call per session,
+    and only when quest_aware is on. The keys are ``questpick.norm_name``'s spelling,
+    because that is what ``questpick.resolve_quest`` compares its candidates by. API errors
+    propagate, like resolve_target's."""
+    blist = api.get_player().get("brawlers") or []
+    return {
+        questpick.norm_name(b.get("name")): b.get("trophies") or 0 for b in blist if b.get("name")
+    }
 
 
 def recent_winstreak(

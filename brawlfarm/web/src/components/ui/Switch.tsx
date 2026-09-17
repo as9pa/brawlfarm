@@ -5,14 +5,23 @@ export interface SwitchProps {
   onChange: (next: boolean) => void;
   label: string;
   disabled?: boolean;
+  /** The id of a help line rendered next to the switch, read out after the label. */
+  describedBy?: string;
 }
 
-export function Switch({ checked, onChange, label, disabled = false }: SwitchProps) {
+export function Switch({
+  checked,
+  onChange,
+  label,
+  disabled = false,
+  describedBy,
+}: SwitchProps) {
   return (
     <button
       type="button"
       role="switch"
       aria-checked={checked}
+      aria-describedby={describedBy}
       disabled={disabled}
       onClick={() => onChange(!checked)}
       className="inline-flex items-center gap-2 rounded-[6px] text-[12px] text-muted disabled:cursor-not-allowed disabled:opacity-50"

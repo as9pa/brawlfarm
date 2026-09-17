@@ -64,6 +64,7 @@ export interface FarmPlan {
   prestige_start: "highest" | "lowest";
   goal_trophies: number;
   maxed_fallback: string | null;
+  quest_aware: boolean;
 }
 
 export interface RosterBrawler {

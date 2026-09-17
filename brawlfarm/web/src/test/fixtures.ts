@@ -89,6 +89,7 @@ export function makePlan(overrides: Partial<PlanResponse> = {}): PlanResponse {
     prestige_start: "highest",
     goal_trophies: 1000,
     maxed_fallback: null,
+    quest_aware: false,
     current: { brawler: "NORI", trophies: 812, goal: 1000 },
     roster: [
       makeRosterBrawler(),

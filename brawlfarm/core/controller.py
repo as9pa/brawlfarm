@@ -38,6 +38,7 @@ from brawlfarm.core import (
     farmplan,
     match_vision,
     preview,
+    questpick,
     quests,
     recalib,
     rewards,
@@ -100,6 +101,14 @@ class Controller:
         # Mega-quest activation is ALWAYS ON (no flag): a recurring menu check, not a
         # once-per-session step. This counter is only a thrash backstop (reset on PLAY).
         self._mega_quest_streak = 0
+        # The quest-aware pick (plan flag, ladder only): whether this session's plan asked
+        # for it and the goal it caps candidates at (both decided at the first menu), the
+        # gate for the one quests visit that reads the cards, and the cards themselves
+        # (None until read, and None again if the visit failed).
+        self._quest_aware = False
+        self._quest_goal: int | None = None
+        self._quest_visit_done = False
+        self._quest_cards: list[str] | None = None
 
         # Session-recap bookkeeping (printed on stop). Trophies come from API snapshots;
         # skins from skin-reward events. (Currency gain-tracking was removed in round 7
@@ -550,6 +559,18 @@ class Controller:
             self._dnd_done = True
             self._do_set_dnd()
             return  # re-evaluate the menu next loop
+        # Once per session, ahead of the select below: with the plan's quest pick on, the
+        # quests visit moves in front of the brawler select so the cards it reads can
+        # steer it. It is the same single visit the mega-quest trigger further down makes
+        # (it still activates a NEW MEGA QUEST if one is offered), not a second
+        # navigation. With the flag off nothing is visited and the order stays as it was.
+        if self.select_brawler and not self._quest_visit_done:
+            self._quest_visit_done = True
+            self._quest_goal = self._quest_pick_goal()
+            self._quest_aware = self._quest_goal is not None
+            if self._quest_aware:
+                self._do_quest_visit()
+                return  # re-evaluate the menu next loop
         # Once per session, before farming: select the lowest-trophy brawler so the
         # farm grinds it.
         if self.select_brawler and not self._select_brawler_done:
@@ -835,6 +856,14 @@ class Controller:
                     return
             except Exception:
                 pass  # plan unreadable -> fall through to the legacy lowest flow
+        # The quest-aware pick (plan flag, ladder only): the cards the session-start
+        # quests visit read decide which owned brawler to farm, and the plan's own target
+        # wins whenever it clears a quest itself. resolved_ok gates it because a failed
+        # resolve leaves no roster to pick from, and the flag is cleared here because the
+        # pick applies at session start only: a mid-session reselect is the plan's.
+        if resolved_ok and self._quest_aware:
+            self._quest_aware = False
+            target = self._quest_pick(target, owned, self._quest_goal) or target
         if target:
             self.log(f"brawler select: planned -> {target} (goal {self._farm_goal})")
             try:
@@ -885,6 +914,92 @@ class Controller:
         except Exception as e:
             self.dl.event("dnd_error", err=repr(e))
             self.log(f"dnd error: {e!r}")
+
+    def _quest_pick_goal(self) -> int | None:
+        """The goal the quest pick caps its candidates at when this session's plan asks
+        for the pick (the flag on AND ladder mode: prestige ignores it, the owner's task 9
+        decision), else None for off.
+
+        That goal is the PLAN's goal_trophies, never self._farm_goal: in ladder mode the
+        farm goal is the live STEP goal (the next 100-line above the roster minimum), so
+        capping at it would drop every owned brawler between the step and the goal -- most
+        of the roster, most of the time. A plan that won't read counts as off, so the
+        quests screen is never visited on a guess."""
+        try:
+            plan = farmplan.load_plan()
+            goal = int(plan.get("goal_trophies") or farmplan.PRESTIGE_GOAL)
+        except Exception as e:
+            self.log(f"quest pick: plan unreadable ({e!r}) -> off")
+            return None
+        if not plan.get("quest_aware") or plan.get("mode") != "ladder":
+            return None
+        return goal
+
+    def _do_quest_visit(self) -> None:
+        """The session's ONE quests visit, run before the brawler select when the plan's
+        quest pick is on: it activates a NEW MEGA QUEST if one is offered, exactly like
+        the recurring trigger does, and reads the quest cards on the way out for
+        _do_select_brawler. Same taps, no second navigation. A hiccup leaves the cards
+        None (the select then reports "unreadable" and falls back to the plan), logged,
+        never crashing the farm session."""
+        self.log("quests: activate + read the cards for the brawler pick")
+        try:
+            self._quest_cards, activated = quests.visit(self.log)
+            self.log(f"quests: read {len(self._quest_cards)} quest cards")
+            if activated:
+                # Activating consumed the gold badge, so the recurring trigger below will
+                # never fire for it: log the row and take the thrash backstop's step here,
+                # exactly as _do_mega_quest would have. Nothing offered logs nothing --
+                # the trigger only ever fires on the badge, so a row at every session
+                # start would be noise.
+                self._mega_quest_streak += 1
+                self.dl.event("mega_quest", activated=True)
+        except Exception as e:
+            self._quest_cards = None
+            self.log(f"quest read error: {e!r}")
+
+    def _quest_pick(self, target: str | None, owned: list[str], goal: int) -> str | None:
+        """The brawler today's quests call for, or None to keep the plan's own answer.
+
+        The candidates are the owned brawlers still UNDER ``goal`` (the owner's cap:
+        the quest pick never farms a brawler past the goal) plus the plan's target, which
+        the plan already chose. Emits exactly one quest_pick event either way, so the feed
+        always says why: `chosen` a quest brawler, `target_clears` the target clears one
+        itself, `no_candidate` nobody owned does, `unreadable` the visit read nothing. An
+        API hiccup on the trophy read is logged and leaves the plan's answer alone."""
+        if not self._quest_cards:
+            self.dl.event(
+                "quest_pick", brawler=None, quest=None, reason="unreadable", target=target
+            )
+            self.log("quest pick: no quest cards read -> using the plan")
+            return None
+        try:
+            trophies = farmplan.owned_trophy_map(self.api)
+        except Exception as e:
+            self.dl.event("quest_pick_error", err=repr(e))
+            self.log(f"quest pick error: {e!r}")
+            return None
+        wanted = questpick.norm_name(target)
+        candidates = [
+            name
+            for name in owned
+            if questpick.norm_name(name) == wanted
+            or trophies.get(questpick.norm_name(name), 0) < goal
+        ]
+        found = questpick.resolve_quest(
+            questpick.parse(self._quest_cards), candidates, trophies=trophies, prefer=target
+        )
+        if found is None:
+            self.dl.event(
+                "quest_pick", brawler=None, quest=None, reason="no_candidate", target=target
+            )
+            self.log("quest pick: no owned brawler clears a quest -> using the plan")
+            return None
+        name, quest = found
+        reason = "target_clears" if questpick.norm_name(name) == wanted else "chosen"
+        self.dl.event("quest_pick", brawler=name, quest=quest.line, reason=reason, target=target)
+        self.log(f"quest pick: {name} clears {quest.line!r} ({reason})")
+        return name
 
     def _do_mega_quest(self) -> None:
         """Activate the available NEW MEGA QUEST (open QUESTS, tap the card, back to menu).

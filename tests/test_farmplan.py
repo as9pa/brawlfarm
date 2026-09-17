@@ -210,7 +210,51 @@ def test_maxed_fallback_default_is_none():
     assert farmplan.DEFAULT_PLAN.get("maxed_fallback") is None
 
 
+def test_quest_aware_default_is_false():
+    assert farmplan.DEFAULT_PLAN.get("quest_aware") is False
+
+
+def test_a_plan_file_without_quest_aware_loads_as_false(tmp_path):
+    # Every farmplan.json on disk predates the key: it must read as off, not crash.
+    (tmp_path / "farmplan.json").write_text(
+        '{"mode": "ladder", "goal_trophies": 800}', encoding="utf-8"
+    )
+    assert farmplan.load_plan(data_dir=tmp_path)["quest_aware"] is False
+
+
 def test_maxed_fallback_survives_save_load(tmp_path):
     farmplan.save_plan({"mode": "prestige", "maxed_fallback": "FRANK"}, data_dir=tmp_path)
     plan = farmplan.load_plan(data_dir=tmp_path)
     assert plan["maxed_fallback"] == "FRANK"
+
+
+class FakeApi:
+    """Stands in for the API client: owned_trophy_map asks it for the player once."""
+
+    def __init__(self, brawlers):
+        self.brawlers = brawlers
+        self.calls = 0
+
+    def get_player(self):
+        self.calls += 1
+        return {"brawlers": self.brawlers}
+
+
+def test_owned_trophy_map_keys_by_the_normalized_name():
+    api = FakeApi([{"name": "NITA", "trophies": 7}])
+    assert farmplan.owned_trophy_map(api) == {"NITA": 7}
+    assert api.calls == 1  # one get_player per session, never one per quest
+
+
+def test_owned_trophy_map_reads_a_missing_trophy_count_as_zero():
+    api = FakeApi([{"name": "El Primo"}, {"name": "8-Bit", "trophies": None}])
+    assert farmplan.owned_trophy_map(api) == {"ELPRIMO": 0, "8BIT": 0}
+
+
+def test_owned_trophy_map_drops_a_nameless_row():
+    api = FakeApi([{"trophies": 500}, {"name": "", "trophies": 400}, {"name": "Nita"}])
+    assert farmplan.owned_trophy_map(api) == {"NITA": 0}
+
+
+def test_owned_trophy_map_of_an_empty_roster_is_empty():
+    assert farmplan.owned_trophy_map(FakeApi([])) == {}

@@ -530,6 +530,42 @@ QUESTS_MEGA_CARD_REGION = (
 )  # gold here => NEW MEGA QUEST card present
 QUESTS_CLOSE_BUTTON = (55, 52)  # top-left back arrow -> menu (NO BACK key)
 
+# --- Quest grid --------------------------------------------------------------
+# Where the three rows of quest cards sit, so questpick.group_cards can bucket one OCR
+# pass into cards: a line's cy picks its row band, its cx picks its card in the row.
+# Measured on the full-size observe recording Pie64 20260916-223234 (1600x900), frames
+# 0118 and 0121 (the left edge), 0126 and 0133 (season quests) and 0140 (placeholder
+# cards). They replace the provisional values doubled from the half-size recording.
+# row bands (235,424), (448,638), (661,851) on 0118 and 0126, 10 px margin
+QUEST_LIST_REGION = (0, 225, 1600, 860)
+QUEST_ROW_PITCH = 213  # row tops 235, 448, 661 on 0118
+# row 1 title text runs y 262 to 345 on 0126 (one line 295-311, two 273-325, three 267-339)
+QUEST_TITLE_BAND0 = (250, 356)
+# row 1 progress text y 371 to 412 on 0118 and 0126, the bar y 380 to 411
+QUEST_PROGRESS_BAND0 = (362, 420)
+# card lefts 597 and 1067 on 0126, card width 440, in-group gap 33; groups sit 142 further apart
+QUEST_CARD_PITCH_X = 471
+QUEST_CARD_X_TOL = 150  # one card's title lines share a centre within a few px
+# on 0118 the cut season card starts at x 1432, centre about 1652, so anything past 1420
+# is a cut column
+QUEST_EDGE_MARGIN_X = 180
+
+# The sweep that pages the grid sideways to read every card: swipes ONLY, never a tap
+# inside the grid (a stationary tap opens a quest, a drag doesn't).
+# 22 px below the row 2 card top; crosses card faces and gaps only on 0118 and 0126
+QUEST_SWIPE_Y = 470
+# inside the daily card face on 0118 (x 858 to 1290); the lane is card face or gap from
+# x 250 to 1450 on 0126
+QUEST_SWIPE_X_START = 1250
+QUEST_SWIPE_X_END = 650  # a moving drag never opens a quest; only a stationary tap does
+QUEST_SWIPE_MS = 600
+# was 8 in the spec; about eight columns at 471 px and a 600 px swipe moves about 1.3
+# columns, and the repeated-page stop ends the sweep early anyway
+QUEST_SWEEP_MAX = 10
+# Landmark only, so a swipe lane can be checked against it: the reroll button box is
+# (1297, 137, 1570, 197) on 0126 and 0140, and it is absent at the left edge (0118, 0121).
+QUEST_REROLL_BUTTON = (1433, 167)  # NEVER tapped: a reroll throws a quest away
+
 # --- Social / Do-Not-Disturb ---------------------------------------------------
 # Team/friend invites pop a modal that BLOCKS the menu and can interrupt the farm, so at
 # startup we set the game's own mute settings (in-game DND) once per session. Calibrated

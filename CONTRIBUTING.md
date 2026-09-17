@@ -6,7 +6,9 @@ Bug reports and pull requests are welcome. Read this first; most of it is about 
 
 A change that weakens any of these is not merged, regardless of how good the rest of it is. This is a blocker in review, not a comment to argue with.
 
-- The never-tap set: ACCEPT on a team invite, GET or Upgrade, EQUIP NOW, any shop buy button, the pass VAULT, anything priced in gems. No blind taps in the shop.
+- The never-tap set: ACCEPT on a team invite, GET or Upgrade, EQUIP NOW, any shop buy button, the pass VAULT, anything priced in gems, REROLL QUEST on the quests screen, the shop offer panel on the BRAWLERS screen. No blind taps in the shop.
+- REROLL QUEST sits top right on the quests screen (`QUEST_REROLL_BUTTON`). It is calibrated as a landmark only, so the sweep that reads the quest cards can be measured against it: a reroll throws a quest away, so nothing taps it and no module outside `config.py` may even name it.
+- The shop offer panel on the BRAWLERS screen runs from x 0 to x 125 and carries a live buy control. No swipe endpoint goes below x 146.
 - Verify then act: every navigation checks the screen before it taps and bails to the menu on a failed check, so a stale coordinate becomes a logged no-op instead of a wrong tap.
 - The 1600 x 900 assertion at worker startup, which exits rather than guessing.
 - One worker per instance.

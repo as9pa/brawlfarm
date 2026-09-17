@@ -31,6 +31,12 @@ const ROWS: Row[] = [
   ["farming", { event: "farming", category: M, fields: { brawler: "NORI" } }, "Farming NORI", "ok"],
   ["select_brawler", { event: "select_brawler", category: M, fields: { brawler: "TARA", planned: true } }, "Brawler selected: TARA", "ok"],
   ["select_brawler with goal", { event: "select_brawler", category: M, fields: { brawler: "TARA", goal: 700 } }, "Brawler selected: TARA (goal 700)", "ok"],
+  ["quest_pick chosen", { event: "quest_pick", category: M, fields: { reason: "chosen", brawler: "TARA", quest: "Win 4 games as TARA", target: null } }, "Quest pick: Win 4 games as TARA, chose TARA", "ok"],
+  ["quest_pick target_clears", { event: "quest_pick", category: M, fields: { reason: "target_clears", brawler: "NORI", quest: "Win 4 games as NORI", target: "NORI" } }, "Quest pick: NORI already clears Win 4 games as NORI", "ok"],
+  ["quest_pick no_candidate", { event: "quest_pick", category: M, fields: { reason: "no_candidate", brawler: null, quest: null, target: "NORI" } }, "Quest pick: no owned brawler clears a quest, using NORI", "ok"],
+  ["quest_pick no_candidate without a target", { event: "quest_pick", category: M, fields: { reason: "no_candidate", brawler: null, quest: null, target: null } }, "Quest pick: no owned brawler clears a quest, using the lowest-trophy pick", "ok"],
+  ["quest_pick unreadable", { event: "quest_pick", category: M, fields: { reason: "unreadable", brawler: null, quest: null, target: "NORI" } }, "Quest pick: quests screen not readable, using NORI", "warn"],
+  ["quest_pick unreadable without a target", { event: "quest_pick", category: M, fields: { reason: "unreadable", brawler: null, quest: null, target: null } }, "Quest pick: quests screen not readable, using the lowest-trophy pick", "warn"],
   ["rotate_brawler", { event: "rotate_brawler", category: M, fields: { brawler: "SHELLY", reason: "absolute_floor" } }, "Rotated to SHELLY: absolute_floor", "ok"],
   ["reselect_brawler", { event: "reselect_brawler", category: I, fields: {} }, "Reselecting the brawler", "warn"],
   ["wrong_mode recovered", { event: "wrong_mode", category: I, fields: { score: 0.9, recovered: true } }, "Wrong mode detected, switched back", "warn"],
@@ -53,6 +59,7 @@ const ROWS: Row[] = [
   ["bad_resolution", { event: "bad_resolution", category: E, fields: { got: [1920, 1080] } }, "Wrong resolution: 1920 x 1080, need 1600 x 900", "bad"],
   ["recalibrate", { event: "recalibrate", category: E, fields: { surface: "menu", detail: "drifted" } }, "Recalibration needed: menu", "bad"],
   ["other _error", { event: "select_brawler_error", category: E, fields: { err: "no brawler row" } }, "select brawler failed: no brawler row", "bad"],
+  ["quest_pick_error", { event: "quest_pick_error", category: E, fields: { err: "HTTP 503" } }, "quest pick failed: HTTP 503", "bad"],
   ["api_error", { event: "api_error", category: E, fields: { where: "trophies", err: "HTTP 503" } }, "api failed: HTTP 503", "bad"],
   ["start", { event: "start", category: O, fields: { max_games: 40, max_minutes: 90 } }, "Worker started", "idle"],
   ["stop", { event: "stop", category: O, fields: { reason: "panel", games: 12, minutes: 47 } }, "Worker stopped: panel (12 games, 47 min)", "idle"],
@@ -79,7 +86,7 @@ describe("feedText", () => {
   it("covers every event name the brief's table names", () => {
     const events = ROWS.map(([, o]) => o.event);
     expect(events.filter((e) => e === undefined)).toHaveLength(0);
-    expect(ROWS).toHaveLength(53);
-    expect(new Set(events).size).toBe(39); // 37 named kinds plus the two fallback cases
+    expect(ROWS).toHaveLength(60);
+    expect(new Set(events).size).toBe(41); // 39 named kinds plus the two fallback cases
   });
 });
