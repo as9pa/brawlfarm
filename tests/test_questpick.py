@@ -252,3 +252,170 @@ def test_name_normalization_matches_the_brawler_screens() -> None:
     """questpick keeps its own copy so it stays import-light; the two must not drift."""
     for name in ("EL PRIMO", "8-BIT", "LARRY & LAWRIE", "Shelly", None):
         assert questpick.norm_name(name) == brawlers._norm(name)
+
+
+# One sweep of the live quests screen on 2026-09-17, exactly as OCR handed the cards back:
+# the styled 5 read as S, the 1 as I, the 0 as O, and the spaces went missing wherever they
+# felt like it. Kept verbatim so a parser change that only suits tidy text fails here.
+LIVE_CARDS = [
+    "GAIN 3O TROPHIES",
+    "DEAL300000POINTSOF DAMAGE",
+    "DEAL6000O POINTSOF DAMAGE",
+    "XP 1500",
+    "VS",
+    "PLAY6BATTLES",
+    "PLAY S MATCHESIN A TEAM",
+    "DEFEAT24ENEMIES",
+    "PLAYSMATCHESINA TEAM",
+    "DEAL160000POINTSOF DAMAGE",
+    "DEAL160000 P0INTS0F DAMAGE",
+    "PLAY16BATTLES",
+    "DEAL160000 P0INTSOF DAMAGE",
+    "WIN S BATTLES IN RANKED",
+    "DEAL160000 P0INTS OF DAMAGE",
+    "WIN S BATTLES WITH GALE,BYRON OR MINA",
+    "WIN S BATTLES WITH NITA, PAm OR MINA",
+    "DEAL100000 POINTS OF DAMAGE WITH BONNIE, MEEPLE OR FINX",
+    "WINSBATTLES IN RANKED",
+    "WIN S BATTLES WITH PAM,LOLA OR MEEPLE",
+    "WIN S BATTLES WITH MORTIS,DARRYL OR BUZZ",
+    "WIN S BATTLES WIth gale, Byron Or MINA",
+    "WIN 5 BATTLES WITH SPIKE,EDGAR OR JAE-YONG",
+    "DEFEAT24ENEMIES IN GEMGRAB ORANY SHOWDOWN",
+    "DEAL100000 P0INTSOF DAMAGE WITH BONNIE,MEEPLEOR FINX",
+    "WIN S BATTLES WIth leOn, SurgE OR FINX",
+    "WIN S BATTLES IN GEM GRAB ORANY SHOWDOWN",
+    "WIN S BATTLES WITh MORTIS,DARRYL OR BUZZ",
+    "DEFEAT1SENEMIES IN BRAWL BALLORANY SHOWDOWN",
+    "DEFEAT15ENEMIES ONMOGMOHS N NI BASKET BRAWL",
+    "WIN S BATTLES WITHSPIKE,EDGAR OR JAE-YONG",
+    "WINSBATTLES IN ANY SHOWDOWN OR HOT ZONE",
+    "WIN S BATTLES WIth leOn, SuRgE Or FINX",
+    "WIN S BATTLES IN GEM GRAB OR ANY SHOWDOWN",
+    "WIN S BATTLES IN ANY SHOWDOWN",
+    "DEFEAT15ENEMIES IN BRAWL BALLORANY SHOWDOWN",
+    "DEAL100000 P0INTS OF DAMAGE IN HOT ZONE",
+    "WIN 8 BATTLES",
+    "DEAL100000 POINTSOF DAMAGE IN HOT ZONE",
+    "GAIN 8O TROPHIES",
+    "WIN 5 BATTLES IN RANKED",
+    "WIN8BATTLES",
+    "WIN S BATTLES WITH BROCK,BUZZOR CLANCY",
+    "WIN S BATTLES WITH DARRYL, NANI OR NORI",
+    "WIN 5BATTLES IN GEM GRAB OR ANY SHOWDOWN",
+    "WIN S BATTLES WITH FRANK,CLANCYOR NORI",
+    "DEFEAT15ENEMIES IN BRAWL BALL OR ANY SHOWDOWN",
+    "DEFEAT1SENEMIES WITH SPIKE,DRACO OR JUJU",
+    "WINSBATTLES IN ANY SHOWDOWN OR BRAWL HOCKEY",
+]
+
+# Every brawler quest the sweep held, in screen order. Five cards were read twice because
+# the screen shows the same quest on more than one row, so sixteen readings of fourteen
+# quest shapes come out.
+LIVE_BRAWLER_QUESTS = [
+    (("GALE", "BYRON", "MINA"), 5),
+    (("NITA", "PAM", "MINA"), 5),
+    (("BONNIE", "MEEPLE", "FINX"), 100000),
+    (("PAM", "LOLA", "MEEPLE"), 5),
+    (("MORTIS", "DARRYL", "BUZZ"), 5),
+    (("GALE", "BYRON", "MINA"), 5),
+    (("SPIKE", "EDGAR", "JAEYONG"), 5),
+    (("BONNIE", "MEEPLE", "FINX"), 100000),
+    (("LEON", "SURGE", "FINX"), 5),
+    (("MORTIS", "DARRYL", "BUZZ"), 5),
+    (("SPIKE", "EDGAR", "JAEYONG"), 5),
+    (("LEON", "SURGE", "FINX"), 5),
+    (("BROCK", "BUZZ", "CLANCY"), 5),
+    (("DARRYL", "NANI", "NORI"), 5),
+    (("FRANK", "CLANCY", "NORI"), 5),
+    (("SPIKE", "DRACO", "JUJU"), 15),
+]
+
+
+def test_the_live_sweep_reads_every_brawler_quest_it_held() -> None:
+    quests = questpick.parse(LIVE_CARDS)
+    assert [(quest.candidates, quest.count) for quest in quests] == LIVE_BRAWLER_QUESTS
+    assert all(quest.kind == questpick.KIND_BRAWLER for quest in quests)
+
+
+def test_a_count_the_font_styled_into_letters_folds_back_to_digits() -> None:
+    """S is 5, I is 1, O is 0: normalize folds those digits to letters inside a mixed word
+    on purpose, so the matchers take either and fold the count back the other way."""
+    lines = [
+        "WIN S BATTLES WITH NITA",
+        "DEFEAT1SENEMIES WITH SPIKE",
+        "DEAL100000 POINTS OF DAMAGE WITH BONNIE",
+    ]
+    assert [quest.count for quest in questpick.parse(lines)] == [5, 15, 100000]
+
+
+def test_a_count_glued_to_its_keyword_and_its_noun_still_reads() -> None:
+    """A glued WINSBATTLES is WIN, a count of S and BATTLES: backtracking hands the B back."""
+    (quest,) = questpick.parse(["WINSBATTLES WITH NITA, PAM OR MINA"])
+    assert (quest.count, quest.candidates) == (5, ("NITA", "PAM", "MINA"))
+
+
+def test_a_name_glued_to_with_still_reads() -> None:
+    (quest,) = questpick.parse(["WIN S BATTLES WITHSPIKE,EDGAR OR JAE-YONG"])
+    assert quest.candidates == ("SPIKE", "EDGAR", "JAEYONG")
+
+
+def test_an_or_glued_to_the_name_before_it_still_splits() -> None:
+    lines = [
+        "WIN S BATTLES WITH BROCK,BUZZOR CLANCY",
+        "DEAL100000 P0INTSOF DAMAGE WITH BONNIE,MEEPLEOR FINX",
+        "WIN S BATTLES WITH FRANK,CLANCYOR NORI",
+    ]
+    assert [quest.candidates for quest in questpick.parse(lines)] == [
+        ("BROCK", "BUZZ", "CLANCY"),
+        ("BONNIE", "MEEPLE", "FINX"),
+        ("FRANK", "CLANCY", "NORI"),
+    ]
+
+
+def test_a_name_with_or_inside_it_keeps_it() -> None:
+    """The glued-OR split only fires at the end of a token, so these names stay whole."""
+    (quest,) = questpick.parse(["WIN S BATTLES WITH MORTIS, CORDELIUS OR NORI"])
+    assert quest.candidates == ("MORTIS", "CORDELIUS", "NORI")
+
+
+def test_defeat_enemies_with_named_brawlers_is_a_brawler_quest() -> None:
+    (quest,) = questpick.parse(["DEFEAT1SENEMIES WITH SPIKE,DRACO OR JUJU"])
+    assert quest.kind == questpick.KIND_BRAWLER
+    assert (quest.candidates, quest.count) == (("SPIKE", "DRACO", "JUJU"), 15)
+
+
+def test_defeat_enemies_with_a_class_is_a_class_quest() -> None:
+    (quest,) = questpick.parse(["DEFEAT 15 ENEMIES WITH TANKS"])
+    assert (quest.kind, quest.target) == (questpick.KIND_CLASS, "TANKS")
+
+
+def test_a_defeat_quest_that_names_nobody_is_dropped() -> None:
+    """A defeat row with no WITH names a mode, and the bot cannot pick a mode."""
+    lines = [
+        "DEFEAT24ENEMIES IN GEMGRAB ORANY SHOWDOWN",
+        "DEFEAT1SENEMIES IN BRAWL BALLORANY SHOWDOWN",
+        "DEFEAT15ENEMIES ONMOGMOHS N NI BASKET BRAWL",
+    ]
+    assert questpick.parse(lines) == []
+
+
+def test_a_card_the_ocr_read_in_mixed_case_still_reads() -> None:
+    (quest,) = questpick.parse(["WIN S BATTLES WIth leOn, SurgE OR FINX"])
+    assert (quest.count, quest.candidates) == (5, ("LEON", "SURGE", "FINX"))
+
+
+def test_a_non_ascii_glyph_is_noise_not_a_crash() -> None:
+    """One live card held a CJK glyph inside its title. Nothing here may raise on it."""
+    noisy = 'USE "PLAY AGAIN"图10 TIMES'
+    assert questpick.normalize(noisy)
+    assert questpick.parse([noisy]) == []
+
+
+def test_resolve_over_the_live_cards_takes_the_lowest_trophy_owned_brawler() -> None:
+    """The first live quest naming anything owned is the SPIKE, EDGAR or JAE-YONG one, and
+    the lowest-trophy rule decides between the two owned names, not the screen order."""
+    quests = questpick.parse(LIVE_CARDS)
+    owned = ["NORI", "JAE-YONG", "SPIKE"]
+    assert questpick.resolve(quests, owned, {"NORI": 0, "JAEYONG": 0, "SPIKE": 1200}) == "JAE-YONG"
+    assert questpick.resolve(quests, owned, {"NORI": 0, "JAEYONG": 1200, "SPIKE": 0}) == "SPIKE"

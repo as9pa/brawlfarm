@@ -13,7 +13,8 @@ Three shapes matter:
     "Play 8 battles in Gem Grab"         -> KIND_MODE,    GEMGRAB, 8
 
 Whether a quest is about a brawler or about a class is decided by the target, not by the
-verb, because the game writes both "win with" and "deal damage with" for either one.
+verb, because the game writes "win with", "deal damage with" and "defeat enemies with" for
+either one.
 
 A quest often names several brawlers, "Win 5 battles with Nita, Pam or Mina": any one of
 them clears it. Every name is kept, in screen order, as ``candidates``; ``target`` is the
@@ -56,20 +57,39 @@ CLASSES = frozenset(
 # nothing. Anything that looks like a finished row is dropped rather than parsed.
 _CLAIMED = re.compile(r"\b(CLAIMED|COLLECTED|COMPLETE|COMPLETED)\b")
 
-_WIN_RE = re.compile(r"\bWIN (\d+) BATTLES? WITH (.+)$")
+# The styled font writes a count as often in letters as in digits, "WIN S BATTLES", and
+# normalize folds a digit inside a mixed word back to its look-alike letter on purpose
+# ("DEAL100000" becomes "DEALIOOOOO"), so a count token holds either and _count reads it.
+_COUNT = "[0-9ISOB]+"
+
+# The live OCR drops the spaces between a keyword, its count and its noun as readily as it
+# keeps them ("WINSBATTLES", "DEAL100000 P0INTSOF DAMAGE", "WITHSPIKE"), so every space
+# between them is optional. Backtracking sorts the glued forms out: in "WINSBATTLES" the
+# count gives the B back to BATTLES.
+_WIN_RE = re.compile(rf"\bWIN\s*({_COUNT})\s*BATTLES?\s+WITH\s*(.+)$")
 # The season rows say "DEAL 100000 POINTS OF DAMAGE WITH ...", the daily ones leave the
 # three words out. A damage line with no WITH names nobody and is dropped.
-_DAMAGE_RE = re.compile(r"\bDEAL (\d+)(?: POINTS OF)? DAMAGE WITH (.+)$")
+_DAMAGE_RE = re.compile(rf"\bDEAL\s*({_COUNT})\s*(?:POINTS\s*OF)?\s*DAMAGE\s+WITH\s*(.+)$")
+# "DEFEAT 15 ENEMIES WITH SPIKE, DRACO OR JUJU" names brawlers the same way WIN does. One
+# with no WITH names a mode ("DEFEAT24ENEMIES IN GEMGRAB ORANY SHOWDOWN") and is dropped.
+_DEFEAT_RE = re.compile(rf"\bDEFEAT\s*({_COUNT})\s*ENEMIES\s+WITH\s*(.+)$")
 _MODE_RE = re.compile(r"\bPLAY (\d+) BATTLES? IN (.+)$")
 
 # "NITA, PAM OR MINA" is three brawlers, not one name: the game lists them with commas and
-# a final OR. OR is matched as a whole word so MORTIS keeps its own.
-_CANDIDATE_SPLIT = re.compile(r",|\bOR\b")
+# a final OR. OR is matched as a whole word so MORTIS keeps its own, and also where the OCR
+# glued it to the name before it ("BUZZOR CLANCY", "MEEPLEOR FINX") and a space or the end
+# of the names follows. That second rule is safe because no brawler name and no class name
+# ends in OR, checked against the roster on 2026-09-17.
+_CANDIDATE_SPLIT = re.compile(r",|\bOR\b|(?<=[A-Z])OR(?=\s|$)")
 
 # The game's styled font reads letters as digits, the way config.py's SELET note records:
 # "W1TH", "BATTLE5", "8ITE". Folded back only in words that are not a bare number, so a
 # count stays a count.
 _LOOKALIKE = str.maketrans({"0": "O", "1": "I", "5": "S", "|": "I"})
+
+# The other way round, for a count token only: a count is a number whatever the font made
+# of it, so "S" is 5, "IS" is 15 and "IOOOOO" is 100000.
+_UNFOLD = str.maketrans({"I": "1", "S": "5", "O": "0", "B": "8"})
 
 # A comma between two digits is a thousands separator and goes; every other comma sits
 # between two names, so normalize keeps it for _CANDIDATE_SPLIT.
@@ -112,6 +132,12 @@ def norm_name(name: str | None) -> str:
 
 def _fold(word: str) -> str:
     return word if word.isdigit() else word.translate(_LOOKALIKE)
+
+
+def _count(token: str) -> int:
+    """The number a matcher's count token stands for, its look-alike letters folded back to
+    digits. Only ever called on a group matched by ``_COUNT``, so the int never raises."""
+    return int(token.translate(_UNFOLD))
 
 
 def normalize(line: str) -> str:
@@ -221,13 +247,13 @@ def parse(lines: Iterable[str]) -> list[Quest]:
 
 
 def _parse_line(line: str) -> Quest | None:
-    match = _WIN_RE.search(line) or _DAMAGE_RE.search(line)
+    match = _WIN_RE.search(line) or _DAMAGE_RE.search(line) or _DEFEAT_RE.search(line)
     if match is not None:
         candidates = _candidates(match.group(2))
         if not candidates:
             return None
         kind = KIND_CLASS if any(name in CLASSES for name in candidates) else KIND_BRAWLER
-        return Quest(kind, candidates, int(match.group(1)), line)
+        return Quest(kind, candidates, _count(match.group(1)), line)
     match = _MODE_RE.search(line)
     if match is not None:
         target = norm_name(match.group(2))
