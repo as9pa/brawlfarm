@@ -14,6 +14,16 @@ export interface SwitchProps {
 const FOCUS_RING =
   "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent";
 
+/** The four looks, keyed by `${checked}-${disabled}`. A disabled switch goes grey in both
+ * positions, so being off limits is its own signal rather than a dimming of the accent,
+ * and the hover border is offered on the enabled control only. */
+const TONES: Record<`${boolean}-${boolean}`, { track: string; thumb: string }> = {
+  "true-false": { track: "bg-accent hover:border-muted", thumb: "bg-accent-ink" },
+  "false-false": { track: "bg-panel-2 hover:border-muted", thumb: "bg-muted" },
+  "true-true": { track: "bg-idle", thumb: "bg-muted" },
+  "false-true": { track: "bg-idle", thumb: "bg-muted" },
+};
+
 export function Switch({
   checked,
   onChange,
@@ -21,6 +31,8 @@ export function Switch({
   disabled = false,
   describedBy,
 }: SwitchProps) {
+  const tone = TONES[`${checked}-${disabled}`];
+
   return (
     <button
       type="button"
@@ -29,14 +41,14 @@ export function Switch({
       aria-describedby={describedBy}
       disabled={disabled}
       onClick={() => onChange(!checked)}
-      className={`inline-flex items-center gap-2 rounded-[6px] text-[12px] text-muted disabled:cursor-not-allowed disabled:opacity-50 ${FOCUS_RING}`}
+      className={`inline-flex items-center gap-2 rounded-[6px] text-[12px] text-muted disabled:cursor-not-allowed ${FOCUS_RING}`}
     >
       <span
         aria-hidden="true"
-        className={`relative h-4 w-7 shrink-0 rounded-full border border-line transition-colors duration-[120ms] ${checked ? "bg-accent" : "bg-panel-2"}`}
+        className={`relative h-4 w-7 shrink-0 rounded-full border border-line transition-colors duration-[120ms] ${tone.track}`}
       >
         <span
-          className={`absolute top-0.5 h-2.5 w-2.5 rounded-full transition-[left] duration-[120ms] ${checked ? "left-3.5 bg-accent-ink" : "left-0.5 bg-muted"}`}
+          className={`absolute top-0.5 h-2.5 w-2.5 rounded-full transition-[left] duration-[120ms] ${checked ? "left-3.5" : "left-0.5"} ${tone.thumb}`}
         />
       </span>
       {label}
