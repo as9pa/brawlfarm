@@ -81,7 +81,7 @@ export function Toast({ item }: ToastProps) {
       <div className="flex items-center gap-3 px-3 py-2">
         <span className="flex-1 text-[13px] text-text">{item.message}</span>
         {item.undo !== undefined && (
-          <Button variant="text" size="sm" onClick={onUndo}>
+          <Button variant="quiet" size="sm" onClick={onUndo}>
             Undo
           </Button>
         )}

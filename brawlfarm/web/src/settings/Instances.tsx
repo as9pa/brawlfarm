@@ -347,16 +347,16 @@ export function Instances({ settingsPatch }: { settingsPatch: SettingsPatch }) {
             <Button variant="primary" size="sm" onClick={saveRow}>
               Save
             </Button>
-            <Button variant="text" size="sm" onClick={cancelEdit}>
+            <Button variant="quiet" size="sm" onClick={cancelEdit}>
               Cancel
             </Button>
           </div>
         ) : (
           <div className="flex items-center gap-2">
-            <Button variant="text" size="sm" onClick={() => startEdit(row.name)}>
+            <Button variant="quiet" size="sm" onClick={() => startEdit(row.name)}>
               Edit
             </Button>
-            <Button variant="text" size="sm" onClick={() => setRemoving(row.name)}>
+            <Button variant="quiet" size="sm" onClick={() => setRemoving(row.name)}>
               Remove
             </Button>
           </div>
@@ -371,7 +371,7 @@ export function Instances({ settingsPatch }: { settingsPatch: SettingsPatch }) {
           Add instance
         </Button>
         <Button
-          variant="quiet"
+          variant="secondary"
           size="sm"
           disabled={scanning}
           disabledReason="Scanning…"

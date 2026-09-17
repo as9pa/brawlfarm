@@ -1,9 +1,18 @@
-/** The one button: three looks, a disabled reason that reaches the user as a tooltip. */
+/** The one button: four looks, a disabled reason that reaches the user as a tooltip. */
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
 import { Button } from "./Button";
+import type { ButtonProps } from "./Button";
+
+/** Each variant with the one class that tells it apart from the other three. */
+const LOOKS: [NonNullable<ButtonProps["variant"]>, string][] = [
+  ["primary", "bg-accent"],
+  ["secondary", "border-line"],
+  ["quiet", "text-accent"],
+  ["danger", "bg-bad"],
+];
 
 describe("Button", () => {
   it("calls onClick and defaults to type button so it never submits a form", async () => {
@@ -13,6 +22,16 @@ describe("Button", () => {
     expect(button).toHaveAttribute("type", "button");
     await userEvent.click(button);
     expect(onClick).toHaveBeenCalledTimes(1);
+  });
+
+  it.each(LOOKS)("renders the %s variant with %s", (variant, className) => {
+    render(<Button variant={variant}>Save</Button>);
+    expect(screen.getByRole("button", { name: "Save" })).toHaveClass(className);
+  });
+
+  it("falls back to secondary so an unstyled call is an outline, not an accent", () => {
+    render(<Button>Save</Button>);
+    expect(screen.getByRole("button", { name: "Save" })).toHaveClass("border-line");
   });
 
   it("explains why it is disabled and does not fire", async () => {

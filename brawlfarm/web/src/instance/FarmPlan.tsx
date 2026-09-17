@@ -358,7 +358,7 @@ export function FarmPlan({ name }: { name: string }) {
 
       {roster.length === 0 ? null : (
         <div className="flex flex-col gap-1">
-          <Button variant="text" size="sm" onClick={() => setShowAll((open) => !open)}>
+          <Button variant="quiet" size="sm" onClick={() => setShowAll((open) => !open)}>
             {showAll ? "Hide all brawlers" : "Show all brawlers"}
           </Button>
           {/* The API already sorts the roster by trophies descending. */}

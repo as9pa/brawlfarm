@@ -55,7 +55,7 @@ export function AlertsDrawer() {
       title="Alerts"
       actions={
         alerts.length > 0 ? (
-          <Button variant="text" size="sm" onClick={onDismissAll}>
+          <Button variant="quiet" size="sm" onClick={onDismissAll}>
             Dismiss all
           </Button>
         ) : undefined
@@ -78,7 +78,7 @@ export function AlertsDrawer() {
               </div>
               <p className="text-[13px] text-muted">{alert.detail}</p>
               <div>
-                <Button variant="text" size="sm" onClick={() => onDismiss(alert.id)}>
+                <Button variant="quiet" size="sm" onClick={() => onDismiss(alert.id)}>
                   Dismiss
                 </Button>
               </div>

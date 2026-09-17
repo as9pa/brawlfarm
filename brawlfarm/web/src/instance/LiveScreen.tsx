@@ -22,7 +22,7 @@ export function LiveScreen({ name }: { name: string }) {
       <div className="mb-2 flex items-center gap-2">
         <h2 className="text-[13px] font-semibold">Live screen</h2>
         <div className="ml-auto flex items-center gap-1">
-          <Button variant="text" size="sm" onClick={() => setRefreshKey((k) => k + 1)}>
+          <Button variant="quiet" size="sm" onClick={() => setRefreshKey((k) => k + 1)}>
             Refresh
           </Button>
           <a

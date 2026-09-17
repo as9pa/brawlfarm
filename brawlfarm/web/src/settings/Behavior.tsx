@@ -119,7 +119,7 @@ export function Behavior({ settingsPatch }: { settingsPatch: SettingsPatch }) {
       <div className="mt-4">
         <div className="flex items-center gap-2">
           <h3 className="text-[13px] font-semibold">Advanced</h3>
-          <Button variant="text" size="sm" onClick={() => setShowAdvanced((on) => !on)}>
+          <Button variant="quiet" size="sm" onClick={() => setShowAdvanced((on) => !on)}>
             {showAdvanced ? "Hide" : "Show"}
           </Button>
         </div>

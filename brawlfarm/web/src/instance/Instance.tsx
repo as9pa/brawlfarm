@@ -92,7 +92,7 @@ function Header({ inst, onDone }: { inst: InstancePayload; onDone: () => void })
           Screenshot
         </a>
         <Button
-          variant="quiet"
+          variant="secondary"
           size="sm"
           disabled={!stoppable}
           disabledReason="Already stopped"
@@ -110,7 +110,7 @@ function Header({ inst, onDone }: { inst: InstancePayload; onDone: () => void })
           Stop
         </Button>
         <Button
-          variant="quiet"
+          variant="secondary"
           size="sm"
           onClick={() => {
             void run(settled(restartInstance(inst.name)), () =>
@@ -122,7 +122,7 @@ function Header({ inst, onDone }: { inst: InstancePayload; onDone: () => void })
         </Button>
         {inst.state === "offline" ? (
           <Button
-            variant="quiet"
+            variant="secondary"
             size="sm"
             onClick={() => {
               void run(retryInstance(inst.name), () => toast(`Retrying ${inst.name} now`));

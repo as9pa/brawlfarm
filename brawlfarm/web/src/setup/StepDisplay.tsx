@@ -85,7 +85,7 @@ function DisplayCard({
         <p className="mt-1 text-[12px] text-muted">{result.hint}</p>
       )}
       <div className="mt-2">
-        <Button variant="quiet" size="sm" disabled={checking} onClick={run}>
+        <Button variant="secondary" size="sm" disabled={checking} onClick={run}>
           Recheck
         </Button>
       </div>
@@ -118,7 +118,7 @@ export function StepDisplay({ setup }: StepProps) {
       </div>
 
       <div className="mt-5 flex items-center gap-2">
-        <Button variant="quiet" onClick={back}>
+        <Button variant="secondary" onClick={back}>
           Back
         </Button>
         <Button

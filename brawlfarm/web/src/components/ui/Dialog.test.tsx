@@ -69,7 +69,7 @@ describe("Dialog", () => {
         title="Remove Pie64_3?"
         actions={
           <>
-            <Button variant="text">Cancel</Button>
+            <Button variant="quiet">Cancel</Button>
             <Button variant="primary">Remove</Button>
           </>
         }

@@ -39,7 +39,7 @@ export function Drawer({ open, onClose, title, children, actions }: DrawerProps)
           <h2 className="text-[15px] font-semibold">{title}</h2>
           <div className="flex items-center gap-2">
             {actions}
-            <Button variant="text" size="sm" onClick={onClose}>
+            <Button variant="quiet" size="sm" onClick={onClose}>
               Close
             </Button>
           </div>

@@ -35,7 +35,7 @@ export function ErrorBlock({ error, onRetry }: ErrorBlockProps) {
       )}
       {onRetry !== undefined && (
         <div className="mt-2">
-          <Button variant="quiet" size="sm" onClick={onRetry}>
+          <Button variant="secondary" size="sm" onClick={onRetry}>
             Retry
           </Button>
         </div>

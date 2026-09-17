@@ -130,10 +130,10 @@ export function StepStats({ setup }: StepProps) {
       </div>
 
       <div className="mt-5 flex flex-wrap items-center gap-2">
-        <Button variant="quiet" onClick={back}>
+        <Button variant="secondary" onClick={back}>
           Back
         </Button>
-        <Button variant="text" size="sm" onClick={skip}>
+        <Button variant="quiet" size="sm" onClick={skip}>
           Skip for now
         </Button>
         <Button variant="primary" onClick={next}>

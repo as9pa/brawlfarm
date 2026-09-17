@@ -3,7 +3,7 @@
 import type { MouseEvent, ReactNode } from "react";
 
 export interface ButtonProps {
-  variant?: "primary" | "quiet" | "text";
+  variant?: "primary" | "secondary" | "quiet" | "danger";
   size?: "sm" | "md";
   disabled?: boolean;
   disabledReason?: string;
@@ -14,8 +14,9 @@ export interface ButtonProps {
 
 const VARIANTS: Record<NonNullable<ButtonProps["variant"]>, string> = {
   primary: "bg-accent text-accent-ink hover:brightness-110",
-  quiet: "border border-line bg-panel-2 text-text hover:border-accent",
-  text: "text-accent hover:underline",
+  secondary: "border border-line bg-panel-2 text-text hover:border-accent",
+  quiet: "text-accent hover:underline",
+  danger: "bg-bad text-text hover:brightness-110",
 };
 
 const SIZES: Record<NonNullable<ButtonProps["size"]>, string> = {
@@ -24,7 +25,7 @@ const SIZES: Record<NonNullable<ButtonProps["size"]>, string> = {
 };
 
 export function Button({
-  variant = "quiet",
+  variant = "secondary",
   size = "md",
   disabled = false,
   disabledReason,

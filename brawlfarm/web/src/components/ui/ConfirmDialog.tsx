@@ -59,7 +59,7 @@ export function ConfirmDialog({
       title={title}
       actions={
         <>
-          <Button variant="text" onClick={onClose}>
+          <Button variant="quiet" onClick={onClose}>
             Cancel
           </Button>
           <span className={TONE_ACCENT[tone]}>

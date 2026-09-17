@@ -79,7 +79,7 @@ export function Data({ settingsPatch }: { settingsPatch: SettingsPatch }) {
         {/* The title is on a wrapper rather than on Button, so Button's props stay exactly
             as phase 4 left them. data-private is what the screenshot pass blurs. */}
         <span title={health?.home} data-private>
-          <Button variant="quiet" onClick={openFolder}>
+          <Button variant="secondary" onClick={openFolder}>
             Open data folder
           </Button>
         </span>
@@ -96,7 +96,7 @@ export function Data({ settingsPatch }: { settingsPatch: SettingsPatch }) {
               <span className="font-mono text-[13px]">{instance.name}</span>
               <span className="text-[12px] text-muted">{`instances/${instance.name}`}</span>
               <span className="ml-auto">
-                <Button variant="text" size="sm" onClick={() => setDeleting(instance.name)}>
+                <Button variant="quiet" size="sm" onClick={() => setDeleting(instance.name)}>
                   Delete data
                 </Button>
               </span>
@@ -112,7 +112,7 @@ export function Data({ settingsPatch }: { settingsPatch: SettingsPatch }) {
         <h3 className="text-[13px] font-semibold">Reset all settings</h3>
         <p className="mt-0.5 text-[12px] text-muted">{RESET_SENTENCE}</p>
         <div className="mt-2">
-          <Button variant="quiet" onClick={() => setResetting(true)}>
+          <Button variant="secondary" onClick={() => setResetting(true)}>
             Reset
           </Button>
         </div>
