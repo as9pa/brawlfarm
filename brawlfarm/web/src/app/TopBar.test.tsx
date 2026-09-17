@@ -26,15 +26,19 @@ describe("pageTitle", () => {
     expect(pageTitle("/calibration")).toBe("Calibration");
     expect(pageTitle("/settings")).toBe("Settings");
     expect(pageTitle("/settings/notifications")).toBe("Settings");
-    expect(pageTitle("/instances/Pie64_1")).toBe("Pie64_1");
+    expect(pageTitle("/instances/Pie64_1")).toBe("Fleet / Pie64_1");
   });
 });
 
 describe("TopBar", () => {
-  it("shows the page title and the connection pill", async () => {
+  it("shows the breadcrumb and the connection pill, and no heading of its own", async () => {
     stubFetch(() => jsonResponse({ alerts: [], unread: 0 }));
     renderWithProviders(<TopBar />, { route: "/instances/Pie64" });
-    expect(screen.getByRole("heading", { name: "Pie64" })).toBeInTheDocument();
+    expect(screen.getByRole("navigation", { name: "Breadcrumb" })).toHaveTextContent(
+      "Fleet / Pie64",
+    );
+    // The page under the bar owns the one h1, so the bar itself is no heading at all.
+    expect(screen.queryAllByRole("heading")).toHaveLength(0);
     // Nothing has subscribed to the stream in this test, so it is still connecting.
     expect(screen.getByText("Connecting")).toBeInTheDocument();
     expect(screen.getByText("Connecting").closest("[data-tone]")).toHaveAttribute(

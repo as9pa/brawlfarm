@@ -57,10 +57,8 @@ export function Settings() {
           <ErrorBlock error={UNKNOWN_SECTION} />
         ) : (
           <>
-            {/* An h2: the top bar already carries this page's h1, and it says Settings for
-                every one of the seven. */}
             <header className="flex items-baseline gap-2">
-              <h2 className="text-[20px] font-semibold tracking-tight">{known.label}</h2>
+              <h1 className="text-[20px] font-semibold tracking-tight">{known.label}</h1>
               {settingsPatch.savedAt !== null && (
                 <span className="text-[11px] text-muted">{`Saved ${settingsPatch.savedAt}`}</span>
               )}

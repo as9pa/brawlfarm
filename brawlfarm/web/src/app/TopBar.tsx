@@ -29,8 +29,15 @@ const CONNECTION_PILL: Record<Connection, { label: string; tone: Tone }> = {
   connecting: { label: "Connecting", tone: "idle" },
 };
 
+function instanceName(pathname: string): string | null {
+  if (!pathname.startsWith(INSTANCE_PREFIX)) return null;
+  return pathname.slice(INSTANCE_PREFIX.length);
+}
+
 export function pageTitle(pathname: string): string {
-  if (pathname.startsWith(INSTANCE_PREFIX)) return pathname.slice(INSTANCE_PREFIX.length);
+  const instance = instanceName(pathname);
+  // An instance hangs off the fleet, so its trail says where it came from.
+  if (instance !== null) return `Fleet / ${instance}`;
   // One title for all seven sections: /settings/data is still the Settings page.
   if (pathname.startsWith("/settings")) return "Settings";
   return SECTION_TITLES[pathname] ?? "brawlfarm";
@@ -42,12 +49,24 @@ export function TopBar() {
   const { data: alerts } = useQuery({ queryKey: queryKeys.alerts(), queryFn: listAlerts });
   const unread = alerts?.unread ?? 0;
   const pill = CONNECTION_PILL[connection];
+  const instance = instanceName(pathname);
 
   return (
     <header className="flex h-[52px] shrink-0 items-center gap-3 border-b border-line bg-panel px-4">
-      <h1 className="flex-1 truncate text-[20px] font-semibold tracking-tight">
-        {pageTitle(pathname)}
-      </h1>
+      {/* A trail, not a heading: the page under the bar owns the one h1, and repeating
+          its name at level one would leave the document with no outline. */}
+      <nav aria-label="Breadcrumb" className="flex min-w-0 flex-1">
+        <span className="truncate text-[13px] text-muted">
+          {instance === null ? (
+            pageTitle(pathname)
+          ) : (
+            <>
+              {"Fleet / "}
+              <span className="t-name">{instance}</span>
+            </>
+          )}
+        </span>
+      </nav>
 
       <span
         data-tone={pill.tone}

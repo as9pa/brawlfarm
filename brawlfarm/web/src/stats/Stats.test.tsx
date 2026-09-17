@@ -214,6 +214,9 @@ describe("Stats", () => {
     server();
     mount();
     expect(await screen.findByRole("heading", { name: "Brawlers" })).toBeInTheDocument();
+    expect(screen.getAllByRole("heading", { level: 1 }).map((h) => h.textContent)).toEqual([
+      "Stats",
+    ]);
     expect(screen.getByRole("heading", { name: "Rank distribution" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Recent games" })).toBeInTheDocument();
     expect(screen.getAllByRole("row", { name: /NORI/ }).length).toBeGreaterThan(0);

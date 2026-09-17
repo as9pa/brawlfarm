@@ -129,8 +129,7 @@ describe("Instance", () => {
       }),
     ]);
     mountPage();
-    // An h2: the top bar's route title is the page's only h1 (its name is the same).
-    expect(await screen.findByRole("heading", { level: 2, name: "Pie64" })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { level: 1, name: "Pie64" })).toBeInTheDocument();
     expect(screen.getByText("Farming")).toBeInTheDocument();
     expect(screen.getByText("5555")).toBeInTheDocument();
     expect(screen.getByText("Playing")).toBeInTheDocument();

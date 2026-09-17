@@ -54,6 +54,9 @@ describe("Fleet", () => {
     stubFleet();
     renderWithProviders(<Fleet />);
     expect(await screen.findByText("3 instances")).toBeInTheDocument();
+    expect(screen.getAllByRole("heading", { level: 1 }).map((h) => h.textContent)).toEqual([
+      "Fleet",
+    ]);
     // One farming, one stopped, one offline; 12 + 4 + 0 games and 86 - 12 + 0 trophies
     // from the cards, and 3.6667 hours from the stats route.
     expect(

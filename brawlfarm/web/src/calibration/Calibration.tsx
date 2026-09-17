@@ -113,7 +113,7 @@ export function Calibration() {
 
   const header = (
     <>
-      <h2 className="text-[28px] font-semibold tracking-tight">Calibration</h2>
+      <h1 className="text-[28px] font-semibold tracking-tight">Calibration</h1>
       <p className="text-[13px] text-muted">{HINT}</p>
     </>
   );
