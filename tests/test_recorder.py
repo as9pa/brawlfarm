@@ -2,6 +2,7 @@ import json
 from datetime import datetime
 from pathlib import Path
 
+import cv2
 import numpy as np
 import pytest
 
@@ -78,6 +79,26 @@ def test_flag_opens_session_and_writes_labeled_frames(rec):
     assert st["bytes"] > 0
 
 
+def test_frames_are_half_size_by_default(rec):
+    r, clock, data, root = rec
+    (data / "record.flag").touch()
+    r.poll()
+    assert r.observe(_screen(), State.MENU, "menu") is True
+    session = root / "recordings" / "Pie64" / "20260912-211103"
+    assert cv2.imread(str(session / "0001-menu.jpg")).shape == (450, 800, 3)
+
+
+def test_full_size_keeps_the_native_frame(rec):
+    _, clock, data, root = rec
+    wall = lambda: datetime(2026, 9, 12, 21, 11, 3, 200000)  # noqa: E731
+    r = Recorder(root, "Pie64", data / "record.flag", clock=clock, wall=wall, full_size=True)
+    (data / "record.flag").touch()
+    r.poll()
+    assert r.observe(_screen(), State.MENU, "menu") is True
+    session = root / "recordings" / "Pie64" / "20260912-211103"
+    assert cv2.imread(str(session / "0001-menu.jpg")).shape == (900, 1600, 3)
+
+
 def test_flag_removed_closes_session(rec):
     r, clock, data, root = rec
     (data / "record.flag").touch()
@@ -123,7 +144,7 @@ def test_write_failure_does_not_raise(rec, monkeypatch):
     r.poll()
     from brawlfarm.core import preview
 
-    def boom(screen):
+    def boom(screen, *, full=False):
         raise OSError("disk gone")
 
     monkeypatch.setattr(preview, "encode", boom)

@@ -2,7 +2,8 @@
 
 The loop screencaps, writes the panel's preview frame, classifies the frame and hands it
 to the same Recorder the farm uses, so the next recalibration corpus comes from real play
-instead of from the bot's own narrow path through the game.
+instead of from the bot's own narrow path through the game. It records at the native
+1600x900 size, so a template crop can be cut straight out of a session folder.
 
 It imports adb for connect, screencap and screen_size and nothing that touches the screen:
 controller, brawlers, quests, rewards and core/settings are all outside its import graph,
@@ -45,7 +46,10 @@ class Observer:
         self.frames = 0
         self.start = time.monotonic()
         self.recorder = Recorder(
-            config.HOME_DIR / "calibration", config.DATA_DIR.name, config.DATA_DIR / RECORD_FLAG
+            config.HOME_DIR / "calibration",
+            config.DATA_DIR.name,
+            config.DATA_DIR / RECORD_FLAG,
+            full_size=True,
         )
 
     # --- the flag the owner never has to touch ------------------------------------

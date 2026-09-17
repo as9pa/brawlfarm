@@ -41,12 +41,16 @@ class Recorder:
         *,
         clock: Callable[[], float] = time.monotonic,
         wall: Callable[[], datetime] = datetime.now,
+        full_size: bool = False,
     ) -> None:
         self._root = Path(root)
         self._instance = instance
         self._flag = Path(flag)
         self._clock = clock
         self._wall = wall
+        # Observe mode keeps the native 1600x900 frame so a template crop can be cut
+        # straight out of a session; the farm recorder stays at the preview's half size.
+        self._full_size = full_size
         self._session: Path | None = None
         self._session_id: str | None = None
         self._seq = 0
@@ -130,7 +134,7 @@ class Recorder:
         try:
             seq = self._seq + 1
             name = f"{seq:04d}-{state.name.lower()}.jpg"
-            data = preview.encode(screen)
+            data = preview.encode(screen, full=self._full_size)
             (self._session / name).write_bytes(data)
             line = {
                 "seq": seq,
