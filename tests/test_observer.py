@@ -6,6 +6,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import cv2
 import numpy as np
 import pytest
 
@@ -38,6 +39,14 @@ def test_one_pass_records_a_frame_and_leaves_no_flag(data: Path, tmp_path: Path)
     sessions = sorted((tmp_path / "calibration" / "recordings" / "alpha").iterdir())
     assert len(sessions) == 1
     assert (sessions[0] / "labels.jsonl").read_text(encoding="utf-8").count("\n") == 1
+
+
+def test_the_recorded_frames_are_full_size(data: Path, tmp_path: Path) -> None:
+    observer.Observer(max_minutes=0.0).run()
+    session = sorted((tmp_path / "calibration" / "recordings" / "alpha").iterdir())[0]
+    frame = cv2.imread(str(next(session.glob("*.jpg"))))
+    assert frame is not None
+    assert frame.shape == (config.SCREEN_H, config.SCREEN_W, 3)
 
 
 def test_the_heartbeat_names_the_mode(data: Path) -> None:

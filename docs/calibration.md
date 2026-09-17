@@ -72,8 +72,12 @@ It is one worker per instance either way, so observe mode takes the same slot a 
 worker would. That is why the switch refuses to start on a running instance: stop it
 first. Turning the switch off is an ordinary stop.
 
-The session ends at the same 2000 frame cap a farm recording has, which is roughly half an
-hour of distinct screens. When it stops, turn the switch on again for a new folder.
+Observe frames are stored at the full 1600 x 900 size, so a template crop can be cut
+straight out of a session folder. A farm recording stays at 800 x 450, which is enough for
+scores and labels but too small to cut a template from. The same two caps apply, but at
+full size a session reaches the 512 MiB byte cap well before the 2000 frame cap, so
+`disk_cap` is the usual reason one ends. When it stops, turn the switch on again for a new
+folder.
 
 ## Safety
 

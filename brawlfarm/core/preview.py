@@ -35,14 +35,17 @@ _last_write = float("-inf")
 _last_warn = float("-inf")
 
 
-def encode(screen) -> bytes:
+def encode(screen, *, full: bool = False) -> bytes:
     """``screen`` scaled to PREVIEW_SIZE and JPEG-encoded. Raises if cv2 cannot encode it.
 
     INTER_AREA is the right filter for shrinking: it averages the pixels it drops, so the
     game's thin UI text stays readable at half size instead of aliasing into noise.
+
+    ``full`` skips the resize and encodes the frame at its native size, same quality. That
+    is what an observe recording wants: a template crop has to come off a 1600x900 frame.
     """
-    small = cv2.resize(screen, PREVIEW_SIZE, interpolation=cv2.INTER_AREA)
-    ok, buf = cv2.imencode(".jpg", small, [int(cv2.IMWRITE_JPEG_QUALITY), PREVIEW_JPEG_QUALITY])
+    frame = screen if full else cv2.resize(screen, PREVIEW_SIZE, interpolation=cv2.INTER_AREA)
+    ok, buf = cv2.imencode(".jpg", frame, [int(cv2.IMWRITE_JPEG_QUALITY), PREVIEW_JPEG_QUALITY])
     if not ok:
         raise ValueError("cv2 could not encode the preview frame")
     return bytes(buf)
