@@ -6,19 +6,19 @@
  * Nothing here truncates. A cell keeps a floor of 104 px and the row wraps under it, so a
  * phone gets two or three columns of readable figures rather than six cells of "37...".
  *
- * Two placeholders stand in for numbers that would be a lie: "after 30 min" while the
- * range is too short for a rate to mean anything, and "none" when there is nothing at all
- * to average.
+ * Two placeholders stand in for numbers that would be a lie: "After 30 min" while the
+ * range is too short for a rate to mean anything, and "Not yet" when there is nothing at
+ * all to average.
  */
 import type { StatsSummary } from "../api/types";
+import { NOT_YET } from "../lib/copy";
 import { signed } from "../lib/format";
 
 export interface MetricsRowProps {
   summary: StatsSummary;
 }
 
-const NONE = "none";
-const TOO_SHORT = "after 30 min";
+const TOO_SHORT = "After 30 min";
 
 function trophyTone(trophies: number): string {
   if (trophies > 0) return "text-accent";
@@ -28,7 +28,7 @@ function trophyTone(trophies: number): string {
 
 function rateText(summary: StatsSummary): string {
   if (summary.trophies_per_hour !== null) return String(summary.trophies_per_hour);
-  return summary.games > 0 ? TOO_SHORT : NONE;
+  return summary.games > 0 ? TOO_SHORT : NOT_YET;
 }
 
 function Figure({ label, value, tone }: { label: string; value: string; tone?: string }) {
@@ -62,11 +62,11 @@ export function MetricsRow({ summary }: MetricsRowProps) {
       <Figure label="Trophies per hour" value={rateText(summary)} />
       <Figure
         label="Average rank"
-        value={summary.avg_rank === null ? NONE : summary.avg_rank.toFixed(1)}
+        value={summary.avg_rank === null ? NOT_YET : summary.avg_rank.toFixed(1)}
       />
       <Figure
         label="Top-4 rate"
-        value={summary.top4_rate === null ? NONE : `${Math.round(summary.top4_rate)}%`}
+        value={summary.top4_rate === null ? NOT_YET : `${Math.round(summary.top4_rate)}%`}
       />
       <Figure label="Time farmed" value={`${summary.hours_farmed.toFixed(2)} h`} />
     </div>

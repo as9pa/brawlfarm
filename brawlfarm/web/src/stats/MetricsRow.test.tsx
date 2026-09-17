@@ -65,10 +65,10 @@ describe("MetricsRow", () => {
     expect(within(figure("Trophies")).getByTestId("metric-value")).toHaveClass("text-muted");
   });
 
-  it("says after 30 min when the rate is null and games were played", () => {
+  it("says After 30 min when the rate is null and games were played", () => {
     renderWithProviders(<MetricsRow summary={summary({ trophies_per_hour: null })} />);
     expect(within(figure("Trophies per hour")).getByTestId("metric-value")).toHaveTextContent(
-      "after 30 min",
+      "After 30 min",
     );
   });
 
@@ -86,10 +86,12 @@ describe("MetricsRow", () => {
       />,
     );
     expect(within(figure("Trophies per hour")).getByTestId("metric-value")).toHaveTextContent(
-      "none",
+      "Not yet",
     );
-    expect(within(figure("Average rank")).getByTestId("metric-value")).toHaveTextContent("none");
-    expect(within(figure("Top-4 rate")).getByTestId("metric-value")).toHaveTextContent("none");
+    expect(within(figure("Average rank")).getByTestId("metric-value")).toHaveTextContent(
+      "Not yet",
+    );
+    expect(within(figure("Top-4 rate")).getByTestId("metric-value")).toHaveTextContent("Not yet");
   });
 
   it("wraps at phone width rather than truncating any cell", () => {

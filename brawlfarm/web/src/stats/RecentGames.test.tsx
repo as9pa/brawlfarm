@@ -64,6 +64,9 @@ describe("RecentGames", () => {
     expect(cells[2]).toHaveTextContent("Not recorded");
     expect(cells[3]).toHaveTextContent("Not recorded");
     expect(cells[4]).toHaveTextContent("Not recorded");
+    // A missing mode is muted like a missing map, not set as if it were a mode name.
+    expect(cells[3].querySelector("span")).toHaveClass("text-muted");
+    expect(cells[4].querySelector("span")).toHaveClass("text-muted");
     expect(cells[5]).toHaveTextContent("Not recorded");
     expect(screen.queryByText("none")).not.toBeInTheDocument();
   });

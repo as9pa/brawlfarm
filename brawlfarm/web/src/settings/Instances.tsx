@@ -374,7 +374,7 @@ export function Instances({ settingsPatch }: { settingsPatch: SettingsPatch }) {
           variant="quiet"
           size="sm"
           disabled={scanning}
-          disabledReason="Scanning"
+          disabledReason="Scanning…"
           onClick={scanAgain}
         >
           Scan again

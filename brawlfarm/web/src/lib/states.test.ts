@@ -28,8 +28,8 @@ describe("phaseLabel", () => {
     expect(phaseLabel("queuing")).toBe("Queuing");
     expect(phaseLabel("playing")).toBe("Playing");
     expect(phaseLabel("returning")).toBe("Returning");
-    expect(phaseLabel(null)).toBe("no status yet");
-    expect(phaseLabel("")).toBe("no status yet");
+    expect(phaseLabel(null)).toBe("No status yet");
+    expect(phaseLabel("")).toBe("No status yet");
   });
 
   it("shows a phase it does not know rather than pretending there is none", () => {

@@ -82,7 +82,7 @@ export function breakCaption(until: string | null): string {
 export function nextValue(inst: InstancePayload): string {
   if (inst.state === "offline") {
     const minutes = retryMinutes(inst.note);
-    return minutes === null ? "soon" : `${minutes} min`;
+    return minutes === null ? "Soon" : `${minutes} min`;
   }
   return inst.until === null ? NOT_SET : hhmm(inst.until);
 }

@@ -92,9 +92,9 @@ export function knownState(state: string | undefined): InstanceState {
 }
 
 /** The worker writes its own phase strings; one it has not taught us is shown as it
- * arrived, because "no status yet" would be a lie. */
+ * arrived, because "No status yet" would be a lie. */
 export function phaseLabel(phase: string | null): string {
-  if (phase === null || phase === "") return "no status yet";
+  if (phase === null || phase === "") return "No status yet";
   return PHASE_LABELS[phase] ?? phase;
 }
 

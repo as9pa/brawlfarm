@@ -64,7 +64,13 @@ function columnsFor(range: StatsRange): Column<StatsGame>[] {
         </span>
       ),
     },
-    { key: "mode", label: "Mode", render: (row) => muted(modeName(row.mode)) },
+    {
+      key: "mode",
+      label: "Mode",
+      // Mute first and format second: modeName answers a phrase of its own for a missing
+      // mode, which muted would then draw as if it were a mode the game has.
+      render: (row) => (row.mode ? muted(modeName(row.mode)) : muted(null)),
+    },
     { key: "map", label: "Map", render: (row) => muted(row.map) },
     {
       key: "rank",

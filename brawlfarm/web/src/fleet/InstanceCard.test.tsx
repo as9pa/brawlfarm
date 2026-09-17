@@ -76,7 +76,7 @@ describe("retryMinutes, breakCaption and nextValue", () => {
         makeInstance({ state: "offline", until: null, note: "BlueStacks window not found. Retrying in 4 min." }),
       ),
     ).toBe("4 min");
-    expect(nextValue(makeInstance({ state: "offline", until: null, note: "" }))).toBe("soon");
+    expect(nextValue(makeInstance({ state: "offline", until: null, note: "" }))).toBe("Soon");
   });
 });
 
