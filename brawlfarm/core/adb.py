@@ -18,6 +18,7 @@ import re
 import struct
 import subprocess
 import time
+from pathlib import Path
 
 import cv2
 import numpy as np
@@ -69,6 +70,39 @@ def _run(args: list[str], *, binary: bool = False, timeout: float = 20.0, retrie
             continue
         raise last_err  # non-transient -> fail immediately
     raise last_err  # exhausted retries on a transient failure
+
+
+# --- helpers for the play stream (brawlfarm/play/stream.py) -------------------------
+# Read-only plumbing: a file onto the device, a port forward, a long-running device
+# program. None of these sends input; every argument is a literal or an integer port.
+
+
+def push(local: Path, remote: str) -> None:
+    """Copy one local file to a device path. ``remote`` is chosen by the caller from a
+    constant, never from user input."""
+    _run(["-s", config.ADB_SERIAL, "push", str(local), remote], timeout=60.0)
+
+
+def forward(local_port: int, remote: str) -> None:
+    """Forward a host TCP port to a device socket (``localabstract:<name>`` or ``tcp:<n>``)."""
+    _run(["-s", config.ADB_SERIAL, "forward", f"tcp:{int(local_port)}", remote])
+
+
+def forward_remove(local_port: int) -> None:
+    """Drop the forward for one host port. Raises AdbError when there is none."""
+    _run(["-s", config.ADB_SERIAL, "forward", "--remove", f"tcp:{int(local_port)}"])
+
+
+def shell_process(args: list[str]) -> subprocess.Popen:
+    """Start ``adb shell <args>`` and hand back the running process; the caller owns its
+    lifetime and must kill it. For device programs that run until stopped, unlike ``_run``,
+    which waits for a command to finish."""
+    return subprocess.Popen(
+        [config.ADB_PATH, "-s", config.ADB_SERIAL, "shell", *args],
+        stdin=subprocess.DEVNULL,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+    )
 
 
 def connect(serial: str | None = None) -> None:
