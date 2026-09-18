@@ -2,7 +2,7 @@
 
 An open-source Brawl Stars trophy farmer for BlueStacks on Windows, with a local control panel in your browser.
 
-Status: v1.0.0. Phases 1 to 7 of the plan are done; phase 8 (a calibration page, recalibration for the current game version, a desktop window and tray icon, a labeled frame recorder) follows. See `docs/PLAN.md`.
+Status: v1.1.0. Every phase in the plan has shipped; this release is the panel pass over copy, the component kit, fleet, instance, stats, settings, calibration and narrow screens. See `docs/PLAN.md` for the history.
 
 ## Screenshots
 
