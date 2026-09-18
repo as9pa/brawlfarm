@@ -7,7 +7,9 @@
  * without this component tracking the route itself.
  *
  * Under 820 px the column becomes a horizontal row that scrolls, which is the same move the
- * shell rail makes at the same width.
+ * shell rail makes at the same width. The scrolling edge carries a fade, the same cue the
+ * recent games table draws, so the sections past it, About last, read as cut off rather
+ * than absent.
  */
 import { NavLink } from "react-router";
 
@@ -55,15 +57,25 @@ function linkClass(isActive: boolean): string {
 export function SettingsNav() {
   return (
     <nav aria-label="Settings sections" className="shrink-0 min-[820px]:w-[200px]">
-      <ul className="flex gap-1 overflow-x-auto min-[820px]:block min-[820px]:space-y-0.5">
-        {SETTINGS_SECTIONS.map((section) => (
-          <li key={section.id}>
-            <NavLink to={`/settings/${section.id}`} className={({ isActive }) => linkClass(isActive)}>
-              {section.label}
-            </NavLink>
-          </li>
-        ))}
-      </ul>
+      <div className="relative min-w-0">
+        <ul className="flex gap-1 overflow-x-auto min-[820px]:block min-[820px]:space-y-0.5">
+          {SETTINGS_SECTIONS.map((section) => (
+            <li key={section.id}>
+              <NavLink
+                to={`/settings/${section.id}`}
+                className={({ isActive }) => linkClass(isActive)}
+              >
+                {section.label}
+              </NavLink>
+            </li>
+          ))}
+        </ul>
+        <span
+          aria-hidden="true"
+          data-edge-fade=""
+          className="pointer-events-none absolute inset-y-0 right-0 w-6 bg-gradient-to-l from-ground to-transparent min-[820px]:hidden"
+        />
+      </div>
     </nav>
   );
 }
