@@ -18,6 +18,7 @@ import { Field } from "../components/ui/Field";
 import { PanelSkeleton } from "../components/ui/PanelSkeleton";
 import { Switch } from "../components/ui/Switch";
 import { useVisiblePolling } from "../live/useVisiblePolling";
+import { ELLIPSIS } from "../lib/copy";
 import { type BlockState, timeline } from "../lib/schedule";
 import { hhmm } from "../lib/time";
 import { failureMessage, toast } from "../lib/toast";
@@ -303,7 +304,14 @@ export function Schedule({ name }: { name: string }) {
           variant="primary"
           size="sm"
           disabled={!runnable || busy === "start"}
-          disabledReason={runnable ? undefined : "Enter a number of hours"}
+          // A disabled control still says why, and a busy one is not a wrong one.
+          disabledReason={
+            !runnable
+              ? "Enter a number of hours"
+              : busy === "start"
+                ? `Starting${ELLIPSIS}`
+                : undefined
+          }
           onClick={() => {
             void run(
               "start",
@@ -318,6 +326,7 @@ export function Schedule({ name }: { name: string }) {
           variant="secondary"
           size="sm"
           disabled={busy === "redraw"}
+          disabledReason={busy === "redraw" ? `Redrawing${ELLIPSIS}` : undefined}
           onClick={() => {
             void run(
               "redraw",

@@ -308,6 +308,8 @@ describe("Schedule", () => {
     await waitFor(() => {
       expect(start).toBeDisabled();
     });
+    // Greyed out is not an explanation: the reason says which of the two it is.
+    expect(start).toHaveAttribute("title", "Starting…");
     fireEvent.click(start);
     release();
     await waitFor(() => {
@@ -334,11 +336,13 @@ describe("Schedule", () => {
     await waitFor(() => {
       expect(draw).toBeDisabled();
     });
+    expect(draw).toHaveAttribute("title", "Redrawing…");
     fireEvent.click(draw);
     release();
     await waitFor(() => {
       expect(draw).toBeEnabled();
     });
+    expect(draw).not.toHaveAttribute("title");
     expect(countOf(calls, "PUT", SCHEDULE)).toBe(1);
   });
 });
