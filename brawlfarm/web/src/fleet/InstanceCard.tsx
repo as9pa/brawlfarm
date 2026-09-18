@@ -17,9 +17,8 @@
  * so its card shows the supervisor's own retry note instead.
  */
 import { useQueryClient } from "@tanstack/react-query";
-import { ChevronRight } from "lucide-react";
-import type { ReactNode } from "react";
-import { Link, useNavigate } from "react-router";
+import { type ReactNode, useEffect, useState } from "react";
+import { Link } from "react-router";
 
 import {
   restartInstance,
@@ -28,18 +27,20 @@ import {
   stopInstance,
 } from "../api/instances";
 import { queryKeys } from "../api/queries";
-import type { InstancePayload, InstanceState } from "../api/types";
+import type { InstancePayload } from "../api/types";
 import { Button } from "../components/ui/Button";
+import { ConfirmDialog } from "../components/ui/ConfirmDialog";
 import { StateChip } from "../components/ui/StateChip";
 import { Thumb } from "../components/ui/Thumb";
 import { useVisiblePolling } from "../live/useVisiblePolling";
 import { NOT_SET, NOT_STARTED } from "../lib/copy";
-import { signed } from "../lib/format";
-import { phaseLabel } from "../lib/states";
-import { duration, hhmm } from "../lib/time";
+import { num, signed } from "../lib/format";
+import { STOPPABLE_STATES, phaseLabel } from "../lib/states";
+import { age, duration, hhmm } from "../lib/time";
 import { failureMessage, toast } from "../lib/toast";
 
 const THUMB_MS = 5000;
+const AGE_TICK_MS = 1000;
 const RETRY_MINUTES_RE = /Retrying in (\d+) min/;
 
 /** The overlay that makes the rest of the card clickable, and the card's own ring while
@@ -48,26 +49,9 @@ const STRETCHED_LINK = "after:absolute after:inset-0 after:content-[''] focus-vi
 const CARD_RING =
   "has-[a:focus-visible]:outline-2 has-[a:focus-visible]:outline-offset-2 has-[a:focus-visible]:outline-accent";
 
-const STOPPABLE_STATES: ReadonlySet<InstanceState> = new Set<InstanceState>([
-  "farming",
-  "starting",
-  "stopping",
-  "reconnecting",
-]);
-
-export const NEXT_LABELS: Record<InstanceState, string> = {
-  farming: "Next break",
-  starting: "Next break",
-  stopping: "Next break",
-  reconnecting: "Next break",
-  scheduled_break: "Next session",
-  stopped: "Next session",
-  offline: "Next retry",
-};
-
-/** The supervisor writes "BlueStacks window not found. Retrying in 4 min."; the card
- * shows the number on its own as well, so read it back out rather than duplicating the
- * backoff schedule here. */
+/** The supervisor writes the minute count into its offline note; the fourth metric counts
+ * down with it, so read the number back out rather than duplicating the backoff schedule
+ * here. */
 export function retryMinutes(note: string): number | null {
   const match = RETRY_MINUTES_RE.exec(note);
   if (match === null) return null;
@@ -79,33 +63,36 @@ export function breakCaption(until: string | null): string {
   return until === null ? "On a scheduled break" : `Break until ${hhmm(until)}`;
 }
 
-export function nextValue(inst: InstancePayload): string {
+/** The fourth metric, label and all: "21:30" is a clock time and "4 min" is a countdown,
+ * and only the label says which of the two you are reading. */
+export function nextMetric(inst: InstancePayload): { label: string; value: string } {
+  if (inst.state === "stopping") return { label: "Stops", value: "After this match" };
   if (inst.state === "offline") {
     const minutes = retryMinutes(inst.note);
-    return minutes === null ? "Soon" : `${minutes} min`;
+    return { label: "Retry in", value: minutes === null ? NOT_SET : `${minutes} min` };
   }
-  return inst.until === null ? NOT_SET : hhmm(inst.until);
+  const idle = inst.state === "scheduled_break" || inst.state === "stopped";
+  return {
+    label: idle ? "Next session" : "Break at",
+    value: inst.until === null ? NOT_SET : hhmm(inst.until),
+  };
 }
 
 function Metric({ label, value }: { label: string; value: string }) {
   return (
     <div>
       <div className="text-[11px] text-muted">{label}</div>
-      <div className="font-mono text-[15px] tabular-nums text-text">{value}</div>
+      <div className="t-figure text-[15px] text-text">{value}</div>
     </div>
   );
 }
 
+/** The note has one author, the server: the card prints the sentence it was sent and adds
+ * nothing of its own to it. */
 function OfflineBlock({ note, onRetry }: { note: string; onRetry: ReactNode }) {
-  const minutes = retryMinutes(note);
   return (
     <div className="flex aspect-video w-full flex-col items-center justify-center gap-1.5 rounded-[6px] border border-line bg-panel-2 p-3 text-center">
-      <StateChip state="offline" />
-      <p className="text-[13px] text-text">
-        {minutes === null
-          ? "BlueStacks window not found. Retrying soon."
-          : `BlueStacks window not found. Retrying in ${minutes} min.`}
-      </p>
+      <p className="text-[13px] text-text">{note === "" ? NOT_SET : note}</p>
       <p className="text-[12px] text-muted">Open the instance, or {onRetry}.</p>
     </div>
   );
@@ -117,8 +104,19 @@ export interface InstanceCardProps {
 
 export function InstanceCard({ inst }: InstanceCardProps) {
   const client = useQueryClient();
-  const navigate = useNavigate();
   const refreshMs = useVisiblePolling(THUMB_MS);
+  const [confirming, setConfirming] = useState(false);
+  const [frameAt, setFrameAt] = useState<number | null>(null);
+  const [now, setNow] = useState(() => Date.now());
+
+  // The frame ages on the status line now that nothing is drawn over the image, so the
+  // card keeps the clock the thumbnail used to keep: one tick a second, and none at all
+  // before the first frame or on an offline card that will never get one.
+  useEffect(() => {
+    if (frameAt === null) return;
+    const tick = setInterval(() => setNow(Date.now()), AGE_TICK_MS);
+    return () => clearInterval(tick);
+  }, [frameAt]);
 
   const refresh = () => {
     void client.invalidateQueries({ queryKey: queryKeys.instances() });
@@ -170,6 +168,12 @@ export function InstanceCard({ inst }: InstanceCardProps) {
 
   const stoppable = STOPPABLE_STATES.has(inst.state);
   const sessionMinutes = inst.session?.minutes_elapsed ?? null;
+  const next = nextMetric(inst);
+  // One line for the whole status. An empty half drops out with its comma rather than
+  // leaving a card that starts or ends on one.
+  const status = [phaseLabel(inst.phase), frameAt === null ? "" : `frame ${age(frameAt, now)}`]
+    .filter((part) => part !== "")
+    .join(", ");
 
   return (
     <article
@@ -192,7 +196,10 @@ export function InstanceCard({ inst }: InstanceCardProps) {
           refreshMs={refreshMs}
           dimmed={inst.state === "scheduled_break"}
           caption={inst.state === "scheduled_break" ? breakCaption(inst.until) : undefined}
-          overlay={<StateChip state={inst.state} />}
+          onFrame={(takenAt) => {
+            setFrameAt(takenAt);
+            setNow(Date.now());
+          }}
         />
       )}
 
@@ -200,24 +207,24 @@ export function InstanceCard({ inst }: InstanceCardProps) {
         <Link
           to={`/instances/${inst.name}`}
           aria-label={`Open ${inst.name}`}
-          className={`text-[15px] font-semibold ${STRETCHED_LINK}`}
+          className={`t-name text-[15px] font-semibold ${STRETCHED_LINK}`}
         >
           {inst.name}
         </Link>
-        <span className="font-mono text-[12px] tabular-nums text-muted">{inst.adb_port}</span>
-        <span className="flex-1 truncate text-right text-[12px] text-muted">
-          {phaseLabel(inst.phase)}
-        </span>
+        <StateChip state={inst.state} />
       </div>
+      <p className="mt-1 truncate text-[12px] text-muted">{status}</p>
 
       <div className="mt-3 grid grid-cols-2 gap-2">
-        <Metric label="Games today" value={String(inst.today.games)} />
+        <Metric label="Games today" value={num(inst.today.games)} />
         <Metric label="Trophies today" value={signed(inst.today.trophies)} />
+        {/* While it runs the minutes are this session's; once it has stopped the same
+            figure is the last session's, and the label is what says so. */}
         <Metric
-          label="Session"
+          label={stoppable ? "This session" : "Last session"}
           value={sessionMinutes === null ? NOT_STARTED : duration(sessionMinutes)}
         />
-        <Metric label={NEXT_LABELS[inst.state]} value={nextValue(inst)} />
+        <Metric label={next.label} value={next.value} />
       </div>
 
       <div className="relative z-10 mt-3 flex items-center gap-2 border-t border-line pt-2">
@@ -231,22 +238,34 @@ export function InstanceCard({ inst }: InstanceCardProps) {
           Stop
         </Button>
         {/* The same restart either way: a stopped instance has nothing to stop first, so
-            the label says what the press will do rather than what the endpoint is called. */}
-        <Button variant="secondary" size="sm" onClick={onRestart}>
-          {stoppable ? "Restart" : "Start"}
-        </Button>
-        <span className="flex-1" />
+            the label says what the press will do rather than what the endpoint is called.
+            Only the restart asks first: starting an instance interrupts nothing. */}
         <Button
-          variant="quiet"
+          variant="secondary"
           size="sm"
           onClick={() => {
-            void navigate(`/instances/${inst.name}`);
+            if (stoppable) setConfirming(true);
+            else onRestart();
           }}
         >
-          Open
-          <ChevronRight size={16} strokeWidth={1.6} aria-hidden="true" />
+          {stoppable ? "Restart" : "Start"}
         </Button>
       </div>
+
+      {/* Fixed and above the stretched link either way, so it sits inside the card it
+          belongs to rather than beside it. */}
+      <ConfirmDialog
+        open={confirming}
+        onClose={() => setConfirming(false)}
+        title={`Restart ${inst.name}?`}
+        body="It stops now, not after this match, and starts again."
+        confirmLabel="Restart"
+        tone="bad"
+        onConfirm={() => {
+          setConfirming(false);
+          onRestart();
+        }}
+      />
     </article>
   );
 }

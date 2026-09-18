@@ -19,26 +19,16 @@ import { listAlerts } from "../api/alerts";
 import { startInstance, stopInstance } from "../api/instances";
 import { queryKeys } from "../api/queries";
 import { getStatsToday } from "../api/stats";
-import type { InstanceState } from "../api/types";
 import { useInstances } from "../api/useInstances";
 import { Button } from "../components/ui/Button";
 import { ErrorBlock } from "../components/ui/ErrorBlock";
 import { openAlertsDrawer } from "../lib/alertsDrawer";
 import { num, plural, signed } from "../lib/format";
+import { STOPPABLE_STATES } from "../lib/states";
 import { hoursText } from "../lib/time";
 import { failureMessage, toast } from "../lib/toast";
 
 const GRID_COLUMNS = "repeat(auto-fill, minmax(340px, 1fr))";
-
-/** Running means here what a card's Stop button means by it: a state the supervisor can
- * still be asked to stop. Kept beside InstanceCard's own STOPPABLE_STATES until one of
- * the two moves into lib/states.ts. */
-const RUNNING_STATES: ReadonlySet<InstanceState> = new Set<InstanceState>([
-  "farming",
-  "starting",
-  "stopping",
-  "reconnecting",
-]);
 
 /** A card's shape before the first list arrives: the thumbnail, the name and the four
  * metrics as bones, so the grid does not jump when the real cards land. aria-hidden
@@ -80,7 +70,7 @@ export function Fleet() {
   const loading = instances === undefined;
   const fleet = instances ?? [];
   const newest = stripAlert(alerts?.alerts ?? []);
-  const running = fleet.filter((inst) => RUNNING_STATES.has(inst.state));
+  const running = fleet.filter((inst) => STOPPABLE_STATES.has(inst.state));
   const farming = fleet.filter((inst) => inst.state === "farming").length;
   const games = fleet.reduce((total, inst) => total + inst.today.games, 0);
   const trophies = fleet.reduce((total, inst) => total + inst.today.trophies, 0);

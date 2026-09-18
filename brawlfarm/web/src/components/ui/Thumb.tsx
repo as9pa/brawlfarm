@@ -9,8 +9,9 @@
  *
  * Polling that fast is only free because most polls change nothing: the box remembers the
  * ETag it is showing, hands it back on the next request, and a "no change" answer leaves
- * the image element exactly as it is. The caption ages from the frame's own timestamp, so
- * a frame that stays on screen for four seconds is honest about being four seconds old.
+ * the image element exactly as it is. Nothing is drawn over the image: the frame's own
+ * timestamp goes up to the caller through `onFrame`, and the caller says how old the
+ * picture is in its own words, beside everything else it has to say.
  *
  * A change of `refreshKey` fetches immediately: that is the Instance page's Refresh
  * button. The `<img>` carries data-private so the pull request's screenshots can blur it.
@@ -19,10 +20,8 @@ import { type ReactNode, useEffect, useRef, useState } from "react";
 
 import { ApiError } from "../../api/client";
 import { fetchPreview } from "../../api/screens";
-import { age } from "../../lib/time";
 
 const ERROR_RETRY_MS = 15000;
-const AGE_TICK_MS = 1000;
 
 export interface ThumbProps {
   name: string;
@@ -31,6 +30,8 @@ export interface ThumbProps {
   caption?: string;
   overlay?: ReactNode;
   refreshKey?: number;
+  /** The millisecond stamp of each new frame, for a caller that shows its age. */
+  onFrame?: (takenAt: number) => void;
 }
 
 export function Thumb({
@@ -40,12 +41,16 @@ export function Thumb({
   caption,
   overlay,
   refreshKey = 0,
+  onFrame,
 }: ThumbProps) {
   const [url, setUrl] = useState<string | null>(null);
-  const [takenAt, setTakenAt] = useState<number | null>(null);
   const [error, setError] = useState<ApiError | null>(null);
-  const [now, setNow] = useState(() => Date.now());
   const urlRef = useRef<string | null>(null);
+  // Read through a ref rather than listed as a dependency: a caller that writes the
+  // handler inline hands over a new function on every render, and the fetch loop below
+  // would restart on each one.
+  const onFrameRef = useRef(onFrame);
+  onFrameRef.current = onFrame;
   // The ETag of the frame on screen, tied to the instance it came from: a Thumb that is
   // handed a new name must not claim to already hold that instance's frame.
   const seenRef = useRef<{ name: string; etag: string | null }>({ name, etag: null });
@@ -73,9 +78,8 @@ export function Thumb({
           urlRef.current = URL.createObjectURL(frame.blob);
           seenRef.current = { name, etag: frame.etag };
           setUrl(urlRef.current);
-          setTakenAt(frame.takenAt);
+          onFrameRef.current?.(frame.takenAt);
         }
-        setNow(Date.now());
         setError(null);
         schedule(refreshMs);
       } catch (failure) {
@@ -103,12 +107,6 @@ export function Thumb({
     },
     [],
   );
-
-  useEffect(() => {
-    if (takenAt === null) return;
-    const tick = setInterval(() => setNow(Date.now()), AGE_TICK_MS);
-    return () => clearInterval(tick);
-  }, [takenAt]);
 
   return (
     <div className="relative aspect-video w-full overflow-hidden rounded-[6px] border border-line bg-panel-2">
@@ -139,11 +137,6 @@ export function Thumb({
         </div>
       )}
       {overlay !== undefined && <div className="absolute left-2 top-2">{overlay}</div>}
-      {takenAt !== null && error === null && (
-        <span className="absolute right-2 top-2 font-mono text-[11px] tabular-nums text-muted">
-          {age(takenAt, now)}
-        </span>
-      )}
     </div>
   );
 }

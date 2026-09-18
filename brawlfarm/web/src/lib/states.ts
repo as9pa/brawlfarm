@@ -29,6 +29,15 @@ const STATE_TONES: Record<InstanceState, Tone> = {
   offline: "bad",
 };
 
+/** The states a stop can still be asked for: what a card's Stop button offers, and what
+ * the fleet header counts as running. */
+export const STOPPABLE_STATES: ReadonlySet<InstanceState> = new Set<InstanceState>([
+  "farming",
+  "starting",
+  "stopping",
+  "reconnecting",
+]);
+
 const PHASE_LABELS: Record<string, string> = {
   at_menu: "At the menu",
   queuing: "Queuing",
@@ -91,11 +100,12 @@ export function knownState(state: string | undefined): InstanceState {
   return state !== undefined && state in STATE_LABELS ? (state as InstanceState) : "stopped";
 }
 
-/** The worker writes its own phase strings; one it has not taught us is shown as it
- * arrived, because "No status yet" would be a lie. */
+/** The worker writes its own phase strings; one it has not taught us is left out rather
+ * than printed as it arrived, because a raw token tells a reader nothing. The status line
+ * that shows this then carries the frame age alone. */
 export function phaseLabel(phase: string | null): string {
   if (phase === null || phase === "") return "No status yet";
-  return PHASE_LABELS[phase] ?? phase;
+  return PHASE_LABELS[phase] ?? "";
 }
 
 export function alertKindLabel(kind: string): string {

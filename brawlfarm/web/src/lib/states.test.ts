@@ -3,7 +3,15 @@
 import { describe, expect, it } from "vitest";
 
 import type { InstanceState } from "../api/types";
-import { alertKindLabel, alertKindTone, feedTone, phaseLabel, stateLabel, stateTone } from "./states";
+import {
+  STOPPABLE_STATES,
+  alertKindLabel,
+  alertKindTone,
+  feedTone,
+  phaseLabel,
+  stateLabel,
+  stateTone,
+} from "./states";
 
 const STATES: [InstanceState, string, string][] = [
   ["farming", "Farming", "ok"],
@@ -32,8 +40,19 @@ describe("phaseLabel", () => {
     expect(phaseLabel("")).toBe("No status yet");
   });
 
-  it("shows a phase it does not know rather than pretending there is none", () => {
-    expect(phaseLabel("shopping")).toBe("shopping");
+  it("leaves out a phase it does not know rather than showing the raw word", () => {
+    expect(phaseLabel("shopping")).toBe("");
+  });
+});
+
+describe("STOPPABLE_STATES", () => {
+  it("holds the four states a stop can still be asked for", () => {
+    expect([...STOPPABLE_STATES].sort()).toEqual([
+      "farming",
+      "reconnecting",
+      "starting",
+      "stopping",
+    ]);
   });
 });
 
