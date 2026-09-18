@@ -46,6 +46,16 @@ def test_get_returns_the_whole_document(api) -> None:
     assert [i["name"] for i in body["instances"]] == ["alpha", "bravo"]
 
 
+def test_defaults_are_the_model_defaults_with_no_instances(api) -> None:
+    client, _sup, _home = api
+    r = client.get("/api/settings/defaults")
+    assert r.status_code == 200
+    body = r.json()
+    # No fleet: this is what a switch would go back to, not a document anyone saves.
+    assert body["instances"] == []
+    assert body["advanced"] == S.AppSettings().advanced.model_dump(mode="json")
+
+
 def test_put_saves_the_document_and_reapplies_it(api) -> None:
     client, sup, home = api
     doc = client.get("/api/settings").json()

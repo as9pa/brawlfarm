@@ -15,8 +15,10 @@
 import type { ReactNode } from "react";
 
 export interface SettingRowProps {
-  title: string;
-  description: string;
+  /** A node rather than a string, so a row can hang a Chip off its title. */
+  title: ReactNode;
+  /** A node too: an advanced row's description is two lines, not one. */
+  description: ReactNode;
   error?: string;
   children: ReactNode;
 }

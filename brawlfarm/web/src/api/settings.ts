@@ -14,6 +14,13 @@ export function getSettings(): Promise<AppSettings> {
   return api<AppSettings>("/api/settings");
 }
 
+/** GET /api/settings/defaults. Every section at its model default and no instances, which
+ * is how a section shows what a switch would go back to. Read only: the panel never saves
+ * this document, it only compares against it. */
+export function getSettingsDefaults(): Promise<AppSettings> {
+  return api<AppSettings>("/api/settings/defaults");
+}
+
 export function putSettings(doc: AppSettings): Promise<AppSettings> {
   return api<AppSettings>("/api/settings", { method: "PUT", body: JSON.stringify(doc) });
 }

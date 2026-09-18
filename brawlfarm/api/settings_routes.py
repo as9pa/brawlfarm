@@ -30,6 +30,13 @@ async def read_settings(request: Request) -> dict:
     return get_sup(request).settings.model_dump(mode="json")
 
 
+@router.get("/api/settings/defaults")
+async def read_settings_defaults() -> dict:
+    """Every section at its model default, with no instances. Read only: nothing is saved
+    and nothing is applied, so the panel can show what a switch would go back to."""
+    return S.AppSettings().model_dump(mode="json")
+
+
 @router.put("/api/settings")
 async def write_settings(request: Request, body: dict) -> dict:
     """Replace config.toml wholesale and re-apply it. 422 names the offending field, 409
