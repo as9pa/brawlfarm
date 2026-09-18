@@ -503,13 +503,15 @@ CLIP = Path(__file__).parent / "fixtures" / "play" / "stream-2s.h264"
 
 
 class FakeSocket:
-    """Serves the clip in chunks, then EOF. close() unblocks nothing because recv never blocks."""
+    """Serves the clip in chunks, then either EOF (hold=False) or blocks until close()
+    (hold=True), which is what a live server does between frames."""
 
-    def __init__(self, data: bytes, chunk: int = 8192) -> None:
+    def __init__(self, data: bytes, chunk: int = 8192, *, hold: bool = False) -> None:
         self._data = data
         self._pos = 0
         self._chunk = chunk
-        self.closed = False
+        self._hold = hold
+        self._closed = threading.Event()
 
     def settimeout(self, value) -> None:
         pass
@@ -517,14 +519,16 @@ class FakeSocket:
     def recv(self, n: int, flags: int = 0) -> bytes:
         if flags & socket.MSG_PEEK:
             return self._data[self._pos : self._pos + 1]
-        if self.closed:
+        if self._pos >= len(self._data):
+            if self._hold:
+                self._closed.wait()
             return b""
         out = self._data[self._pos : self._pos + min(n, self._chunk)]
         self._pos += len(out)
         return out
 
     def close(self) -> None:
-        self.closed = True
+        self._closed.set()
 
 
 class FakeProc:
@@ -562,7 +566,7 @@ def _wait(pred, timeout: float = 5.0) -> bool:
 def test_start_pushes_forwards_spawns_and_yields_frames(fakes) -> None:
     calls, proc = fakes
     data = CLIP.read_bytes()
-    s = stream.Stream(connect=lambda port: FakeSocket(data), spawn=None)
+    s = stream.Stream(connect=lambda port: FakeSocket(data, hold=True), spawn=None)
     s.start()
     try:
         assert calls[0] == ("push", play.SERVER_JAR, stream.REMOTE_JAR)
@@ -593,7 +597,7 @@ def test_end_of_stream_sets_error_and_empties_latest(fakes) -> None:
 def test_a_stale_frame_is_reported_as_none(fakes) -> None:
     data = CLIP.read_bytes()
     now = [100.0]
-    s = stream.Stream(connect=lambda port: FakeSocket(data), clock=lambda: now[0])
+    s = stream.Stream(connect=lambda port: FakeSocket(data, hold=True), clock=lambda: now[0])
     s.start()
     try:
         assert _wait(lambda: s.frames > 0)
@@ -864,8 +868,8 @@ class Stream:
       cleared on a real stop and kept when `_wait_for_bytes` cleans up a failed start (the test
       reads `s.port` after `start()` and before `stop()`). Keep that line.
 
-- [ ] Step 4: run `uv run pytest tests/test_play_stream.py -q`. Expected: 6 passed. The fake
-      socket's `recv` never blocks, so the clip drains in well under a second.
+- [ ] Step 4: run `uv run pytest tests/test_play_stream.py -q`. Expected: 6 passed. The holding fakes block after the clip until stop() closes them, so the
+      frame checks see a live stream; the EOF fakes drain in well under a second.
 - [ ] Step 5: run the gate.
 - [ ] Step 6: commit:
 
