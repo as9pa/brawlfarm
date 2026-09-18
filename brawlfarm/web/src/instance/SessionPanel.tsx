@@ -115,12 +115,15 @@ export function SessionPanel({
   return (
     <section className="flex flex-col gap-2 rounded-[10px] border border-line bg-panel p-3">
       <div className="flex items-baseline gap-2">
-        <h2 className="text-[13px] font-semibold">Session</h2>
+        <h2 className="text-[13px] font-semibold">{live ? "Session" : "Last session"}</h2>
         {endedAt === null ? null : (
           <span className="ml-auto text-[11px] text-muted">Session ended {dayTime(endedAt)}</span>
         )}
       </div>
-      <dl className="grid grid-cols-3 gap-x-3 gap-y-2">
+      {/* The critique asked for the Trophies dd alone; the owner ruling is that the
+          figures region announces itself, and the region is this list, so the ruling wins.
+          aria-atomic is false so a reader hears the figure that changed, not all six. */}
+      <dl aria-live="polite" aria-atomic="false" className="grid grid-cols-3 gap-x-3 gap-y-2">
         {Object.entries(shown).map(([label, figure]) => (
           <div key={label} className="flex flex-col">
             <dt className="text-[11px] text-muted">{label}</dt>
