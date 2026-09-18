@@ -23,6 +23,7 @@ import type { InstancePayload, InstanceState } from "../api/types";
 import { useInstances } from "../api/useInstances";
 import { Button } from "../components/ui/Button";
 import { ErrorBlock } from "../components/ui/ErrorBlock";
+import { PanelSkeleton } from "../components/ui/PanelSkeleton";
 import { StateChip } from "../components/ui/StateChip";
 import { phaseLabel } from "../lib/states";
 import { failureMessage, toast } from "../lib/toast";
@@ -152,7 +153,7 @@ export function Instance() {
     void client.invalidateQueries({ queryKey: queryKeys.instances() });
   };
 
-  if (fleet.isPending) return <div />; // the shell is enough until the list lands
+  if (fleet.isPending) return <PanelSkeleton label={name} rows={6} />;
   if (fleet.isError) {
     return <ErrorBlock error={fleet.error} onRetry={() => void fleet.refetch()} />;
   }

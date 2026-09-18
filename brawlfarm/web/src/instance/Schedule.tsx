@@ -15,6 +15,7 @@ import { Button } from "../components/ui/Button";
 import { Chip } from "../components/ui/Chip";
 import { ErrorBlock } from "../components/ui/ErrorBlock";
 import { Field } from "../components/ui/Field";
+import { PanelSkeleton } from "../components/ui/PanelSkeleton";
 import { Switch } from "../components/ui/Switch";
 import { useVisiblePolling } from "../live/useVisiblePolling";
 import { timeline } from "../lib/schedule";
@@ -100,7 +101,7 @@ export function Schedule({ name }: { name: string }) {
   };
 
   if (query.isPending) {
-    return <section className="rounded-[10px] border border-line bg-panel p-3" />;
+    return <PanelSkeleton label="the schedule" rows={3} />;
   }
   if (query.isError) {
     return <ErrorBlock error={query.error} onRetry={() => void query.refetch()} />;

@@ -7,6 +7,7 @@ import { getFeed } from "../api/feed";
 import { queryKeys } from "../api/queries";
 import type { FeedEvent, FeedKind, FeedRecord, FeedResponse } from "../api/types";
 import { ErrorBlock } from "../components/ui/ErrorBlock";
+import { PanelSkeleton } from "../components/ui/PanelSkeleton";
 import { Segmented } from "../components/ui/Segmented";
 import { Switch } from "../components/ui/Switch";
 import { collapseMirrors } from "../lib/feedMirrors";
@@ -131,7 +132,9 @@ export function Feed({ name, session }: { name: string; session: string | null }
       </div>
       {query.isError ? (
         <ErrorBlock error={query.error} onRetry={() => void query.refetch()} />
-      ) : query.isPending ? null : shown.length === 0 ? (
+      ) : query.isPending ? (
+        <PanelSkeleton label="the feed" rows={5} />
+      ) : shown.length === 0 ? (
         <p className="p-2 text-[13px] text-muted">{EMPTY[kind]}</p>
       ) : (
         <div

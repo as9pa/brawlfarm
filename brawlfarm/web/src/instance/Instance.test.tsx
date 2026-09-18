@@ -104,10 +104,13 @@ function mountPage() {
 }
 
 describe("Instance", () => {
-  it("renders nothing but the shell while the fleet is loading", () => {
+  it("announces a loading panel while the fleet is loading", () => {
     stubFetch(() => new Promise<Response>(() => {}));
-    const { container } = mountPage();
-    expect(container.textContent).toBe("");
+    mountPage();
+    expect(screen.getByRole("status", { name: "Loading Pie64" })).toHaveAttribute(
+      "aria-busy",
+      "true",
+    );
   });
 
   it("reports an unknown instance with the API's own words", async () => {

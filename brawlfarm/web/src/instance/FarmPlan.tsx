@@ -17,6 +17,7 @@ import { BrawlerIcon } from "../components/ui/BrawlerIcon";
 import { Button } from "../components/ui/Button";
 import { ErrorBlock } from "../components/ui/ErrorBlock";
 import { Field } from "../components/ui/Field";
+import { PanelSkeleton } from "../components/ui/PanelSkeleton";
 import { Segmented } from "../components/ui/Segmented";
 import { Switch } from "../components/ui/Switch";
 import { count, NO_BRAWLER_YET, NOT_YET, QUEUE_EMPTY } from "../lib/copy";
@@ -190,7 +191,7 @@ export function FarmPlan({ name }: { name: string }) {
   };
 
   if (query.isPending) {
-    return <section className="rounded-[10px] border border-line bg-panel p-3" />;
+    return <PanelSkeleton label="the farm plan" rows={6} />;
   }
   if (query.isError) {
     return <ErrorBlock error={query.error} onRetry={() => void query.refetch()} />;
