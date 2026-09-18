@@ -1,5 +1,6 @@
-/** The page around the cards: the count, the two fleet-wide controls, the totals line and
- * the sentence that tells a new user what to do next. */
+/** The page around the cards: the count, the skeletons before the first response, the two
+ * fleet-wide controls with their gates, the labelled totals row, the undo behind Stop all
+ * and the sentence that tells a new user what to do next. */
 import { screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -13,6 +14,19 @@ import { renderWithProviders } from "../test/renderWithProviders";
 
 function toastMessages(): string[] {
   return renderHook(() => useToasts()).result.current.map((item) => item.message);
+}
+
+function toastItems() {
+  return renderHook(() => useToasts()).result.current;
+}
+
+/** The totals row read back as label/value pairs, and an empty list when the row is not
+ * there at all. Scoped to the dl: "Games today" is a card metric label as well. */
+function totalPairs(container: HTMLElement): string[][] {
+  return [...container.querySelectorAll("dl > div")].map((pair) => [
+    pair.querySelector("dt")?.textContent ?? "",
+    pair.querySelector("dd")?.textContent ?? "",
+  ]);
 }
 
 const FLEET = [
@@ -52,18 +66,43 @@ afterEach(() => {
 describe("Fleet", () => {
   it("heads the page with the instance count and totals today", async () => {
     stubFleet();
-    renderWithProviders(<Fleet />);
+    const { container } = renderWithProviders(<Fleet />);
     expect(await screen.findByText("3 instances")).toBeInTheDocument();
     expect(screen.getAllByRole("heading", { level: 1 }).map((h) => h.textContent)).toEqual([
       "Fleet",
     ]);
     // One farming, one stopped, one offline; 12 + 4 + 0 games and 86 - 12 + 0 trophies
     // from the cards, and 3.6667 hours from the stats route.
-    expect(
-      await screen.findByText(
-        "1 farming · 16 games today · +74 trophies today · 3 h 40 min farmed",
-      ),
-    ).toBeInTheDocument();
+    await vi.waitFor(() => {
+      expect(totalPairs(container)).toEqual([
+        ["Farming", "1 of 3"],
+        ["Games today", "16"],
+        ["Trophies today", "+74"],
+        ["Farmed", "3 h 40 min"],
+      ]);
+    });
+  });
+
+  it("shows skeleton cards, and nothing numeric, before the first response", () => {
+    stubFetch(() => new Promise<Response>(() => undefined));
+    const { container } = renderWithProviders(<Fleet />);
+    expect(screen.getAllByTestId("fleet-skeleton-card")).toHaveLength(3);
+    expect(screen.getByText("Loading fleet")).toBeInTheDocument();
+    expect(screen.queryByText("0 instances")).toBeNull();
+    expect(totalPairs(container)).toEqual([]);
+  });
+
+  it("labels the totals as soon as there are two instances to add up", async () => {
+    stubFleet([FLEET[0], FLEET[1]]);
+    const { container } = renderWithProviders(<Fleet />);
+    await vi.waitFor(() => {
+      expect(totalPairs(container)).toEqual([
+        ["Farming", "1 of 2"],
+        ["Games today", "16"],
+        ["Trophies today", "+74"],
+        ["Farmed", "3 h 40 min"],
+      ]);
+    });
   });
 
   it("counts one instance in the singular", async () => {
@@ -88,19 +127,80 @@ describe("Fleet", () => {
     expect(calls.filter((call) => call.url.endsWith("/stop"))).toHaveLength(3);
   });
 
-  it("says starting and stopping one instance in the singular", async () => {
-    const { calls } = stubFleet([FLEET[0]]);
-    renderWithProviders(<Fleet />);
-    await userEvent.click(await screen.findByRole("button", { name: "Start all" }));
-    await vi.waitFor(() => {
-      expect(toastMessages()).toContain("Starting 1 instance");
-    });
-    expect(calls.filter((call) => call.url.endsWith("/start"))).toHaveLength(1);
+  it("hides the totals row and both all-controls for a single instance", async () => {
+    stubFleet([FLEET[0]]);
+    const { container } = renderWithProviders(<Fleet />);
+    expect(await screen.findByText("1 instance")).toBeInTheDocument();
+    expect(totalPairs(container)).toEqual([]);
+    expect(screen.queryByRole("button", { name: "Start all" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Stop all" })).toBeNull();
+  });
 
-    await userEvent.click(screen.getByRole("button", { name: "Stop all" }));
+  it("says why Stop all is off when nothing is running", async () => {
+    stubFleet([FLEET[1], makeInstance({ name: "Pie64_2", adb_port: 5575, state: "stopped" })]);
+    renderWithProviders(<Fleet />);
+    const stopAll = await screen.findByRole("button", { name: "Stop all" });
+    expect(stopAll).toBeDisabled();
+    expect(stopAll).toHaveAttribute("title", "Nothing is running");
+    expect(screen.getByRole("button", { name: "Start all" })).toBeEnabled();
+  });
+
+  it("says why Start all is off when everything is running", async () => {
+    stubFleet([FLEET[0], makeInstance({ name: "Pie64_2", adb_port: 5575, state: "starting" })]);
+    renderWithProviders(<Fleet />);
+    const startAll = await screen.findByRole("button", { name: "Start all" });
+    expect(startAll).toBeDisabled();
+    expect(startAll).toHaveAttribute("title", "Everything is running");
+    expect(screen.getByRole("button", { name: "Stop all" })).toBeEnabled();
+  });
+
+  it("offers an undo after Stop all that starts exactly what was running", async () => {
+    const { calls } = stubFleet();
+    renderWithProviders(<Fleet />);
+    await userEvent.click(await screen.findByRole("button", { name: "Stop all" }));
     await vi.waitFor(() => {
-      expect(toastMessages()).toContain("Stopping 1 instance after its match");
+      expect(toastMessages()).toContain("Stopping 3 instances after their matches");
     });
+    const undo = toastItems()[0]?.undo;
+    expect(undo).toBeTypeOf("function");
+    await undo?.();
+    // Pie64 was the only one farming; the stopped and the offline card are left alone.
+    expect(calls.filter((call) => call.url.endsWith("/start")).map((call) => call.url)).toEqual([
+      "/api/instances/Pie64/start",
+    ]);
+  });
+
+  it("says why a failed undo did not go through, once and with nothing to press", async () => {
+    stubFetch((url) => {
+      if (url.endsWith("/start")) return jsonResponse({ detail: "Pie64 is offline" }, 409);
+      if (url === "/api/instances") return jsonResponse({ instances: FLEET });
+      if (url === "/api/alerts") return jsonResponse({ alerts: [], unread: 0 });
+      if (url.endsWith("preview.jpg")) return jpegResponse();
+      if (url.endsWith("/stop")) return jsonResponse({ ok: true });
+      return jsonResponse({
+        range: "today",
+        instances: [],
+        summary: {
+          games: 0,
+          trophies: 0,
+          trophies_per_hour: null,
+          avg_rank: null,
+          top4_rate: null,
+          hours_farmed: 0,
+        },
+      });
+    });
+    renderWithProviders(<Fleet />);
+    await userEvent.click(await screen.findByRole("button", { name: "Stop all" }));
+    await vi.waitFor(() => {
+      expect(toastMessages()).toContain("Stopping 3 instances after their matches");
+    });
+    await toastItems()[0]?.undo?.();
+    expect(toastMessages().filter((message) => message === "Pie64 is offline")).toHaveLength(1);
+    const followUp = toastItems().at(-1);
+    expect(followUp?.tone).toBe("bad");
+    expect(followUp?.undo).toBeUndefined();
+    expect(followUp?.retry).toBeUndefined();
   });
 
   it("says why Start all failed rather than claiming the fleet started", async () => {
