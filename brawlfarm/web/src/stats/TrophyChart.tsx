@@ -104,6 +104,10 @@ const VALUE_PAD = 0.05; // the brief's 5 %
 const EMPTY = "No games in this range.";
 /** How many dated stamps the x axis prints at most, the two ends included. */
 const X_TICKS = 5;
+/** The room a dated stamp needs on the x axis, in the coordinate space the paths are
+ * drawn in. A candidate that does not clear its neighbour by this much is dropped rather
+ * than nudged: three stamps drawn over each other say less than one. */
+const X_LABEL_GAP = 120;
 /** How many day rows the table shows before it asks. Two weeks is a screen of rows and
  * the width of the range most of the panel is read at. */
 const DAY_CAP = 14;
@@ -182,15 +186,27 @@ export function TrophyChart({ series, instances, range, view, onView }: TrophyCh
    * multiples of one step are always further apart than a label height. */
   const ticks = niceTicks(rawLo, rawHi);
 
-  /** The x axis: the two ends and evenly spaced moments between, at most X_TICKS of them.
-   * Two neighbours that format the same are one label, so a range whose ends fall on one
-   * day does not print that day twice. */
+  /** The x axis: the two ends always, and as many of the X_TICKS evenly spaced moments
+   * between as fit. A candidate is placed only where it clears the last placed label and
+   * the far end by X_LABEL_GAP, so an hour of games bunched together drops labels instead
+   * of printing them over each other. Two neighbours that format the same are one label,
+   * so a range whose ends fall on one day does not print that day twice. */
   const xTicks: { ms: number; text: string }[] = [];
-  for (let i = 0; i < X_TICKS && moments.length > 0; i += 1) {
-    const ms = moments[Math.round((i * (moments.length - 1)) / (X_TICKS - 1))];
+  const placeLabel = (ms: number): void => {
     const text = clock(new Date(ms).toISOString());
     const previous = xTicks[xTicks.length - 1];
     if (previous === undefined || previous.text !== text) xTicks.push({ ms, text });
+  };
+  if (moments.length > 0) {
+    placeLabel(firstMs);
+    const lastX = xFor(lastMs);
+    for (let i = 1; i < X_TICKS - 1; i += 1) {
+      const ms = moments[Math.round((i * (moments.length - 1)) / (X_TICKS - 1))];
+      const at = xFor(ms);
+      const kept = xFor(xTicks[xTicks.length - 1].ms);
+      if (at - kept >= X_LABEL_GAP && lastX - at >= X_LABEL_GAP) placeLabel(ms);
+    }
+    if (lastMs !== firstMs) placeLabel(lastMs);
   }
 
   const pathOf = (points: StatsPoint[]): string =>
@@ -262,7 +278,9 @@ export function TrophyChart({ series, instances, range, view, onView }: TrophyCh
   /** One row a day, not one a game: a 30-day range was hundreds of rows of a running
    * total with no net and no count. The selection is named by the toolbar and the legend,
    * so no column names an instance either. */
-  const dayRows = rollUpDays(ordered);
+  // Newest day first, because that is the day the panel is opened to read, and the cap
+  // keeps the newest DAY_CAP of them rather than the fortnight the range opens on.
+  const dayRows = rollUpDays(ordered).reverse();
   const shown = showAll ? dayRows : dayRows.slice(0, DAY_CAP);
   const columns: Column<DayRow>[] = [
     {
@@ -336,6 +354,7 @@ export function TrophyChart({ series, instances, range, view, onView }: TrophyCh
             rowKey={(row) => row.date}
             empty={EMPTY}
             headers="sentence"
+            minWidth="440px"
           />
           {dayRows.length > DAY_CAP ? (
             <div>

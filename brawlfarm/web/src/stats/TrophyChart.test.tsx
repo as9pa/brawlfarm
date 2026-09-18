@@ -72,6 +72,21 @@ function plot(): HTMLElement {
   return screen.getByRole("img", { name: "Cumulative trophy change" });
 }
 
+/** Five moments inside two hours, three of them bunched together: the middle stamps land
+ * on top of each other unless the axis drops the ones that do not fit. */
+const CLUSTER: StatsSeries[] = [
+  {
+    instance: "Pie64",
+    points: [
+      { t: "2026-09-11T15:00:00", cum: 4 },
+      { t: "2026-09-11T15:57:00", cum: 9 },
+      { t: "2026-09-11T16:16:00", cum: 14 },
+      { t: "2026-09-11T16:45:00", cum: 11 },
+      { t: "2026-09-11T16:50:00", cum: 18 },
+    ],
+  },
+];
+
 describe("TrophyChart", () => {
   it("draws one path per series that has points", () => {
     const { container } = mount();
@@ -257,6 +272,20 @@ describe("TrophyChart", () => {
     expect(new Set(labels).size).toBe(labels.length);
   });
 
+  it("drops an x label rather than printing it over its neighbour", () => {
+    mount(CLUSTER, ["Pie64"], "7d");
+    // Read back where each label sits, in the coordinate space the paths are drawn in.
+    const at = Array.from(
+      screen.getByTestId("chart-x-axis").querySelectorAll<HTMLElement>("span"),
+    ).map((node) => (Number.parseFloat(node.style.left) / 100) * 640);
+    expect(at.length).toBeGreaterThanOrEqual(2);
+    expect(at[0]).toBe(0);
+    expect(at[at.length - 1]).toBe(640);
+    for (let i = 1; i < at.length; i += 1) {
+      expect(at[i] - at[i - 1]).toBeGreaterThanOrEqual(120);
+    }
+  });
+
   it("draws one gridline per y tick", () => {
     const { container } = mount();
     expect(container.querySelectorAll("[data-gridline]")).toHaveLength(
@@ -302,6 +331,14 @@ describe("TrophyChart", () => {
     expect(within(screen.getByRole("table")).getAllByRole("row")).toHaveLength(31);
     await userEvent.click(screen.getByRole("button", { name: "Show 14 days" }));
     expect(within(screen.getByRole("table")).getAllByRole("row")).toHaveLength(15);
+  });
+
+  it("leads with the newest day and caps to the newest fourteen", () => {
+    mount(daily(20), ["Pie64"], "30d", "table");
+    const rows = within(screen.getByRole("table")).getAllByRole("row");
+    expect(rows).toHaveLength(15);
+    expect(rows[1]).toHaveTextContent("Sep 20");
+    expect(rows[14]).toHaveTextContent("Sep 7");
   });
 
   it("shows no expander when the range fits under the cap", () => {
