@@ -21,11 +21,14 @@ export interface FieldProps {
   id: string;
   value: string;
   onChange: (v: string) => void;
+  /** Called when focus leaves the box, for a check that should wait until then. */
+  onBlur?: () => void;
   type?: "text" | "number" | "password";
   /** "control" is the phase 4 width (w-24); "full" fills its row. */
   width?: "control" | "full";
   suffix?: string;
   min?: number;
+  max?: number;
   step?: number;
   disabled?: boolean;
   placeholder?: string;
@@ -51,10 +54,12 @@ export function Field({
   id,
   value,
   onChange,
+  onBlur,
   type = "text",
   width = "control",
   suffix,
   min,
+  max,
   step,
   disabled = false,
   placeholder,
@@ -81,6 +86,7 @@ export function Field({
           type={masked && !revealed ? "password" : masked ? "text" : type}
           value={value}
           min={min}
+          max={max}
           step={step}
           list={list}
           disabled={disabled}
@@ -92,6 +98,7 @@ export function Field({
           aria-invalid={error !== undefined ? true : undefined}
           data-private={masked ? "" : undefined}
           onChange={(event) => onChange(event.target.value)}
+          onBlur={onBlur}
           className={`h-8 rounded-[6px] border ${error !== undefined ? "border-bad" : "border-line"} bg-panel-2 px-2 font-mono text-[13px] tabular-nums text-text disabled:cursor-not-allowed disabled:opacity-50 ${WIDTHS[width]}`}
         />
         {masked && (

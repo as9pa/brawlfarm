@@ -52,4 +52,15 @@ describe("Button", () => {
     render(<Button aria-label="Alerts, 6 unread">Alerts</Button>);
     expect(screen.getByRole("button", { name: "Alerts, 6 unread" })).toBeInTheDocument();
   });
+
+  it("says what a disclosure button opens and whether it is open", () => {
+    render(
+      <Button aria-expanded aria-controls="plan-roster">
+        Hide all brawlers
+      </Button>,
+    );
+    const button = screen.getByRole("button", { name: "Hide all brawlers" });
+    expect(button).toHaveAttribute("aria-expanded", "true");
+    expect(button).toHaveAttribute("aria-controls", "plan-roster");
+  });
 });

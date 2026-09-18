@@ -11,6 +11,8 @@ export interface SegmentedProps<T extends string> {
   options: readonly { value: T; label: string }[];
   onChange: (next: T) => void;
   label: string;
+  /** The id of a note rendered beside the group, read out after the label. */
+  describedBy?: string;
 }
 
 /** Which way each arrow moves along the group. The group is drawn as a row, so Left and
@@ -34,6 +36,7 @@ export function Segmented<T extends string>({
   options,
   onChange,
   label,
+  describedBy,
 }: SegmentedProps<T>) {
   const group = useRef<HTMLDivElement>(null);
   // A value that matches nothing still has to leave one tab stop behind, or the group
@@ -61,6 +64,7 @@ export function Segmented<T extends string>({
       ref={group}
       role="radiogroup"
       aria-label={label}
+      aria-describedby={describedBy}
       onKeyDown={onKeyDown}
       className="inline-flex gap-0.5 rounded-[6px] border border-line bg-panel p-0.5"
     >

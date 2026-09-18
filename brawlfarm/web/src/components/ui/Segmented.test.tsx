@@ -94,4 +94,20 @@ describe("Segmented", () => {
       expect(option.className).toContain("focus-visible:outline-accent");
     }
   });
+
+  it("points the group at a note the caller renders beside it", () => {
+    render(
+      <Segmented
+        value="all"
+        options={OPTIONS}
+        onChange={vi.fn()}
+        label="Feed filter"
+        describedBy="filter-note"
+      />,
+    );
+    expect(screen.getByRole("radiogroup", { name: "Feed filter" })).toHaveAttribute(
+      "aria-describedby",
+      "filter-note",
+    );
+  });
 });
