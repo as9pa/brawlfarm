@@ -2,19 +2,25 @@
  * its one sentence, and a section id that is not one of the six saying so instead of
  * quietly moving you somewhere else. */
 import { screen, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { Route, Routes } from "react-router";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { Settings } from "./Settings";
+import type { AppSettings } from "../api/types";
 import { makeInstance, makeSettings } from "../test/fixtures";
 import { jsonResponse, stubFetch } from "../test/http";
 import { renderWithProviders } from "../test/renderWithProviders";
 
 function stubApi(): void {
-  stubFetch((url) => {
-    if (url === "/api/settings") return jsonResponse(makeSettings());
+  let stored = makeSettings();
+  stubFetch((url, init) => {
     if (url === "/api/instances") return jsonResponse({ instances: [makeInstance()] });
-    throw new Error(`unstubbed request: ${url}`);
+    if (url === "/api/settings/defaults") return jsonResponse(makeSettings());
+    if (url !== "/api/settings") throw new Error(`unstubbed request: ${url}`);
+    if (init?.method !== "PUT") return jsonResponse(stored);
+    stored = JSON.parse(String(init.body)) as AppSettings;
+    return jsonResponse(stored);
   });
 }
 
@@ -63,7 +69,16 @@ describe("Settings", () => {
     stubApi();
     mount("/settings/instances");
     expect(await screen.findByRole("heading", { level: 1, name: "Instances" })).toBeInTheDocument();
-    expect(screen.queryByText(/^Saved \d\d:\d\d$/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/saved \d\d:\d\d$/)).not.toBeInTheDocument();
+  });
+
+  it("names the section in the saved caption and announces it politely", async () => {
+    stubApi();
+    mount("/settings/behavior");
+    await userEvent.click(await screen.findByRole("switch", { name: "Leave the gas early" }));
+    const caption = await screen.findByText(/^Behavior saved \d\d:\d\d$/);
+    expect(caption).toHaveClass("text-[12px]", "text-muted");
+    expect(caption.closest("[aria-live]")).toHaveAttribute("aria-live", "polite");
   });
 
   it("says so when the section in the URL is not one of the six", () => {

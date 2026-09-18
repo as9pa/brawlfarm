@@ -79,7 +79,6 @@ export function Instances({ settingsPatch }: { settingsPatch: SettingsPatch }) {
   const succeeded = () => {
     setRowErrors({});
     setFailure(null);
-    toast("Settings saved");
   };
 
   const failed = (key: string, error: unknown) => {

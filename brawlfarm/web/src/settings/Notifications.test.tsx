@@ -102,7 +102,8 @@ describe("Settings > Notifications", () => {
     });
     expect(puts(calls)[0].notifications.ntfy_topic).toBe("brawlfarm-home");
     expect(current().notifications.ntfy_topic).toBe("brawlfarm-home");
-    expect(toastMessages()).toEqual(["Settings saved"]);
+    // The frame names the section in its saved caption, so the save is silent here.
+    expect(toastMessages()).toEqual([]);
   });
 
   it("keeps the event list in the brief's order however it is ticked", async () => {

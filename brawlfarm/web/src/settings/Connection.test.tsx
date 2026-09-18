@@ -90,7 +90,10 @@ describe("Settings > Connection", () => {
       "href",
       "/setup",
     );
-    expect(screen.getByText("Applies the next time an instance starts.")).toBeInTheDocument();
+    // The sentence is Behavior's one copy, so this section does not say it again.
+    expect(
+      screen.queryByText("Applies the next time an instance starts."),
+    ).not.toBeInTheDocument();
 
     fireEvent.change(box, { target: { value: "D:/portable/adb.exe" } });
     fireEvent.blur(box);
@@ -99,7 +102,8 @@ describe("Settings > Connection", () => {
     });
     expect(puts(calls)[0].connection.adb_path).toBe("D:/portable/adb.exe");
     expect(current().connection.adb_path).toBe("D:/portable/adb.exe");
-    expect(toastMessages()).toEqual(["Settings saved"]);
+    // The frame names the section in its saved caption, so the save is silent here.
+    expect(toastMessages()).toEqual([]);
     // The scan runs once when the section mounts, never again per keystroke: it shells out
     // to adb and can take seconds.
     expect(calls.filter((call) => call.url === "/api/setup/scan")).toHaveLength(1);
@@ -163,8 +167,9 @@ describe("Settings > Connection", () => {
     expect(
       await screen.findByText(/The Brawl Stars API rejected the token/),
     ).toBeInTheDocument();
-    // A refusal has a sentence of its own, so it raises no toast on top of it.
-    expect(toastMessages()).toEqual(["Settings saved"]);
+    // A refusal has a sentence of its own, so it raises no toast on top of it, and the
+    // save that put the token on disk raised none either.
+    expect(toastMessages()).toEqual([]);
   });
 
   it("says so when the check passed", async () => {

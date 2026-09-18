@@ -201,8 +201,8 @@ export function Behavior({ settingsPatch }: { settingsPatch: SettingsPatch }) {
   /** Every advanced key back to its default in one write, with the values it had before as
    * the undo. Basic keys are left alone: this link is the Advanced block's, not the page's.
    *
-   * Both writes are quiet, because this path says what happened in its own words: the
-   * helper's "Settings saved" would only stack a second note under the first. */
+   * This path has a note of its own where a plain field save has none, because the note is
+   * what carries the way back. */
   const resetAdvanced = (): void => {
     if (defaults === null) return;
     const before = structuredClone(settings.advanced);
@@ -213,7 +213,6 @@ export function Behavior({ settingsPatch }: { settingsPatch: SettingsPatch }) {
         document.advanced = wanted;
       },
       setFailure,
-      { quiet: true },
     )
       .then(() => {
         toast("Advanced switches back to defaults", {
@@ -224,7 +223,6 @@ export function Behavior({ settingsPatch }: { settingsPatch: SettingsPatch }) {
                 document.advanced = before;
               },
               setFailure,
-              { quiet: true },
             ),
         });
       })

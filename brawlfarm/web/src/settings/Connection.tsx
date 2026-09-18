@@ -194,8 +194,6 @@ export function Connection({ settingsPatch }: { settingsPatch: SettingsPatch }) 
           </div>
         </div>
       </SettingRow>
-
-      <p className="mt-3 text-[12px] text-muted">Applies the next time an instance starts.</p>
     </div>
   );
 }

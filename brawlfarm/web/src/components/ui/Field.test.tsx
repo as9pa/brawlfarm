@@ -1,5 +1,5 @@
 /** A labelled input with a suffix, so "Goal 1000 trophies" is one control, not three. */
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { FormEvent } from "react";
 import { describe, expect, it, vi } from "vitest";
@@ -167,6 +167,13 @@ describe("Field", () => {
     render(<Field label="Goal" id="goal" value="1000" onChange={vi.fn()} onEnter={onEnter} />);
     await userEvent.type(screen.getByLabelText("Goal"), "{Enter}");
     expect(onEnter).toHaveBeenCalledTimes(1);
+  });
+
+  it("leaves the Enter that closes an IME composition to the composition", () => {
+    const onEnter = vi.fn();
+    render(<Field label="Goal" id="goal" value="1000" onChange={vi.fn()} onEnter={onEnter} />);
+    fireEvent.keyDown(screen.getByLabelText("Goal"), { key: "Enter", isComposing: true });
+    expect(onEnter).not.toHaveBeenCalled();
   });
 
   it("leaves Enter alone when no caller asked for it", async () => {

@@ -253,7 +253,7 @@ describe("useSettingsPatch", () => {
     expect(result.current.fieldErrors).toEqual({});
   });
 
-  it("saveSetting toasts once the document is on disk, and is silent about a 422", async () => {
+  it("saveSetting is silent on a save that landed, and about a 422 too", async () => {
     server();
     const first = mount();
     await waitFor(() => {
@@ -268,8 +268,10 @@ describe("useSettingsPatch", () => {
       (error: unknown) => failures.push(error),
     );
     await waitFor(() => {
-      expect(toastMessages()).toEqual(["Settings saved"]);
+      expect(first.result.current.savedAt).toMatch(/^\d\d:\d\d$/);
     });
+    // The frame's caption says the save landed, so the helper says nothing on top of it.
+    expect(toastMessages()).toEqual([]);
     expect(failures).toEqual([]);
     first.unmount();
     resetToasts();

@@ -22,7 +22,6 @@ import { queryKeys } from "../api/queries";
 import { getSettings, putSettings } from "../api/settings";
 import type { AppSettings } from "../api/types";
 import { hhmm } from "../lib/time";
-import { toast } from "../lib/toast";
 
 export interface SettingsPatch {
   settings: AppSettings | undefined;
@@ -77,33 +76,25 @@ export function fieldError(errors: Record<string, string>, loc: string): string 
   return `${loc.split(".").pop() ?? loc}: ${msg}`;
 }
 
-/** What every settings section does with a patch: toast once the document is on disk, and
- * hand anything else back so the section can show it. A 422 is deliberately swallowed here,
- * because the hook has already put each message under its own field.
- *
- * `quiet` is for the caller that says something of its own about the write it just made:
- * "Settings saved" stacked under that sentence is two notes for one save. */
+/** What every settings section does with a patch: hand anything that went wrong back so the
+ * section can show it, and say nothing at all about the write that landed. The frame's
+ * caption, which names the section and the time it saved, is the one place a save reports
+ * itself; a toast per field was the same note over and over. A 422 is deliberately swallowed
+ * here, because the hook has already put each message under its own field. */
 export function saveSettingAsync(
   patch: SettingsPatch["patch"],
   mutate: (draft: AppSettings) => void,
   onFailure: (error: unknown) => void,
-  options: { quiet?: boolean } = {},
 ): Promise<void> {
-  return patch(mutate).then(
-    () => {
-      if (options.quiet !== true) toast("Settings saved");
-    },
-    (error: unknown) => {
-      if (!(error instanceof ApiError && error.status === 422)) onFailure(error);
-      // Re-thrown so a caller that is waiting can tell a save that landed from one that
-      // did not, even for the 422 this function has already dealt with.
-      throw error;
-    },
-  );
+  return patch(mutate).catch((error: unknown) => {
+    if (!(error instanceof ApiError && error.status === 422)) onFailure(error);
+    // Re-thrown so a caller that is waiting can tell a save that landed from one that
+    // did not, even for the 422 this function has already dealt with.
+    throw error;
+  });
 }
 
-/** The same thing for a switch or a card, which has nothing to wait for once the toast is
- * queued. */
+/** The same thing for a switch or a card, which has nothing to wait for. */
 export function saveSetting(
   patch: SettingsPatch["patch"],
   mutate: (draft: AppSettings) => void,

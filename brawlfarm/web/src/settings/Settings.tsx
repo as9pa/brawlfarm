@@ -1,11 +1,11 @@
 /**
  * The settings screen's frame.
  *
- * One route, /settings/:section: the second-level nav, then the section's title, the caption
- * saying when it last saved, its one plain sentence, anything the 422 mapper could not place
- * under a field, and the section itself. A section id that is not in the table is an
- * ErrorBlock rather than a redirect, because a mistyped URL that quietly moves you somewhere
- * else is how you end up changing the wrong setting.
+ * One route, /settings/:section: the second-level nav, then the section's title, its one
+ * plain sentence with the caption saying when that section last saved beside it, anything the
+ * 422 mapper could not place under a field, and the section itself. A section id that is not
+ * in the table is an ErrorBlock rather than a redirect, because a mistyped URL that quietly
+ * moves you somewhere else is how you end up changing the wrong setting.
  *
  * useSettingsPatch is called once here and handed down, so the caption, the field errors and
  * the write queue are the same ones the section on screen is using.
@@ -55,13 +55,21 @@ export function Settings() {
           <ErrorBlock error={UNKNOWN_SECTION} />
         ) : (
           <>
-            <header className="flex items-baseline gap-2">
+            <header>
               <h1 className="text-[20px] font-semibold tracking-tight">{known.label}</h1>
-              {settingsPatch.savedAt !== null && (
-                <span className="text-[11px] text-muted">{`Saved ${settingsPatch.savedAt}`}</span>
-              )}
             </header>
-            <p className="mt-1 text-[13px] text-muted">{known.description}</p>
+            <div className="mt-1 flex flex-wrap items-baseline gap-2">
+              <p className="text-[13px] text-muted">{known.description}</p>
+              {/* The caption names its section, because one bare time on a screen of six
+               * sections does not say which of them wrote. The live region stays mounted
+               * empty, so the first save after the section opens is announced rather than
+               * missed as a region that only just appeared. */}
+              <span aria-live="polite" className="text-[12px] text-muted">
+                {settingsPatch.savedAt === null
+                  ? null
+                  : `${known.label} saved ${settingsPatch.savedAt}`}
+              </span>
+            </div>
             {settingsPatch.sectionErrors.map((line) => (
               <p key={line} className="mt-1 text-[12px] text-bad">
                 {line}

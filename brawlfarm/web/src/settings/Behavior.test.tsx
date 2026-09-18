@@ -92,7 +92,8 @@ describe("Settings > Behavior", () => {
     expect(puts(calls)[0].behavior.winrate_aware).toBe(true);
     expect(puts(calls)[0].advanced).toEqual(makeSettings().advanced);
     expect(current().behavior.gas_aware).toBe(false);
-    expect(toastMessages()).toEqual(["Settings saved"]);
+    // The frame names the section in its saved caption, so the save is silent here.
+    expect(toastMessages()).toEqual([]);
   });
 
   it("turns the schedule new instances start with on and off", async () => {

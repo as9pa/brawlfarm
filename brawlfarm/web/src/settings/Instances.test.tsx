@@ -144,7 +144,8 @@ describe("Settings > Instances", () => {
       player_tag: "2P0YLQ9", // the model puts the # back and upper-cases it
     });
     expect(current().instances[1].adb_port).toBe(5575);
-    expect(toastMessages()).toEqual(["Settings saved"]);
+    // The frame names the section in its saved caption, so the save is silent here.
+    expect(toastMessages()).toEqual([]);
     await waitFor(() => {
       expect(screen.queryByRole("button", { name: "Save" })).not.toBeInTheDocument();
     });

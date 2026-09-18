@@ -9,7 +9,8 @@
  * the PUT body, and never rendered unmasked by default.
  *
  * Enter in the box is the caller's: `onEnter` fires and the default is prevented, so a
- * field can answer the key without a form around it.
+ * field can answer the key without a form around it. The Enter that closes an IME
+ * composition belongs to the composition, not the caller, and is left alone.
  *
  * At most one message line sits under the control: `error` wins over `help` and they never
  * both show. The component owns aria-describedby, which points at that line and nothing
@@ -107,8 +108,9 @@ export function Field({
           onBlur={onBlur}
           onKeyDown={(event) => {
             // Enter belongs to the caller, so it never submits: it does what `onEnter` says
-            // and nothing when no caller asked for it.
-            if (event.key === "Enter") {
+            // and nothing when no caller asked for it. While an IME is composing, the key is
+            // the composition's own commit and passes straight through.
+            if (event.key === "Enter" && !event.nativeEvent.isComposing) {
               event.preventDefault();
               onEnter?.();
             }
