@@ -128,6 +128,9 @@ describe("Setup step 1: BlueStacks", () => {
     expect(
       screen.getByText("brawlfarm needs HD-Adb.exe from the BlueStacks folder."),
     ).toBeInTheDocument();
+    // Nothing has been typed yet, so the help line stands and no error blames a path.
+    expect(screen.getByText("Press Enter or Check to test this path.")).toBeInTheDocument();
+    expect(screen.queryByText("No HD-Adb.exe at that path.")).not.toBeInTheDocument();
 
     await userEvent.type(box, "D:\\portable\\adb.exe");
     await userEvent.click(screen.getByRole("button", { name: "Scan again" }));
@@ -136,6 +139,53 @@ describe("Setup step 1: BlueStacks", () => {
     });
     expect(scanBodies(calls)[1]).toEqual({ adb_path: "D:\\portable\\adb.exe" });
     expect(await screen.findByText("Found")).toBeInTheDocument();
+  });
+
+  it("checks the path that was typed on Enter, with no Scan again click", async () => {
+    const { calls } = server([MISSING, FOUND]);
+    renderWithProviders(<Setup />, { route: "/setup" });
+    const box = await screen.findByLabelText("Where is BlueStacks installed");
+
+    await userEvent.type(box, "D:\\portable\\adb.exe{Enter}");
+    await waitFor(() => {
+      expect(scanBodies(calls)).toHaveLength(2);
+    });
+    expect(scanBodies(calls)[1]).toEqual({ adb_path: "D:\\portable\\adb.exe" });
+    expect(await screen.findByText("Found")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Continue" })).toBeEnabled();
+  });
+
+  it("blames the typed path when the check runs and finds nothing", async () => {
+    const { calls } = server([MISSING, MISSING]);
+    renderWithProviders(<Setup />, { route: "/setup" });
+    const box = await screen.findByLabelText("Where is BlueStacks installed");
+
+    await userEvent.type(box, "D:\\portable\\adb.exe");
+    await userEvent.click(screen.getByRole("button", { name: "Check" }));
+    await waitFor(() => {
+      expect(scanBodies(calls)).toHaveLength(2);
+    });
+    expect(await screen.findByText("No HD-Adb.exe at that path.")).toBeInTheDocument();
+    const forward = screen.getByRole("button", { name: "Continue" });
+    expect(forward).toBeDisabled();
+    expect(forward).toHaveAttribute("title", "Find HD-Adb.exe first");
+  });
+
+  it("says to check the path again when the check itself failed", async () => {
+    const blank = makeSettings({ instances: [] });
+    blank.connection.adb_path = "";
+    stubFetch((url) => {
+      if (url === SCAN) return jsonResponse({ detail: "adb did not answer" }, 500);
+      if (url !== "/api/settings") throw new Error(`unstubbed request: ${url}`);
+      return jsonResponse(blank);
+    });
+    renderWithProviders(<Setup />, { route: "/setup" });
+    expect(await screen.findByText("adb did not answer")).toBeInTheDocument();
+    const forward = screen.getByRole("button", { name: "Continue" });
+    expect(forward).toBeDisabled();
+    expect(forward).toHaveAttribute("title", "Check the path again");
+    // A request that never answered has nothing to say about the path itself.
+    expect(screen.queryByText("No HD-Adb.exe at that path.")).not.toBeInTheDocument();
   });
 
   it("keeps Continue shut, with the reason, until adb is found", async () => {

@@ -22,13 +22,14 @@ import { queryKeys } from "../api/queries";
 import { getSettings, putSettings } from "../api/settings";
 import type { AppSettings } from "../api/types";
 import { hhmm } from "../lib/time";
-import { toast } from "../lib/toast";
 
 export interface SettingsPatch {
   settings: AppSettings | undefined;
   patch: (mutate: (draft: AppSettings) => void) => Promise<void>;
-  /** "19:04": the wall-clock time of the last successful PUT, or null before the first. */
-  savedAt: string | null;
+  /** The last successful PUT: the scope the write was asked for from, and the wall-clock
+   * time it landed as "19:04". Null before the first. One hook serves every settings section
+   * in turn, so a caption that names a section has to be able to tell whose save this is. */
+  saved: { scope: string | undefined; at: string } | null;
   /** Keyed by the API's dotted loc, e.g. "connection.adb_path". */
   fieldErrors: Record<string, string>;
   /** Anything the mapper could not place under a field. */
@@ -77,29 +78,25 @@ export function fieldError(errors: Record<string, string>, loc: string): string 
   return `${loc.split(".").pop() ?? loc}: ${msg}`;
 }
 
-/** What every settings section does with a patch: toast once the document is on disk, and
- * hand anything else back so the section can show it. A 422 is deliberately swallowed here,
- * because the hook has already put each message under its own field. */
+/** What every settings section does with a patch: hand anything that went wrong back so the
+ * section can show it, and say nothing at all about the write that landed. The frame's
+ * caption, which names the section and the time it saved, is the one place a save reports
+ * itself; a toast per field was the same note over and over. A 422 is deliberately swallowed
+ * here, because the hook has already put each message under its own field. */
 export function saveSettingAsync(
   patch: SettingsPatch["patch"],
   mutate: (draft: AppSettings) => void,
   onFailure: (error: unknown) => void,
 ): Promise<void> {
-  return patch(mutate).then(
-    () => {
-      toast("Settings saved");
-    },
-    (error: unknown) => {
-      if (!(error instanceof ApiError && error.status === 422)) onFailure(error);
-      // Re-thrown so a caller that is waiting can tell a save that landed from one that
-      // did not, even for the 422 this function has already dealt with.
-      throw error;
-    },
-  );
+  return patch(mutate).catch((error: unknown) => {
+    if (!(error instanceof ApiError && error.status === 422)) onFailure(error);
+    // Re-thrown so a caller that is waiting can tell a save that landed from one that
+    // did not, even for the 422 this function has already dealt with.
+    throw error;
+  });
 }
 
-/** The same thing for a switch or a card, which has nothing to wait for once the toast is
- * queued. */
+/** The same thing for a switch or a card, which has nothing to wait for. */
 export function saveSetting(
   patch: SettingsPatch["patch"],
   mutate: (draft: AppSettings) => void,
@@ -175,16 +172,28 @@ export function useDebouncedSave(
   };
 }
 
-export function useSettingsPatch(): SettingsPatch {
+/**
+ * `scope` names whatever is on screen when a write is asked for, and comes back on `saved`
+ * with the time that write landed. A caller with nothing to name leaves it out.
+ */
+export function useSettingsPatch(scope?: string): SettingsPatch {
   const client = useQueryClient();
   const { data } = useQuery({ queryKey: queryKeys.settings(), queryFn: getSettings });
-  const [savedAt, setSavedAt] = useState<string | null>(null);
+  const [saved, setSaved] = useState<SettingsPatch["saved"]>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [sectionErrors, setSectionErrors] = useState<string[]>([]);
   const [pending, setPending] = useState(false);
+  /** Kept in a ref so `patch` can read it without being rebuilt on every navigation. */
+  const scopeNow = useRef(scope);
+  useEffect(() => {
+    scopeNow.current = scope;
+  }, [scope]);
 
   const patch = useCallback(
     (mutate: (draft: AppSettings) => void): Promise<void> => {
+      // Read where the write is asked for, not where it lands: the scope that asked owns the
+      // save even if the reader has walked to another section by the time it comes back.
+      const from = scopeNow.current;
       const run = async (): Promise<void> => {
         setPending(true);
         try {
@@ -202,7 +211,7 @@ export function useSettingsPatch(): SettingsPatch {
           }
           setFieldErrors({});
           setSectionErrors([]);
-          setSavedAt(hhmm(new Date().toISOString()));
+          setSaved({ scope: from, at: hhmm(new Date().toISOString()) });
         } catch (error) {
           if (error instanceof ApiError && error.status === 422) {
             const mapped = settingsFieldErrors(error.detail);
@@ -224,5 +233,5 @@ export function useSettingsPatch(): SettingsPatch {
     [client],
   );
 
-  return { settings: data, patch, savedAt, fieldErrors, sectionErrors, pending };
+  return { settings: data, patch, saved, fieldErrors, sectionErrors, pending };
 }

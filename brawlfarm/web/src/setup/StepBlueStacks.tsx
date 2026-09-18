@@ -9,6 +9,10 @@
  * the next visit starts from what worked. The write is skipped when the path is already the
  * stored one, so a second Scan again does not raise a second toast about a file that has
  * not moved.
+ *
+ * Two failures used to read the same. A check that could not run at all is the request's own
+ * error, and Continue says to check the path again; a check that ran and found nothing
+ * belongs under the field, against the path that was handed to it.
  */
 import { useCallback, useEffect, useRef, useState } from "react";
 
@@ -28,6 +32,9 @@ export function StepBlueStacks({ setup }: StepProps) {
   const [scanning, setScanning] = useState(true);
   const [result, setResult] = useState<ScanResponse | null>(null);
   const [typed, setTyped] = useState("");
+  // The path the last finished check was given, so a rejection can be put under the field
+  // only when there was a path to reject. The first scan is handed none.
+  const [checked, setChecked] = useState("");
   const [failure, setFailure] = useState<unknown>(null);
   // Read inside the callback rather than closed over, so re-scanning does not need a new
   // callback every time the document changes.
@@ -43,6 +50,7 @@ export function StepBlueStacks({ setup }: StepProps) {
           setScanning(false);
           setResult(found);
           setScan(found);
+          setChecked(adbPath ?? "");
           if (found.adb_found && found.adb_path !== null && found.adb_path !== stored.current) {
             const path = found.adb_path;
             saveStep(
@@ -65,11 +73,18 @@ export function StepBlueStacks({ setup }: StepProps) {
     [patch, setScan],
   );
 
+  // Enter in the box and the Check button mean the same thing: test what is in there now.
+  // An empty box is a scan of what is configured, which is what Scan again does.
+  const check = useCallback(() => {
+    run(typed === "" ? undefined : typed);
+  }, [run, typed]);
+
   useEffect(() => {
     run(undefined);
   }, [run]);
 
   const foundPath = result !== null && result.adb_found ? result.adb_path : null;
+  const pathRejected = result !== null && !result.adb_found && checked !== "";
 
   return (
     <div>
@@ -100,12 +115,18 @@ export function StepBlueStacks({ setup }: StepProps) {
               id="setup-adb-path"
               value={typed}
               onChange={setTyped}
+              onEnter={check}
               width="full"
               placeholder={DEFAULT_ADB_PATH}
+              error={pathRejected ? "No HD-Adb.exe at that path." : undefined}
+              help="Press Enter or Check to test this path."
             />
             <p className="text-[12px] text-muted">
               brawlfarm needs HD-Adb.exe from the BlueStacks folder.
             </p>
+            <Button variant="quiet" size="sm" disabled={scanning} onClick={check}>
+              Check
+            </Button>
           </div>
         )}
       </div>
@@ -117,7 +138,7 @@ export function StepBlueStacks({ setup }: StepProps) {
         <Button
           variant="primary"
           disabled={foundPath === null || failure !== null}
-          disabledReason="Find HD-Adb.exe first"
+          disabledReason={failure !== null ? "Check the path again" : "Find HD-Adb.exe first"}
           onClick={next}
         >
           Continue

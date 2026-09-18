@@ -9,8 +9,12 @@
  * boxes were ticked, so config.toml reads the same however it got there and a diff between
  * two machines is about what is on, not about what was clicked first.
  *
- * Neither a URL nor a topic is ever logged or toasted: the test result names channels
- * ("ntfy", "webhook"), never their addresses.
+ * The rows are in the order a new install fills them in: the phone topic first, then the
+ * two URLs, and ntfy server last because it is the one box almost nobody changes.
+ *
+ * Neither a URL nor a topic is ever logged or toasted: the test result names channels by the
+ * labels above their boxes ("ntfy topic", "Webhook URL"), never their addresses and never the
+ * short names the endpoint answers with.
  */
 import { useState } from "react";
 
@@ -28,47 +32,93 @@ import type { AppSettings } from "../api/types";
 import { Button } from "../components/ui/Button";
 import { ErrorBlock } from "../components/ui/ErrorBlock";
 import { Field } from "../components/ui/Field";
+import { ELLIPSIS } from "../lib/copy";
 import { failureMessage, toast } from "../lib/toast";
 
 type ChannelField = "ntfy_topic" | "ntfy_server" | "webhook_url" | "healthchecks_url";
 
-const CHANNELS: readonly { field: ChannelField; label: string; description: string }[] = [
+const CHANNELS: readonly {
+  field: ChannelField;
+  label: string;
+  description: string;
+  placeholder?: string;
+  /** The short name `POST /api/notifications/test` answers with, for the channels it tries. */
+  sent?: string;
+}[] = [
   {
     field: "ntfy_topic",
     label: "ntfy topic",
     description:
       "Free phone notifications. Install the ntfy app, pick a topic name, type it here.",
-  },
-  {
-    field: "ntfy_server",
-    label: "ntfy server",
-    description: "Leave this unless you run your own ntfy server.",
+    placeholder: `brawlfarm-alerts${ELLIPSIS}`,
+    sent: "ntfy",
   },
   {
     field: "webhook_url",
     label: "Webhook URL",
     description:
       "A URL that receives each alert as a message, for chat apps that offer incoming webhooks.",
+    placeholder: `https://hooks.slack.com/services/${ELLIPSIS}`,
+    sent: "webhook",
   },
   {
     field: "healthchecks_url",
     label: "Healthchecks URL",
     description:
       "A check-in URL from healthchecks.io; it warns you when brawlfarm stops checking in.",
+    placeholder: `https://hc-ping.com/${ELLIPSIS}`,
+    sent: "healthchecks",
+  },
+  {
+    field: "ntfy_server",
+    label: "ntfy server",
+    description: "Leave this unless you run your own ntfy server.",
   },
 ];
+
+/** The checkbox column reads worst first, so the alerts worth ticking are the ones read
+ * first. The order the kinds are written back in stays in events.ts: a config.toml diff
+ * should not move because this column did. */
+const EVENT_ORDER: readonly string[] = [
+  "crash",
+  "offline",
+  "bad_resolution",
+  "recalibrate",
+  "wrong_mode",
+  "stop",
+  "recover",
+];
+
+/** A kind added to events.ts without a place here lands at the end rather than vanishing. */
+function eventRank(kind: string): number {
+  const at = EVENT_ORDER.indexOf(kind);
+  return at === -1 ? EVENT_ORDER.length : at;
+}
+
+const EVENT_ROWS = [...NOTIFY_EVENT_LABELS].sort((a, b) => eventRank(a.kind) - eventRank(b.kind));
+
+/** Channel names for the test toast, in the rows' own order: "a", "a and b", "a, b and c". */
+function channelNames(names: readonly string[]): string {
+  const labels = CHANNELS.filter(
+    (channel) => channel.sent !== undefined && names.includes(channel.sent),
+  ).map((channel) => channel.label);
+  if (labels.length < 2) return labels.join("");
+  return `${labels.slice(0, -1).join(", ")} and ${labels[labels.length - 1]}`;
+}
 
 function ChannelRow({
   settingsPatch,
   field,
   label,
   description,
+  placeholder,
   onFailure,
 }: {
   settingsPatch: SettingsPatch;
   field: ChannelField;
   label: string;
   description: string;
+  placeholder?: string;
   onFailure: (error: unknown) => void;
 }) {
   const { settings, patch, fieldErrors } = settingsPatch;
@@ -93,6 +143,7 @@ function ChannelRow({
           id={`notifications-${field}`}
           value={box.value}
           onChange={box.onChange}
+          placeholder={placeholder}
           width="full"
         />
       </div>
@@ -135,8 +186,8 @@ export function Notifications({ settingsPatch }: { settingsPatch: SettingsPatch 
         (result) => {
           // Sent first: the good news is the answer to "did that work", and the failures
           // read as the exception to it.
-          if (result.sent.length > 0) toast(`Test sent to ${result.sent.join(", ")}`);
-          if (result.failed.length > 0) toast(`Test failed for ${result.failed.join(", ")}`);
+          if (result.sent.length > 0) toast(`Test sent to ${channelNames(result.sent)}.`);
+          if (result.failed.length > 0) toast(`Test failed for ${channelNames(result.failed)}`);
         },
         (error: unknown) => {
           toast(failureMessage(error));
@@ -157,6 +208,7 @@ export function Notifications({ settingsPatch }: { settingsPatch: SettingsPatch 
             field={channel.field}
             label={channel.label}
             description={channel.description}
+            placeholder={channel.placeholder}
             onFailure={setFailure}
           />
         ))}
@@ -164,8 +216,8 @@ export function Notifications({ settingsPatch }: { settingsPatch: SettingsPatch 
 
       <div className="mt-4">
         <h3 className="text-[13px] font-semibold">Send me</h3>
-        <ul className="mt-2 grid gap-1.5 min-[640px]:grid-cols-2">
-          {NOTIFY_EVENT_LABELS.map((event) => (
+        <ul className="mt-2 grid gap-1.5">
+          {EVENT_ROWS.map((event) => (
             <li key={event.kind}>
               <label className="inline-flex items-center gap-2 text-[13px]">
                 <input

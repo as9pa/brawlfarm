@@ -30,7 +30,7 @@ type Status = "untested" | "testing" | "answers" | "no-answer";
 const STATUS_LABEL: Record<Status, string> = {
   untested: "Not tested",
   testing: "Testing",
-  answers: "Answers",
+  answers: "Reachable",
   "no-answer": "No answer",
 };
 

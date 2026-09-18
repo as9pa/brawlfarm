@@ -144,7 +144,8 @@ describe("Settings > Instances", () => {
       player_tag: "2P0YLQ9", // the model puts the # back and upper-cases it
     });
     expect(current().instances[1].adb_port).toBe(5575);
-    expect(toastMessages()).toEqual(["Settings saved"]);
+    // The frame names the section in its saved caption, so the save is silent here.
+    expect(toastMessages()).toEqual([]);
     await waitFor(() => {
       expect(screen.queryByRole("button", { name: "Save" })).not.toBeInTheDocument();
     });
@@ -172,44 +173,37 @@ describe("Settings > Instances", () => {
     });
   });
 
-  it("removes an instance only once its name is typed", async () => {
-    const { calls } = server();
+  it("names the port column Port, tells the scan what it does, and announces a refusal", async () => {
+    server();
     mount();
-    const [, , pie64_3] = await rows();
-    await userEvent.click(within(pie64_3).getByRole("button", { name: "Remove" }));
-
-    const dialog = screen.getByRole("dialog", { name: "Remove Pie64_3?" });
+    const [pie64] = await rows();
+    expect(screen.getAllByRole("columnheader")[1]).toHaveTextContent("Port");
+    // The short header keeps the long answer in its tooltip.
+    expect(screen.getAllByRole("columnheader")[1]).toHaveAttribute(
+      "title",
+      "The adb port BlueStacks listens on",
+    );
+    expect(screen.queryByRole("columnheader", { name: "ADB port" })).toBeNull();
     expect(
-      within(dialog).getByText("Its data folder stays on disk. Type the name to confirm."),
+      screen.getByText("Scan again finds running BlueStacks instances."),
     ).toBeInTheDocument();
-    const confirm = within(dialog).getByRole("button", { name: "Remove" });
-    expect(confirm).toBeDisabled();
-    await userEvent.type(within(dialog).getByLabelText("Type to confirm"), "Pie64_3");
-    await userEvent.click(confirm);
-
-    await waitFor(() => {
-      expect(puts(calls)).toHaveLength(1);
-    });
-    expect(puts(calls)[0].instances.map((inst) => inst.name)).toEqual(["Pie64", "Pie64_1"]);
-    expect(toastMessages()).toEqual(["Settings saved"]);
+    // An example tag rather than the word TAG, and the ellipsis for what is cut off.
+    expect(within(pie64).getByLabelText("Player tag for Pie64")).toHaveAttribute(
+      "placeholder",
+      "#2P0YLQ9…",
+    );
+    // The region is in the row before a refusal lands in it, so the refusal is announced.
+    expect(pie64.querySelector('[aria-live="polite"]')).not.toBeNull();
   });
 
-  it("shows the API's refusal in the row it names", async () => {
-    server({ putStatus: 409, putDetail: "Stop Pie64_3 before removing it" });
+  it("keeps Edit in the row and leaves removal to the Data section", async () => {
+    server();
     mount();
     const [, , pie64_3] = await rows();
-    await userEvent.click(within(pie64_3).getByRole("button", { name: "Remove" }));
-    const dialog = screen.getByRole("dialog", { name: "Remove Pie64_3?" });
-    await userEvent.type(within(dialog).getByLabelText("Type to confirm"), "Pie64_3");
-    await userEvent.click(within(dialog).getByRole("button", { name: "Remove" }));
-
-    // The API's own sentence, in the row, not a toast that scrolls away.
-    expect(await screen.findByText("Stop Pie64_3 before removing it")).toBeInTheDocument();
-    expect(
-      within(screen.getAllByRole("row")[3]).getByText("Stop Pie64_3 before removing it"),
-    ).toBeInTheDocument();
-    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
-    expect(toastMessages()).toEqual([]);
+    expect(within(pie64_3).getByRole("button", { name: "Edit" })).toBeInTheDocument();
+    // Removing an instance is one of the three irreversible acts, and they all live in
+    // Settings, Data now, under Danger zone.
+    expect(within(pie64_3).queryByRole("button", { name: "Remove" })).toBeNull();
   });
 
   it("puts a bad tag's message under the tag field", async () => {

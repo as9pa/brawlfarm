@@ -79,7 +79,8 @@ describe("Settings > About", () => {
     });
     expect(puts(calls)[0].app.theme).toBe("dark");
     expect(current().app.theme).toBe("dark");
-    expect(toastMessages()).toEqual(["Settings saved"]);
+    // The frame names the section in its saved caption, so the save is silent here.
+    expect(toastMessages()).toEqual([]);
     await waitFor(() => {
       expect(within(group).getByRole("radio", { name: /Dark/ })).toHaveAttribute(
         "aria-checked",
@@ -111,6 +112,16 @@ describe("Settings > About", () => {
     ).toBeInTheDocument();
     // The home folder is on the health payload but belongs to the Data section's tooltip.
     expect(screen.queryByText(/C:\/data\/brawlfarm/)).not.toBeInTheDocument();
+  });
+
+  it("puts Theme at the top, above the version and the links", async () => {
+    server();
+    mount();
+    const heading = await screen.findByRole("heading", { level: 3, name: "Theme" });
+    const version = await screen.findByText("brawlfarm 1.0.0");
+    expect(heading.compareDocumentPosition(version) & Node.DOCUMENT_POSITION_FOLLOWING).toBe(
+      Node.DOCUMENT_POSITION_FOLLOWING,
+    );
   });
 
   it("puts a refused theme under the group that wrote it", async () => {

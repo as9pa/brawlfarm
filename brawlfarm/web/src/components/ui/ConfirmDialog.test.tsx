@@ -27,16 +27,23 @@ describe("ConfirmDialog", () => {
     const onConfirm = vi.fn();
     render(remove(true, onConfirm, vi.fn()));
     const confirm = screen.getByRole("button", { name: "Remove" });
-    const box = screen.getByLabelText("Type to confirm");
+    const box = screen.getByLabelText("Type Pie64_3 to confirm");
     expect(confirm).toBeDisabled();
     expect(confirm).toHaveAttribute("title", "Type Pie64_3 to confirm");
-    expect(box).toHaveAttribute("placeholder", "Pie64_3");
+    expect(box).not.toHaveAttribute("placeholder");
     expect(
       screen.getByText(
         "Its data folder stays on disk. Type the name to confirm.",
       ),
     ).toBeInTheDocument();
 
+    // The reminder is the label, not the placeholder, so it is still there once
+    // the first letters are in the box.
+    await userEvent.type(box, "Pie");
+    expect(screen.getByText("Type Pie64_3 to confirm")).toBeInTheDocument();
+    expect(confirm).toBeDisabled();
+
+    await userEvent.clear(box);
     await userEvent.type(box, "pie64_3");
     // Case sensitive on purpose: on a case-sensitive disk those are two different folders,
     // and a confirmation that accepts either is not a confirmation.
@@ -60,12 +67,12 @@ describe("ConfirmDialog", () => {
   it("forgets the typed word when it closes", async () => {
     const onConfirm = vi.fn();
     const { rerender } = render(remove(true, onConfirm, vi.fn()));
-    await userEvent.type(screen.getByLabelText("Type to confirm"), "Pie64_3");
+    await userEvent.type(screen.getByLabelText("Type Pie64_3 to confirm"), "Pie64_3");
     expect(screen.getByRole("button", { name: "Remove" })).toBeEnabled();
 
     rerender(remove(false, onConfirm, vi.fn()));
     rerender(remove(true, onConfirm, vi.fn()));
-    expect(screen.getByLabelText("Type to confirm")).toHaveValue("");
+    expect(screen.getByLabelText("Type Pie64_3 to confirm")).toHaveValue("");
     expect(screen.getByRole("button", { name: "Remove" })).toBeDisabled();
   });
 
@@ -84,7 +91,7 @@ describe("ConfirmDialog", () => {
     );
     const confirm = screen.getByRole("button", { name: "Dismiss all" });
     expect(confirm).toBeEnabled();
-    expect(screen.queryByLabelText("Type to confirm")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Type Pie64_3 to confirm")).not.toBeInTheDocument();
     await userEvent.click(confirm);
     expect(onConfirm).toHaveBeenCalledTimes(1);
   });

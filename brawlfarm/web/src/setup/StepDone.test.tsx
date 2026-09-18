@@ -5,14 +5,25 @@ import { Route, Routes } from "react-router";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { Setup } from "./Setup";
+import { StepDone } from "./StepDone";
+import { useSetupState } from "./useSetupState";
 import type { AppSettings } from "../api/types";
 import { resetToasts, useToasts } from "../lib/toast";
+import { useSettingsPatch } from "../settings/useSettingsPatch";
 import { makeSettings } from "../test/fixtures";
 import { type FetchCall, jsonResponse, stubFetch } from "../test/http";
 import { renderWithProviders } from "../test/renderWithProviders";
 
 const CHECK = "/api/setup/display-check";
+const SCAN = "/api/setup/scan";
 const START = "/api/instances/Pie64/start";
+
+const FOUND = {
+  adb_path: "adb.exe",
+  adb_found: true,
+  conf_found: true,
+  instances: [],
+};
 
 const CORRECT = {
   ok: true,
@@ -30,6 +41,7 @@ function server(
 ) {
   const { calls } = stubFetch((url) => {
     if (url === CHECK) return jsonResponse(CORRECT);
+    if (url === SCAN) return jsonResponse(FOUND);
     if (url === START) {
       if (options.startStatus !== undefined) {
         return jsonResponse({ detail: options.startDetail }, options.startStatus);
@@ -64,16 +76,17 @@ function mount() {
   );
 }
 
-/** Land on step 3, then two Continues to step 5. */
-async function walkToDone() {
-  const forward = await screen.findByRole("button", { name: "Continue" });
-  await waitFor(() => {
-    expect(forward).toBeEnabled();
-  });
-  await userEvent.click(forward);
-  expect(await screen.findByText("Stats (optional)")).toBeInTheDocument();
-  await userEvent.click(screen.getByRole("button", { name: "Continue" }));
+/** A configured fleet lands the wizard on step 5. */
+async function landOnDone() {
   expect(await screen.findByText("Setup complete.")).toBeInTheDocument();
+}
+
+/** Step 5 on its own, for the one case the wizard cannot walk to: step 2 does not let go of
+ * an empty pick, so a fleet of nothing only ever reaches Done from here. */
+function DoneOnly() {
+  const settingsPatch = useSettingsPatch();
+  const setup = useSetupState(settingsPatch);
+  return setup.ready ? <StepDone setup={setup} /> : null;
 }
 
 function starts(calls: FetchCall[]): FetchCall[] {
@@ -93,7 +106,7 @@ describe("Setup step 5: Done", () => {
   it("summarises what setup did", async () => {
     server(fleet());
     mount();
-    await walkToDone();
+    await landOnDone();
 
     const summary = screen.getByRole("list", { name: "Setup summary" });
     expect(within(summary).getAllByRole("listitem").map((item) => item.textContent)).toEqual([
@@ -102,11 +115,7 @@ describe("Setup step 5: Done", () => {
       "Token: set",
       "Player tags: 1 of 2 set",
     ]);
-    expect(
-      screen.getByText(
-        "Each step already saved to config.toml, so you can close this and come back.",
-      ),
-    ).toBeInTheDocument();
+    expect(screen.getByText("Everything is saved as you go.")).toBeInTheDocument();
     // The token is summarised, never shown.
     expect(screen.queryByText(/a-token-that-is-not-real/)).not.toBeInTheDocument();
   });
@@ -120,7 +129,7 @@ describe("Setup step 5: Done", () => {
     ];
     server(bare);
     mount();
-    await walkToDone();
+    await landOnDone();
 
     const summary = screen.getByRole("list", { name: "Setup summary" });
     expect(within(summary).getAllByRole("listitem").map((item) => item.textContent)).toEqual([
@@ -134,7 +143,7 @@ describe("Setup step 5: Done", () => {
   it("starts the first instance and opens the fleet", async () => {
     const { calls } = server(fleet());
     mount();
-    await walkToDone();
+    await landOnDone();
 
     const toggle = screen.getByRole("switch", { name: "Start Pie64 now" });
     expect(toggle).toHaveAttribute("aria-checked", "true");
@@ -149,12 +158,33 @@ describe("Setup step 5: Done", () => {
   it("opens the fleet without starting when the switch is off", async () => {
     const { calls } = server(fleet());
     mount();
-    await walkToDone();
+    await landOnDone();
 
     await userEvent.click(screen.getByRole("switch", { name: "Start Pie64 now" }));
     await userEvent.click(screen.getByRole("button", { name: "Open Fleet" }));
     expect(await screen.findByText("Fleet screen")).toBeInTheDocument();
     expect(starts(calls)).toHaveLength(0);
+  });
+
+  it("runs the checks again from step 1", async () => {
+    server(fleet());
+    mount();
+    await landOnDone();
+
+    await userEvent.click(screen.getByRole("button", { name: "Run the checks again" }));
+    expect(await screen.findByRole("heading", { name: "BlueStacks" })).toBeInTheDocument();
+  });
+
+  it("asks for an instance where the start switch would be", async () => {
+    const bare = fleet();
+    bare.instances = [];
+    server(bare);
+    renderWithProviders(<DoneOnly />, { route: "/setup" });
+    await landOnDone();
+
+    expect(screen.queryByRole("switch")).not.toBeInTheDocument();
+    const link = screen.getByRole("link", { name: "Add an instance to start farming." });
+    expect(link).toHaveAttribute("href", "/settings/instances");
   });
 
   it("still opens the fleet when the start was refused, and says why", async () => {
@@ -163,7 +193,7 @@ describe("Setup step 5: Done", () => {
       startDetail: "Pie64 is already running",
     });
     mount();
-    await walkToDone();
+    await landOnDone();
 
     await userEvent.click(screen.getByRole("button", { name: "Open Fleet" }));
     await waitFor(() => {

@@ -9,9 +9,11 @@
  * answered when the wizard mounts, and a wizard that jumped a step half a second after it
  * appeared would be worse than one that always starts at the top. A fleet on disk is what
  * says setup has been through here before, so no adb path or no instances both open on
- * BlueStacks and the fresh install walks the wizard from its first step; anything else
- * opens on Display. The done table below is the other question, what the rail may tick,
- * and that one does wait for the scan.
+ * BlueStacks and the fresh install walks the wizard from its first step; a path and a fleet
+ * open on Done, where the summary says what is configured and one button runs the checks
+ * again from step 1. Landing on Display instead would put a display check between a
+ * returning owner and the only thing they came back for. The done table below is the other
+ * question, what the rail may tick.
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
@@ -50,6 +52,10 @@ export interface SetupState {
   /** The last scan. Step 1 runs it; steps 2 and 3 read the ports out of it. */
   scan: ScanResponse | null;
   setScan: (scan: ScanResponse | null) => void;
+  /** Step 3's answer: true once every instance measured right. This visit only, the way
+   * statsSkipped is, because nothing about the display is written to disk. */
+  displayPassed: boolean;
+  setDisplayPassed: (passed: boolean) => void;
   /** Step 4's "Skip for now": true for this visit only, never written to disk. */
   skipStats: () => void;
   settingsPatch: SettingsPatch;
@@ -100,6 +106,7 @@ export function useSetupState(settingsPatch: SettingsPatch): SetupState {
   // State and not a ref: the rail has to re-render when Stats is skipped. It is still
   // "this visit only" in the sense that matters, which is that nothing is written to disk.
   const [statsSkipped, setStatsSkipped] = useState(false);
+  const [displayPassed, setDisplayPassed] = useState(false);
   const landed = useRef(false);
 
   useEffect(() => {
@@ -107,29 +114,30 @@ export function useSetupState(settingsPatch: SettingsPatch): SetupState {
     landed.current = true;
     if (settings.connection.adb_path === "" || settings.instances.length === 0)
       setStep("bluestacks");
-    else setStep("display");
+    else setStep("done");
   }, [settings]);
+
+  const current = step ?? "bluestacks";
+  const index = SETUP_STEPS.findIndex((entry) => entry.id === current);
 
   const done = useMemo<Record<StepId, boolean>>(
     () => ({
-      // The step writes the path it found, so this turns true on the first pass without
-      // anyone pressing anything.
-      bluestacks: scan !== null && scan.adb_found && settings?.connection.adb_path === scan.adb_path,
+      // The path on disk is the whole answer. The step writes the one it found, so the
+      // first pass ticks it without anyone pressing anything, and a return visit shows a
+      // check instead of a numeral before the scan has said anything at all.
+      bluestacks: (settings?.connection.adb_path ?? "") !== "",
       instances: (settings?.instances.length ?? 0) > 0,
-      // Never stored, so never already done: it re-runs on every visit.
-      display: false,
+      // Never stored, so this can only ever mean "checked on this visit".
+      display: displayPassed,
       stats:
         (settings?.connection.brawl_api_token ?? "") !== "" ||
         (settings?.instances.some((instance) => instance.player_tag !== "") ?? false) ||
         statsSkipped,
-      // Reaching it is all it means, and you cannot reach it without being on it.
-      done: false,
+      // Reaching it is all it means.
+      done: current === "done",
     }),
-    [scan, settings, statsSkipped],
+    [current, displayPassed, settings, statsSkipped],
   );
-
-  const current = step ?? "bluestacks";
-  const index = SETUP_STEPS.findIndex((entry) => entry.id === current);
 
   const next = useCallback(() => {
     setStep((at) => {
@@ -155,6 +163,8 @@ export function useSetupState(settingsPatch: SettingsPatch): SetupState {
     back,
     scan,
     setScan,
+    displayPassed,
+    setDisplayPassed,
     skipStats: () => setStatsSkipped(true),
     settingsPatch,
   };

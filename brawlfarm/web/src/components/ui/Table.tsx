@@ -41,6 +41,8 @@ import type { ReactNode } from "react";
 export interface Column<Row> {
   key: string;
   label: string;
+  /** The long answer a short header cannot hold, as the header cell's tooltip. */
+  title?: string;
   mono?: boolean;
   /** A CSS track for this column, e.g. "120px", written onto its <col>. */
   width?: string;
@@ -124,6 +126,7 @@ export function Table<Row>({
               <th
                 key={column.key}
                 scope="col"
+                title={column.title}
                 aria-sort={ariaSort(column)}
                 className={HEADER[headers]}
               >

@@ -4,6 +4,7 @@ import { render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
 import { SettingRow } from "./SettingRow";
+import { Field } from "../components/ui/Field";
 import { Switch } from "../components/ui/Switch";
 
 describe("SettingRow", () => {
@@ -22,6 +23,26 @@ describe("SettingRow", () => {
       "aria-checked",
       "true",
     );
+  });
+
+  it("stacks the control under the sentence when the row asks for it", () => {
+    render(
+      <SettingRow
+        title="ADB path"
+        description="Where HD-Adb.exe lives."
+        layout="stacked"
+      >
+        <Field label="ADB path" id="row-adb" value="D:/adb.exe" onChange={vi.fn()} width="full" />
+      </SettingRow>,
+    );
+    const box = screen.getByLabelText("ADB path");
+    // Not in the 280 px column, so nothing clips a long value.
+    expect(box.closest('[class*="w-[280px]"]')).toBeNull();
+    const slot = box.closest('[class*="mt-2"][class*="w-full"]');
+    expect(slot).not.toBeNull();
+    // The slot hides the label the way the column does, so the row's title is the only
+    // "ADB path" on screen, and the input keeps it as its accessible name.
+    expect(slot).toHaveClass("[&_label]:sr-only");
   });
 
   it("prints the field error under both", () => {

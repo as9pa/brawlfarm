@@ -14,6 +14,8 @@ const EXPECTED = { width: 1600, height: 900, dpi: 240 };
 const HINT =
   "Set the display to 1600 x 900 and pixel density 240 in BlueStacks: Settings, Display, " +
   "then restart the instance.";
+const FIX = "In BlueStacks: Settings, Display, Custom, 1600 \u00d7 900.";
+const WRONG_CHIP = "Wrong size, needs 1600 \u00d7 900";
 
 const CORRECT: DisplayCheckResponse = {
   ok: true,
@@ -71,6 +73,17 @@ function server(answers: Record<number, DisplayCheckResponse[]>) {
 
 /** The <article> an instance sits in. Async because the cards come from the settings
  * document, which is still in flight when the test starts looking. */
+/** Two instances are already in config.toml, so the wizard lands on the last step; the
+ * rail is how a returning owner gets back to step 3. */
+async function landOnDisplay(): Promise<void> {
+  renderWithProviders(<Setup />, { route: "/setup" });
+  const rail = await screen.findByRole("button", { name: "Display" });
+  await waitFor(() => {
+    expect(rail).toBeEnabled();
+  });
+  await userEvent.click(rail);
+}
+
 async function card(name: string): Promise<HTMLElement> {
   const found = (await screen.findByText(name)).closest("article");
   if (found === null) throw new Error(`no card for ${name}`);
@@ -90,7 +103,7 @@ afterEach(() => {
 describe("Setup step 3: Display", () => {
   it("checks every instance and says Correct when it is", async () => {
     const { calls } = server({ 5555: [CORRECT], 5585: [CORRECT] });
-    renderWithProviders(<Setup />, { route: "/setup" });
+    await landOnDisplay();
     // By heading, because the step rail beside it carries the same word as a button.
     expect(await screen.findByRole("heading", { name: "Display" })).toBeInTheDocument();
     expect(
@@ -102,42 +115,44 @@ describe("Setup step 3: Display", () => {
     });
     expect(await within(await card("Pie64")).findByText("Correct")).toBeInTheDocument();
     expect(
-      within(await card("Pie64")).getByText("1600 x 900, pixel density 240"),
+      within(await card("Pie64")).getByText("1600 \u00d7 900, pixel density 240"),
     ).toBeInTheDocument();
     expect(await screen.findByRole("button", { name: "Continue" })).toBeEnabled();
-    // A card that is right does not repeat the fix.
+    // A card that is right does not repeat the fix, and the API's own sentence, which
+    // spells the size with a letter x, never reaches the screen.
+    expect(screen.queryByText(FIX)).not.toBeInTheDocument();
     expect(screen.queryByText(HINT)).not.toBeInTheDocument();
   });
 
   it("shows what it measured and how to fix it when the size is wrong", async () => {
     server({ 5555: [CORRECT], 5585: [WRONG] });
-    renderWithProviders(<Setup />, { route: "/setup" });
-    expect(await within(await card("Pie64_3")).findByText("Wrong size")).toBeInTheDocument();
+    await landOnDisplay();
+    expect(await within(await card("Pie64_3")).findByText(WRONG_CHIP)).toBeInTheDocument();
     expect(
-      within(await card("Pie64_3")).getByText("1920 x 1080, pixel density 320"),
+      within(await card("Pie64_3")).getByText("1920 \u00d7 1080, pixel density 320"),
     ).toBeInTheDocument();
-    expect(within(await card("Pie64_3")).getByText(HINT)).toBeInTheDocument();
+    expect(within(await card("Pie64_3")).getByText(FIX)).toBeInTheDocument();
   });
 
   it("falls back to the API's own sentence when nothing could be measured", async () => {
     server({ 5555: [UNKNOWN], 5585: [UNKNOWN] });
-    renderWithProviders(<Setup />, { route: "/setup" });
+    await landOnDisplay();
     expect(
       await within(await card("Pie64")).findByText(
         "adb was not found; set its path in Connection",
       ),
     ).toBeInTheDocument();
-    // The hint says "pixel density" too, so this pins the measured line's own shape.
+    // The fix sentence names a size too, so this pins the measured line's own shape.
     expect(
-      within(await card("Pie64")).queryByText(/^\d+ x \d+, pixel density \d+$/),
+      within(await card("Pie64")).queryByText(/^\d+ \u00d7 \d+, pixel density \d+$/),
     ).not.toBeInTheDocument();
-    expect(within(await card("Pie64")).getByText(HINT)).toBeInTheDocument();
+    expect(within(await card("Pie64")).getByText(FIX)).toBeInTheDocument();
   });
 
   it("keeps Continue shut with its reason until Recheck finds every card correct", async () => {
     const { calls } = server({ 5555: [CORRECT], 5585: [WRONG, CORRECT] });
-    renderWithProviders(<Setup />, { route: "/setup" });
-    expect(await within(await card("Pie64_3")).findByText("Wrong size")).toBeInTheDocument();
+    await landOnDisplay();
+    expect(await within(await card("Pie64_3")).findByText(WRONG_CHIP)).toBeInTheDocument();
     const forward = screen.getByRole("button", { name: "Continue" });
     expect(forward).toBeDisabled();
     expect(forward).toHaveAttribute("title", "Fix the display first");

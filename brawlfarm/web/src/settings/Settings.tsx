@@ -1,14 +1,16 @@
 /**
  * The settings screen's frame.
  *
- * One route, /settings/:section: the second-level nav, then the section's title, the caption
- * saying when it last saved, its one plain sentence, anything the 422 mapper could not place
- * under a field, and the section itself. A section id that is not in the table is an
- * ErrorBlock rather than a redirect, because a mistyped URL that quietly moves you somewhere
- * else is how you end up changing the wrong setting.
+ * One route, /settings/:section: the second-level nav, then the section's title, its one
+ * plain sentence with the caption saying when that section last saved beside it, anything the
+ * 422 mapper could not place under a field, and the section itself. A section id that is not
+ * in the table is an ErrorBlock rather than a redirect, because a mistyped URL that quietly
+ * moves you somewhere else is how you end up changing the wrong setting.
  *
  * useSettingsPatch is called once here and handed down, so the caption, the field errors and
- * the write queue are the same ones the section on screen is using.
+ * the write queue are the same ones the section on screen is using. It is told which section
+ * that is, so the one saved time it keeps is captioned under the section that wrote it and
+ * nowhere else.
  */
 import type { ReactElement } from "react";
 import { useParams } from "react-router";
@@ -19,12 +21,11 @@ import { Connection } from "./Connection";
 import { Data } from "./Data";
 import { Instances } from "./Instances";
 import { Notifications } from "./Notifications";
-import { Schedule } from "./Schedule";
 import { SETTINGS_SECTIONS, type SectionId, SettingsNav } from "./SettingsNav";
 import { type SettingsPatch, useSettingsPatch } from "./useSettingsPatch";
 import { ErrorBlock } from "../components/ui/ErrorBlock";
 
-/** Every section takes the same one prop, so the table below can hold all seven. Null is
+/** Every section takes the same one prop, so the table below can hold all six. Null is
  * in the return type because a section whose rows all read the settings document renders
  * nothing until the first GET lands, rather than a half-built row of empty controls. */
 type SectionView = (props: { settingsPatch: SettingsPatch }) => ReactElement | null;
@@ -35,7 +36,6 @@ const SECTION_VIEWS: Record<SectionId, SectionView> = {
   instances: Instances,
   connection: Connection,
   behavior: Behavior,
-  schedule: Schedule,
   notifications: Notifications,
   data: Data,
   about: About,
@@ -45,9 +45,15 @@ const UNKNOWN_SECTION = new Error("unknown settings section");
 
 export function Settings() {
   const { section } = useParams();
-  const settingsPatch = useSettingsPatch();
+  const settingsPatch = useSettingsPatch(section);
   const known = SETTINGS_SECTIONS.find((entry) => entry.id === section);
   const View = known === undefined ? undefined : SECTION_VIEWS[known.id];
+  /** Only the section that wrote gets the caption: the hook keeps one saved time for all six,
+   * and a save made in Connection read back under Behavior's name is a lie about what was
+   * written. A navigation does not clear it, so coming back to that section reads it again. */
+  const saved = settingsPatch.saved;
+  const savedHere =
+    saved !== null && known !== undefined && saved.scope === known.id ? saved.at : null;
 
   return (
     <section className="flex flex-col gap-4 min-[820px]:flex-row">
@@ -57,13 +63,19 @@ export function Settings() {
           <ErrorBlock error={UNKNOWN_SECTION} />
         ) : (
           <>
-            <header className="flex items-baseline gap-2">
+            <header>
               <h1 className="text-[20px] font-semibold tracking-tight">{known.label}</h1>
-              {settingsPatch.savedAt !== null && (
-                <span className="text-[11px] text-muted">{`Saved ${settingsPatch.savedAt}`}</span>
-              )}
             </header>
-            <p className="mt-1 text-[13px] text-muted">{known.description}</p>
+            <div className="mt-1 flex flex-wrap items-baseline gap-2">
+              <p className="text-[13px] text-muted">{known.description}</p>
+              {/* The caption names its section, because one bare time on a screen of six
+               * sections does not say which of them wrote. The live region stays mounted
+               * empty, so the first save after the section opens is announced rather than
+               * missed as a region that only just appeared. */}
+              <span aria-live="polite" className="text-[12px] text-muted">
+                {savedHere === null ? null : `${known.label} saved ${savedHere}`}
+              </span>
+            </div>
             {settingsPatch.sectionErrors.map((line) => (
               <p key={line} className="mt-1 text-[12px] text-bad">
                 {line}

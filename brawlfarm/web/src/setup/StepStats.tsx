@@ -18,6 +18,7 @@ import { type StepProps, saveStepAsync } from "./useSetupState";
 import { Button } from "../components/ui/Button";
 import { ErrorBlock } from "../components/ui/ErrorBlock";
 import { Field } from "../components/ui/Field";
+import { ELLIPSIS } from "../lib/copy";
 import { type SettingsPatch, fieldError, useDebouncedSave } from "../settings/useSettingsPatch";
 
 function TagField({
@@ -54,9 +55,9 @@ function TagField({
         value={box.value}
         onChange={box.onChange}
         width="full"
-        placeholder="#TAG"
+        placeholder={`#2P0YLQ9${ELLIPSIS}`}
+        error={message}
       />
-      {message !== undefined && <p className="mt-1 text-[12px] text-bad">{message}</p>}
     </div>
   );
 }
@@ -104,8 +105,8 @@ export function StepStats({ setup }: StepProps) {
             width="full"
             spellCheck={false}
             autoComplete="off"
+            error={tokenError}
           />
-          {tokenError !== undefined && <p className="mt-1 text-[12px] text-bad">{tokenError}</p>}
         </div>
 
         {instances.map((one) => (

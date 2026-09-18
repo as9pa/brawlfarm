@@ -53,7 +53,7 @@ describe("useSetupState", () => {
     expect(result.current.done.instances).toBe(false);
   });
 
-  it("opens on BlueStacks with no fleet yet, and on Display once there is one", async () => {
+  it("opens on BlueStacks with no fleet yet, and on Done once one is configured", async () => {
     const noFleet = makeSettings({ instances: [] });
     const first = mount(noFleet);
     await waitFor(() => {
@@ -64,37 +64,43 @@ describe("useSetupState", () => {
     first.unmount();
     vi.unstubAllGlobals();
 
-    const withFleet = mount(makeSettings());
+    const configured = makeSettings();
+    configured.connection.adb_path = ADB;
+    const withFleet = mount(configured);
     await waitFor(() => {
       expect(withFleet.result.current.ready).toBe(true);
     });
-    expect(withFleet.result.current.step).toBe("display");
-    expect(withFleet.result.current.index).toBe(2);
+    // A path and a fleet on disk mean the checks have been through here, so the return
+    // visit opens on the last step, which offers to run them again.
+    expect(withFleet.result.current.step).toBe("done");
+    expect(withFleet.result.current.index).toBe(4);
     // Nothing about the display is stored, so it is never already done.
     expect(withFleet.result.current.done.display).toBe(false);
     expect(withFleet.result.current.done.instances).toBe(true);
+    expect(withFleet.result.current.done.bluestacks).toBe(true);
+    expect(withFleet.result.current.done.done).toBe(true);
   });
 
-  it("ticks BlueStacks only when the last scan agrees with what is stored", async () => {
+  it("ticks BlueStacks from the stored path and Display from this visit's check", async () => {
     const settings = makeSettings();
-    settings.connection.adb_path = ADB;
+    settings.connection.adb_path = "";
     const { result } = mount(settings);
     await waitFor(() => {
       expect(result.current.ready).toBe(true);
     });
     expect(result.current.done.bluestacks).toBe(false);
+    expect(result.current.done.display).toBe(false);
 
     act(() => {
       result.current.setScan(found("D:\\portable\\adb.exe"));
     });
-    // A scan that found a different adb has not been accepted yet: the step has to write
-    // it before the rail may tick it.
+    // The stored path is what the tick means now, and a scan has not written one.
     expect(result.current.done.bluestacks).toBe(false);
 
     act(() => {
-      result.current.setScan(found(ADB));
+      result.current.setDisplayPassed(true);
     });
-    expect(result.current.done.bluestacks).toBe(true);
+    expect(result.current.done.display).toBe(true);
   });
 
   it("walks forward and back, and counts Stats done once it has been skipped", async () => {
@@ -105,7 +111,10 @@ describe("useSetupState", () => {
     await waitFor(() => {
       expect(result.current.ready).toBe(true);
     });
-    expect(result.current.step).toBe("display");
+    expect(result.current.step).toBe("done");
+    act(() => {
+      result.current.go("display");
+    });
     expect(result.current.done.stats).toBe(false);
 
     act(() => {
