@@ -60,6 +60,26 @@ describe("Table", () => {
     expect(container.querySelector("table")).toHaveStyle({ minWidth: "720px" });
   });
 
+  it("cues the scrollable edge only when there is a minimum width", () => {
+    const { container, unmount } = render(
+      <Table
+        columns={COLUMNS}
+        rows={ROWS}
+        rowKey={(row) => row.name}
+        empty="nothing"
+        minWidth="720px"
+      />,
+    );
+    expect(container.querySelector('span[aria-hidden="true"].pointer-events-none')).not.toBeNull();
+    unmount();
+    const plain = render(
+      <Table columns={COLUMNS} rows={ROWS} rowKey={(row) => row.name} empty="nothing" />,
+    );
+    expect(
+      plain.container.querySelector('span[aria-hidden="true"].pointer-events-none'),
+    ).toBeNull();
+  });
+
   it("is a real table with one header per column", () => {
     render(<Table columns={COLUMNS} rows={ROWS} rowKey={(row) => row.name} empty="nothing" />);
     expect(screen.getAllByRole("columnheader").map((th) => th.textContent)).toEqual([

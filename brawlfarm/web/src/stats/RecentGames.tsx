@@ -5,6 +5,10 @@
  * reorders itself is a different thing. A null mode, map, brawler or rank reads
  * "Not recorded" rather than blank, so an empty cell always means the column is empty and
  * never that something failed to render.
+ *
+ * Seven columns do not fit a phone, and none of them is droppable, so the table keeps a
+ * minimum width of 720 px and scrolls sideways inside its own box rather than squeezing Map,
+ * Rank and Trophies into nothing.
  */
 import type { StatsGame, StatsRange } from "../api/types";
 import { BrawlerIcon } from "../components/ui/BrawlerIcon";
@@ -112,6 +116,7 @@ export function RecentGames({ rows, range }: RecentGamesProps) {
         rows={rows}
         rowKey={(row) => `${row.instance ?? ""}-${row.t}-${row.brawler ?? ""}`}
         empty={EMPTY}
+        minWidth="720px"
       />
     </section>
   );

@@ -116,6 +116,15 @@ describe("RecentGames", () => {
     expect(today).not.toHaveTextContent("Sep");
   });
 
+  it("overflows and scrolls rather than squeezing its seven columns", () => {
+    const { container } = renderWithProviders(<RecentGames rows={[game()]} range="today" />);
+    expect(container.querySelector("table")).toHaveStyle({ minWidth: "720px" });
+    const cue = container.querySelector('span[aria-hidden="true"].pointer-events-none');
+    expect(cue).not.toBeNull();
+    expect(cue?.className).toContain("right-0");
+    expect(screen.getAllByRole("columnheader")).toHaveLength(7);
+  });
+
   it("says so when the range has no games", () => {
     renderWithProviders(<RecentGames rows={[]} range="today" />);
     expect(screen.getByText("No games in this range.")).toBeInTheDocument();

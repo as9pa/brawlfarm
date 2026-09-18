@@ -17,6 +17,10 @@
  * The overflow box is itself positioned so that absolutely positioned span stays clipped
  * inside it instead of escaping to the nearest positioned ancestor.
  *
+ * A table with a `minWidth` overflows on a narrow panel, so it also gets a fading strip down
+ * its right edge: a table that has to be scrolled sideways needs to look like one. The strip
+ * is decoration and nothing else, so it is aria-hidden and takes no pointer events.
+ *
  * Sorting is opt-in and is the caller's job. With `sort` and `onSort` a sortable column's
  * label becomes a full-width button and its <th> carries aria-sort; without them no header
  * is a button and no aria-sort is written, so every call site that predates this renders
@@ -155,6 +159,12 @@ export function Table<Row>({
           )}
         </tbody>
       </table>
+      {minWidth === undefined ? null : (
+        <span
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-y-0 right-0 w-6 bg-gradient-to-l from-panel to-transparent"
+        />
+      )}
     </div>
   );
 }

@@ -9,10 +9,15 @@
  * Two placeholders stand in for numbers that would be a lie: "After 30 min" while the
  * range is too short for a rate to mean anything, and "Not yet" when there is nothing at
  * all to average.
+ *
+ * No value breaks between its number and its unit: "1 h 51 min" over two lines reads as two
+ * figures. That is whitespace-nowrap here rather than a non-breaking space in hoursText,
+ * which other screens share.
  */
 import type { StatsSummary } from "../api/types";
 import { NOT_YET } from "../lib/copy";
-import { signed } from "../lib/format";
+import { num, signed } from "../lib/format";
+import { hoursText } from "../lib/time";
 
 export interface MetricsRowProps {
   summary: StatsSummary;
@@ -27,7 +32,7 @@ function trophyTone(trophies: number): string {
 }
 
 function rateText(summary: StatsSummary): string {
-  if (summary.trophies_per_hour !== null) return String(summary.trophies_per_hour);
+  if (summary.trophies_per_hour !== null) return num(summary.trophies_per_hour);
   return summary.games > 0 ? TOO_SHORT : NOT_YET;
 }
 
@@ -39,7 +44,7 @@ function Figure({ label, value, tone }: { label: string; value: string; tone?: s
     >
       <span
         data-testid="metric-value"
-        className={`font-mono text-[18px] tabular-nums ${tone ?? "text-text"}`}
+        className={`t-figure whitespace-nowrap text-[18px] ${tone ?? "text-text"}`}
       >
         {value}
       </span>
@@ -53,7 +58,7 @@ function Figure({ label, value, tone }: { label: string; value: string; tone?: s
 export function MetricsRow({ summary }: MetricsRowProps) {
   return (
     <div className="flex flex-wrap items-start rounded-[10px] border border-line bg-panel px-3 py-2">
-      <Figure label="Games" value={String(summary.games)} />
+      <Figure label="Games" value={num(summary.games)} />
       <Figure
         label="Trophies"
         value={signed(summary.trophies)}
@@ -68,7 +73,7 @@ export function MetricsRow({ summary }: MetricsRowProps) {
         label="Top-4 rate"
         value={summary.top4_rate === null ? NOT_YET : `${Math.round(summary.top4_rate)}%`}
       />
-      <Figure label="Time farmed" value={`${summary.hours_farmed.toFixed(2)} h`} />
+      <Figure label="Time farmed" value={hoursText(summary.hours_farmed)} />
     </div>
   );
 }
