@@ -70,7 +70,11 @@ describe("Table", () => {
         minWidth="720px"
       />,
     );
-    expect(container.querySelector('span[aria-hidden="true"].pointer-events-none')).not.toBeNull();
+    const cue = container.querySelector('span[aria-hidden="true"].pointer-events-none');
+    expect(cue).not.toBeNull();
+    // Outside the scrolling box, or it would slide off the edge it is there to mark.
+    expect(cue?.parentElement?.className).toBe("relative");
+    expect(cue?.previousElementSibling?.className).toContain("overflow-x-auto");
     unmount();
     const plain = render(
       <Table columns={COLUMNS} rows={ROWS} rowKey={(row) => row.name} empty="nothing" />,

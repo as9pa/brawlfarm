@@ -125,6 +125,12 @@ describe("RecentGames", () => {
     expect(screen.getAllByRole("columnheader")).toHaveLength(7);
   });
 
+  it("keeps a Not recorded trophy cell on one line", () => {
+    renderWithProviders(<RecentGames rows={[game({ trophy_change: null })]} range="today" />);
+    const cells = screen.getAllByRole("row")[1].querySelectorAll("td");
+    expect(cells[6].className).toContain("whitespace-nowrap");
+  });
+
   it("says so when the range has no games", () => {
     renderWithProviders(<RecentGames rows={[]} range="today" />);
     expect(screen.getByText("No games in this range.")).toBeInTheDocument();

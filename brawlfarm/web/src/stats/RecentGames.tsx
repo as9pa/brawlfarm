@@ -8,7 +8,8 @@
  *
  * Seven columns do not fit a phone, and none of them is droppable, so the table keeps a
  * minimum width of 720 px and scrolls sideways inside its own box rather than squeezing Map,
- * Rank and Trophies into nothing.
+ * Rank and Trophies into nothing. No cell wraps either: "Not recorded" over two lines makes
+ * its row twice the height of the rows around it.
  */
 import type { StatsGame, StatsRange } from "../api/types";
 import { BrawlerIcon } from "../components/ui/BrawlerIcon";
@@ -117,6 +118,7 @@ export function RecentGames({ rows, range }: RecentGamesProps) {
         rowKey={(row) => `${row.instance ?? ""}-${row.t}-${row.brawler ?? ""}`}
         empty={EMPTY}
         minWidth="720px"
+        nowrap
       />
     </section>
   );

@@ -19,7 +19,15 @@
  *
  * A table with a `minWidth` overflows on a narrow panel, so it also gets a fading strip down
  * its right edge: a table that has to be scrolled sideways needs to look like one. The strip
- * is decoration and nothing else, so it is aria-hidden and takes no pointer events.
+ * is decoration and nothing else, so it is aria-hidden and takes no pointer events. It is a
+ * sibling of the overflow box rather than a child of it, positioned on a wrapper of its own:
+ * inside the box it would be placed against the scrolling content and slide off the edge it
+ * is there to mark. A table with no `minWidth` grows no wrapper and renders exactly as it
+ * always has.
+ *
+ * `nowrap` is for a table that scrolls: a cell that wraps has not been saved from squeezing,
+ * it has been squeezed vertically instead, and one two-line placeholder makes its row twice
+ * the height of every other row.
  *
  * Sorting is opt-in and is the caller's job. With `sort` and `onSort` a sortable column's
  * label becomes a full-width button and its <th> carries aria-sort; without them no header
@@ -53,6 +61,9 @@ export interface TableProps<Row> {
   /** How the headers read. Caps is the house style for a settings table of fields; a
    * table of figures a person scans down reads in sentence case. */
   headers?: "caps" | "sentence";
+  /** Keeps every cell on one line, so a long value widens the table and the box scrolls
+   * rather than the row growing a second line. Pairs with `minWidth`. */
+  nowrap?: boolean;
 }
 
 /** The one focus ring, restated on the control so it survives an ancestor that sets
@@ -76,6 +87,7 @@ export function Table<Row>({
   onSort,
   minWidth,
   headers = "caps",
+  nowrap = false,
 }: TableProps<Row>) {
   const sorting = sort !== undefined && onSort !== undefined;
 
@@ -85,7 +97,7 @@ export function Table<Row>({
     return sort.dir === "asc" ? "ascending" : "descending";
   };
 
-  return (
+  const box = (
     <div className="relative overflow-x-auto">
       <table
         className="w-full border-collapse text-[13px]"
@@ -149,7 +161,7 @@ export function Table<Row>({
                 {columns.map((column) => (
                   <td
                     key={column.key}
-                    className={`px-2 py-1.5 align-middle ${column.mono === true ? "font-mono tabular-nums" : ""}`}
+                    className={`px-2 py-1.5 align-middle ${column.mono === true ? "font-mono tabular-nums" : ""} ${nowrap ? "whitespace-nowrap" : ""}`}
                   >
                     {column.render === undefined ? null : column.render(row)}
                   </td>
@@ -159,12 +171,18 @@ export function Table<Row>({
           )}
         </tbody>
       </table>
-      {minWidth === undefined ? null : (
-        <span
-          aria-hidden="true"
-          className="pointer-events-none absolute inset-y-0 right-0 w-6 bg-gradient-to-l from-panel to-transparent"
-        />
-      )}
+    </div>
+  );
+
+  if (minWidth === undefined) return box;
+
+  return (
+    <div className="relative">
+      {box}
+      <span
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-y-0 right-0 w-6 bg-gradient-to-l from-panel to-transparent"
+      />
     </div>
   );
 }
