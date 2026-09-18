@@ -119,6 +119,7 @@ export function Connection({ settingsPatch }: { settingsPatch: SettingsPatch }) 
         title="ADB path"
         description="brawlfarm needs HD-Adb.exe from the BlueStacks folder."
         error={fieldError(fieldErrors, "connection.adb_path")}
+        layout="stacked"
       >
         <div className="space-y-2" onBlur={adbPath.onBlur}>
           <Field

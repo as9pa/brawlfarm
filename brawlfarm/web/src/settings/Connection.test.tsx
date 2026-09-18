@@ -128,6 +128,14 @@ describe("Settings > Connection", () => {
       expect(box).toHaveValue(LONG_PATH);
     });
     expect(box).toHaveClass("w-full", "font-mono");
+    // The row stacks its control: the field is under the description at the full row width,
+    // not in the 280 px column that cut the path off at "HD".
+    expect(box.closest('[class*="w-[280px]"]')).toBeNull();
+    expect(box.closest('[class*="mt-2"][class*="w-full"]')).not.toBeNull();
+    // The token is a short value and stays in the column.
+    expect(
+      screen.getByLabelText("Brawl Stars API token").closest('[class*="w-[280px]"]'),
+    ).not.toBeNull();
   });
 
   it("chips the scan while it is still running", async () => {

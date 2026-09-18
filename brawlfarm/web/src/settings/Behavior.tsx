@@ -128,7 +128,7 @@ const ADVANCED: readonly Toggle[] = [
     "gray_match",
     "Grayscale matching",
     "Match templates in grayscale.",
-    "Off: templates match in colour.",
+    "Off: templates match in color.",
   ),
   advanced(
     "phase_classify",

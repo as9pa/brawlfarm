@@ -135,7 +135,7 @@ describe("Settings > Behavior", () => {
         "Read frames without re-encoding them.",
         "Off: frames are re-encoded before they are read.",
       ],
-      ["Grayscale matching", "Match templates in grayscale.", "Off: templates match in colour."],
+      ["Grayscale matching", "Match templates in grayscale.", "Off: templates match in color."],
       [
         "Match phase detection",
         "Work out the match phase from the screen.",

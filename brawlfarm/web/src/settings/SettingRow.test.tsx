@@ -4,6 +4,7 @@ import { render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
 import { SettingRow } from "./SettingRow";
+import { Field } from "../components/ui/Field";
 import { Switch } from "../components/ui/Switch";
 
 describe("SettingRow", () => {
@@ -22,6 +23,22 @@ describe("SettingRow", () => {
       "aria-checked",
       "true",
     );
+  });
+
+  it("stacks the control under the sentence when the row asks for it", () => {
+    render(
+      <SettingRow
+        title="ADB path"
+        description="Where HD-Adb.exe lives."
+        layout="stacked"
+      >
+        <Field label="ADB path" id="row-adb" value="D:/adb.exe" onChange={vi.fn()} width="full" />
+      </SettingRow>,
+    );
+    const box = screen.getByLabelText("ADB path");
+    // Not in the 280 px column, so nothing clips a long value and nothing hides the label.
+    expect(box.closest('[class*="w-[280px]"]')).toBeNull();
+    expect(box.closest('[class*="mt-2"][class*="w-full"]')).not.toBeNull();
   });
 
   it("prints the field error under both", () => {

@@ -11,6 +11,11 @@
  * made screen-reader-only. Both stay in the accessibility tree as the control's name, which
  * is where they belong, and neither component's props change, which is what phase 4
  * promised.
+ *
+ * A row can stack instead. The control column is 280 px wide, which is right for a switch or
+ * a number but cuts a file path off mid-word, so `layout="stacked"` drops the column and puts
+ * the control under the sentence at the full row width. None of the column's rules travel
+ * with it: a stacked Field keeps its own visible label, because there is room for it there.
  */
 import type { ReactNode } from "react";
 
@@ -20,10 +25,20 @@ export interface SettingRowProps {
   /** A node too: an advanced row's description is two lines, not one. */
   description: ReactNode;
   error?: string;
+  /** "row" is the phase 4 layout, with the control in its own 280 px column; "stacked" puts
+   * the control under the sentence at the full row width. */
+  layout?: "row" | "stacked";
   children: ReactNode;
 }
 
-export function SettingRow({ title, description, error, children }: SettingRowProps) {
+export function SettingRow({
+  title,
+  description,
+  error,
+  layout = "row",
+  children,
+}: SettingRowProps) {
+  const stacked = layout === "stacked";
   return (
     <div className="border-b border-line py-3 last:border-b-0">
       <div className="flex flex-wrap items-start gap-4">
@@ -31,10 +46,13 @@ export function SettingRow({ title, description, error, children }: SettingRowPr
           <p className="text-[13px]">{title}</p>
           <p className="mt-0.5 text-[12px] text-muted">{description}</p>
         </div>
-        <div className="w-[280px] max-w-full shrink-0 [&_[role=switch]]:gap-0 [&_[role=switch]]:text-[0px] [&_label]:sr-only">
-          {children}
-        </div>
+        {!stacked && (
+          <div className="w-[280px] max-w-full shrink-0 [&_[role=switch]]:gap-0 [&_[role=switch]]:text-[0px] [&_label]:sr-only">
+            {children}
+          </div>
+        )}
       </div>
+      {stacked && <div className="mt-2 w-full">{children}</div>}
       {error !== undefined && <p className="mt-1 text-[12px] text-bad">{error}</p>}
     </div>
   );
