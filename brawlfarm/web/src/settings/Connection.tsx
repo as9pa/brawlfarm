@@ -10,6 +10,11 @@
  * Both fields save 500 ms after the last keystroke and at once on blur. Neither has a Save
  * button, and neither ever logs what was typed: the token reaches the masked Field, the PUT
  * body and nothing else.
+ *
+ * Check connection asks GET /api/connection/check, which reads the token and the player tags
+ * from disk and never takes a typed value, so it waits until the form has nothing unsaved in
+ * it. Its answer is the same strip the stats page shows, because the five statuses already
+ * have one sentence each and a second wording for them would be a second thing to keep true.
  */
 import { useEffect, useState } from "react";
 import { Link } from "react-router";
@@ -21,17 +26,23 @@ import {
   saveSettingAsync,
   useDebouncedSave,
 } from "./useSettingsPatch";
+import { getConnection } from "../api/connection";
 import { scanSetup } from "../api/setup";
-import type { ScanResponse } from "../api/types";
+import type { ConnectionCheck, ScanResponse } from "../api/types";
+import { Button } from "../components/ui/Button";
 import { Chip } from "../components/ui/Chip";
 import { ErrorBlock } from "../components/ui/ErrorBlock";
 import { Field } from "../components/ui/Field";
+import { ConnectionStrip } from "../stats/ConnectionStrip";
 
 const TOKEN_LINE = "Create a key at developer.brawlstars.com and allow this machine's IP address.";
 
 export function Connection({ settingsPatch }: { settingsPatch: SettingsPatch }) {
   const { settings, patch, fieldErrors } = settingsPatch;
   const [scan, setScan] = useState<ScanResponse | null>(null);
+  const [scanning, setScanning] = useState(true);
+  const [check, setCheck] = useState<ConnectionCheck | null>(null);
+  const [checking, setChecking] = useState(false);
   const [failure, setFailure] = useState<unknown>(null);
 
   useEffect(() => {
@@ -42,6 +53,9 @@ export function Connection({ settingsPatch }: { settingsPatch: SettingsPatch }) 
       })
       .catch(() => {
         if (alive) setScan(null);
+      })
+      .finally(() => {
+        if (alive) setScanning(false);
       });
     return () => {
       alive = false;
@@ -67,6 +81,29 @@ export function Connection({ settingsPatch }: { settingsPatch: SettingsPatch }) 
     ),
   );
 
+  /** The route reads what is on disk, so a field with something typed into it has nothing
+   * to check yet. */
+  const unsaved =
+    adbPath.value !== (settings?.connection.adb_path ?? "") ||
+    token.value !== (settings?.connection.brawl_api_token ?? "");
+
+  /** The instance the no_tag sentence names, which is the first one with no tag on it. */
+  const withoutTag = (settings?.instances ?? []).find((inst) => inst.player_tag === "");
+
+  const runCheck = () => {
+    setChecking(true);
+    void getConnection()
+      .then((answer) => {
+        setCheck(answer);
+      })
+      .catch((error: unknown) => {
+        setFailure(error);
+      })
+      .finally(() => {
+        setChecking(false);
+      });
+  };
+
   return (
     <div>
       {failure !== null && <ErrorBlock error={failure} />}
@@ -77,15 +114,25 @@ export function Connection({ settingsPatch }: { settingsPatch: SettingsPatch }) 
         error={fieldError(fieldErrors, "connection.adb_path")}
       >
         <div className="space-y-2" onBlur={adbPath.onBlur}>
-          <Field
-            label="ADB path"
-            id="connection-adb-path"
-            value={adbPath.value}
-            onChange={adbPath.onChange}
-            width="full"
-          />
-          <div className="flex items-center gap-2">
-            {scan !== null && (
+          {/* The wrapper carries the wrapping rule so Field keeps the props phase 4 gave it:
+              a path is the one value here that runs past the end of its box. */}
+          <span className="block [&_input]:break-all">
+            <Field
+              label="ADB path"
+              id="connection-adb-path"
+              value={adbPath.value}
+              onChange={adbPath.onChange}
+              width="full"
+            />
+          </span>
+          <div className="flex flex-wrap items-center gap-2">
+            {scanning && (
+              <>
+                <Chip tone="idle">Scanning…</Chip>
+                <span className="text-[12px] text-muted">Asking adb for devices</span>
+              </>
+            )}
+            {!scanning && scan !== null && (
               <Chip tone={scan.adb_found ? "ok" : "bad"}>
                 {scan.adb_found ? "Found" : "Not found"}
               </Chip>
@@ -97,6 +144,11 @@ export function Connection({ settingsPatch }: { settingsPatch: SettingsPatch }) 
               Run setup again
             </Link>
           </div>
+          {!scanning && scan !== null && !scan.adb_found && (
+            <p className="text-[12px] text-muted">
+              Install BlueStacks, or type the path to HD-Adb.exe above.
+            </p>
+          )}
         </div>
       </SettingRow>
 
@@ -116,6 +168,27 @@ export function Connection({ settingsPatch }: { settingsPatch: SettingsPatch }) 
             spellCheck={false}
             autoComplete="off"
           />
+          <div className="mt-2 space-y-1">
+            <div className="flex flex-wrap items-center gap-2">
+              <Button
+                variant="secondary"
+                size="sm"
+                disabled={unsaved}
+                disabledReason="Save first"
+                onClick={runCheck}
+              >
+                Check connection
+              </Button>
+              {checking && <Chip tone="idle">Checking…</Chip>}
+            </div>
+            <p className="text-[12px] text-muted">Uses the saved token and player tag.</p>
+            {!checking && check !== null && (
+              <ConnectionStrip
+                status={check.status}
+                instanceWithoutTag={withoutTag?.name ?? null}
+              />
+            )}
+          </div>
         </div>
       </SettingRow>
 

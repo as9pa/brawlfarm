@@ -5,9 +5,9 @@ import { Route, Routes } from "react-router";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { Settings } from "./Settings";
-import type { AppSettings, ScanResponse } from "../api/types";
+import type { AppSettings, ConnectionCheck, ScanResponse } from "../api/types";
 import { resetToasts, useToasts } from "../lib/toast";
-import { makeSettings } from "../test/fixtures";
+import { makeConnection, makeSettings } from "../test/fixtures";
 import { type FetchCall, jsonResponse, stubFetch } from "../test/http";
 import { renderWithProviders } from "../test/renderWithProviders";
 
@@ -18,12 +18,30 @@ const FOUND: ScanResponse = {
   instances: [],
 };
 
+const MISSING: ScanResponse = {
+  adb_path: null,
+  adb_found: false,
+  conf_found: false,
+  instances: [],
+};
+
+/** A placeholder path long enough to run past the box, with no user name in it. */
+const LONG_PATH =
+  "D:\\programs\\emulators\\bluestacks\\portable-install\\engine\\bin\\HD-Adb.exe";
+
 function server(
-  options: { scan?: ScanResponse; putStatus?: number; putDetail?: string } = {},
+  options: {
+    scan?: ScanResponse;
+    putStatus?: number;
+    putDetail?: string;
+    doc?: AppSettings;
+    check?: ConnectionCheck;
+  } = {},
 ) {
-  let stored = makeSettings();
+  let stored = options.doc ?? makeSettings();
   const { calls } = stubFetch((url, init) => {
     if (url === "/api/setup/scan") return jsonResponse(options.scan ?? FOUND);
+    if (url === "/api/connection/check") return jsonResponse(options.check ?? makeConnection());
     if (url !== "/api/settings") throw new Error(`unstubbed request: ${url}`);
     if (init?.method !== "PUT") return jsonResponse(stored);
     if (options.putStatus !== undefined) {
@@ -87,11 +105,66 @@ describe("Settings > Connection", () => {
     expect(calls.filter((call) => call.url === "/api/setup/scan")).toHaveLength(1);
   });
 
-  it("says Not found when the scan came back without adb", async () => {
-    server({ scan: { adb_path: null, adb_found: false, conf_found: false, instances: [] } });
+  it("says Not found when the scan came back without adb, and what to do next", async () => {
+    server({ scan: MISSING });
     mount();
     expect(await screen.findByText("Not found")).toBeInTheDocument();
     expect(screen.queryByText("Found")).not.toBeInTheDocument();
+    expect(
+      screen.getByText("Install BlueStacks, or type the path to HD-Adb.exe above."),
+    ).toBeInTheDocument();
+  });
+
+  it("shows the whole adb path, wrapped rather than clipped", async () => {
+    server({ doc: makeSettings({ connection: { adb_path: LONG_PATH, brawl_api_token: "" } }) });
+    mount();
+    const box = await screen.findByLabelText("ADB path");
+    // The whole path is in the DOM, the box fills its row, and it stays mono and wraps.
+    await waitFor(() => {
+      expect(box).toHaveValue(LONG_PATH);
+    });
+    expect(box).toHaveClass("w-full", "font-mono");
+    expect(box.closest("[class*='break-all']")).not.toBeNull();
+  });
+
+  it("chips the scan while it is still running", async () => {
+    server();
+    mount();
+    // The scan shells out to adb and can take seconds, so the first paint says so.
+    expect(screen.getByText("Scanning…")).toBeInTheDocument();
+    expect(screen.getByText("Asking adb for devices")).toBeInTheDocument();
+    expect(await screen.findByText("Found")).toBeInTheDocument();
+    expect(screen.queryByText("Scanning…")).not.toBeInTheDocument();
+  });
+
+  it("checks the saved token, and waits for a save before it offers to", async () => {
+    const { calls } = server({ check: makeConnection({ status: "rejected" }) });
+    mount();
+    const box = await screen.findByLabelText("ADB path");
+    expect(
+      screen.getByText("Uses the saved token and player tag."),
+    ).toBeInTheDocument();
+
+    // A form with something typed into it has nothing saved to check yet.
+    fireEvent.change(box, { target: { value: "D:/portable/adb.exe" } });
+    const check = screen.getByRole("button", { name: "Check connection" });
+    expect(check).toBeDisabled();
+    expect(check).toHaveAttribute("title", "Save first");
+
+    fireEvent.blur(box);
+    await waitFor(() => {
+      expect(check).toBeEnabled();
+    });
+
+    await userEvent.click(check);
+    await waitFor(() => {
+      expect(calls.filter((call) => call.url === "/api/connection/check")).toHaveLength(1);
+    });
+    // The route reads what is on disk, so the answer is about the saved token.
+    expect(
+      await screen.findByText(/The Brawl Stars API rejected the token/),
+    ).toBeInTheDocument();
+    expect(toastMessages()).toEqual(["Settings saved"]);
   });
 
   it("puts the API's message under the ADB path row", async () => {

@@ -30,6 +30,7 @@ import { ErrorBlock } from "../components/ui/ErrorBlock";
 import { Field } from "../components/ui/Field";
 import { StateChip } from "../components/ui/StateChip";
 import { type Column, Table } from "../components/ui/Table";
+import { ELLIPSIS } from "../lib/copy";
 import { plural } from "../lib/format";
 import { knownState } from "../lib/states";
 import { toast } from "../lib/toast";
@@ -231,17 +232,21 @@ export function Instances({ settingsPatch }: { settingsPatch: SettingsPatch }) {
             row.name
           )}
           {fieldNote(row, "name")}
-          {rowErrors[row.name] !== undefined && (
-            <p className="mt-1 font-sans text-[12px] whitespace-normal text-bad">
-              {rowErrors[row.name]}
-            </p>
-          )}
+          {/* The region is in the row before a refusal is: a live region that arrives with
+              its own text is a region a screen reader never announces. */}
+          <div aria-live="polite">
+            {rowErrors[row.name] !== undefined && (
+              <p className="mt-1 font-sans text-[12px] whitespace-normal text-bad">
+                {rowErrors[row.name]}
+              </p>
+            )}
+          </div>
         </div>
       ),
     },
     {
       key: "adb_port",
-      label: "ADB port",
+      label: "Port",
       mono: true,
       width: "140px",
       render: (row) => (
@@ -296,7 +301,7 @@ export function Instances({ settingsPatch }: { settingsPatch: SettingsPatch }) {
                 id={`instance-tag-${row.name}`}
                 value={tagText[row.name] ?? stored}
                 onChange={(value) => onTagChange(row.name, value)}
-                placeholder="#TAG"
+                placeholder={`#2P0YLQ9${ELLIPSIS}`}
                 width="full"
               />
             </span>
@@ -361,6 +366,8 @@ export function Instances({ settingsPatch }: { settingsPatch: SettingsPatch }) {
           Scan again
         </Button>
       </div>
+
+      <p className="text-[12px] text-muted">Scan again finds running BlueStacks instances.</p>
 
       {failure !== null && <ErrorBlock error={failure} />}
 

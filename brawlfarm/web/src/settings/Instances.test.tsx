@@ -172,6 +172,24 @@ describe("Settings > Instances", () => {
     });
   });
 
+  it("names the port column Port, tells the scan what it does, and announces a refusal", async () => {
+    server();
+    mount();
+    const [pie64] = await rows();
+    expect(screen.getAllByRole("columnheader")[1]).toHaveTextContent("Port");
+    expect(screen.queryByRole("columnheader", { name: "ADB port" })).toBeNull();
+    expect(
+      screen.getByText("Scan again finds running BlueStacks instances."),
+    ).toBeInTheDocument();
+    // An example tag rather than the word TAG, and the ellipsis for what is cut off.
+    expect(within(pie64).getByLabelText("Player tag for Pie64")).toHaveAttribute(
+      "placeholder",
+      "#2P0YLQ9…",
+    );
+    // The region is in the row before a refusal lands in it, so the refusal is announced.
+    expect(pie64.querySelector('[aria-live="polite"]')).not.toBeNull();
+  });
+
   it("keeps Edit in the row and leaves removal to the Data section", async () => {
     server();
     mount();

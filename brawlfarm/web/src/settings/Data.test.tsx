@@ -1,5 +1,5 @@
 /** Settings > Data: open the folder, delete one instance's folder, reset everything. */
-import { renderHook, screen, waitFor, within } from "@testing-library/react";
+import { fireEvent, renderHook, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { Route, Routes } from "react-router";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -119,17 +119,47 @@ afterEach(() => {
 });
 
 describe("Settings > Data", () => {
-  it("opens the data folder, with the home path only in the button's tooltip", async () => {
+  it("copies the home path, and says so when the browser refused", async () => {
+    const writeText = vi.fn<(text: string) => Promise<void>>().mockResolvedValue(undefined);
+    server();
+    vi.stubGlobal("navigator", { clipboard: { writeText } });
+    const view = mount();
+    fireEvent.click(await screen.findByRole("button", { name: "Copy" }));
+    await waitFor(() => {
+      expect(writeText).toHaveBeenCalledWith("C:/data/brawlfarm");
+    });
+    await waitFor(() => {
+      expect(toastMessages()).toEqual(["Path copied"]);
+    });
+    view.unmount();
+    resetToasts();
+    vi.unstubAllGlobals();
+
+    server();
+    const refused = vi
+      .fn<(text: string) => Promise<void>>()
+      .mockRejectedValue(new Error("not allowed"));
+    vi.stubGlobal("navigator", { clipboard: { writeText: refused } });
+    mount();
+    fireEvent.click(await screen.findByRole("button", { name: "Copy" }));
+    await waitFor(() => {
+      expect(toastMessages()).toEqual([
+        "Could not copy the path. Select it and copy by hand.",
+      ]);
+    });
+  });
+
+  it("opens the data folder, and prints the home path where it can be read", async () => {
     const { calls } = server();
     mount();
     const button = await screen.findByRole("button", { name: "Open data folder" });
     await waitFor(() => {
       expect(screen.getByTitle("C:/data/brawlfarm")).toBeInTheDocument();
     });
-    // In the tooltip and nowhere else: a path with a user name in it must not be in the
-    // page's text, where a screenshot would catch it.
-    expect(screen.queryByText("C:/data/brawlfarm")).not.toBeInTheDocument();
     expect(screen.getByTitle("C:/data/brawlfarm")).toHaveAttribute("data-private");
+    // The path is on the page now, so it can be read and copied, and every place it is
+    // printed carries data-private for the screenshot pass.
+    expect(screen.getByText("C:/data/brawlfarm")).toHaveAttribute("data-private");
 
     await userEvent.click(button);
     await waitFor(() => {

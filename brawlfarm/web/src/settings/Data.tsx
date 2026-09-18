@@ -1,9 +1,11 @@
 /**
  * Settings > Data: files on this machine.
  *
- * The home folder is a real path with a user name in it, so it appears in exactly one place:
- * the title of the open-folder button. Not in a heading, not in a caption, not in an error.
- * A screenshot of this page is therefore safe to paste into an issue.
+ * The home folder is a real path with a user name in it, and it is printed so it can be read
+ * and copied: once as the open-folder button's title and once in a mono block beside Copy.
+ * Both carry data-private, which is what the screenshot pass blurs, so a shot of this page is
+ * still safe to paste into an issue. It appears nowhere else: not in a heading, not in a
+ * caption, not in an error.
  *
  * Every irreversible act on the panel is here, in one Danger zone at the end: removing an
  * instance from the fleet, deleting one instance's data, and the reset. Each one is a
@@ -50,6 +52,17 @@ export function Data({ settingsPatch }: { settingsPatch: SettingsPatch }) {
   const [rowErrors, setRowErrors] = useState<Record<string, string>>({});
 
   if (settings === undefined) return null;
+
+  const copyPath = () => {
+    void navigator.clipboard.writeText(health?.home ?? "").then(
+      () => {
+        toast("Path copied");
+      },
+      () => {
+        toast("Could not copy the path. Select it and copy by hand.", { tone: "bad" });
+      },
+    );
+  };
 
   const openFolder = () => {
     void openDataFolder().catch((error: unknown) => {
@@ -143,7 +156,7 @@ export function Data({ settingsPatch }: { settingsPatch: SettingsPatch }) {
 
   return (
     <div className="space-y-5">
-      <div>
+      <div className="space-y-2">
         {/* The title is on a wrapper rather than on Button, so Button's props stay exactly
             as phase 4 left them. data-private is what the screenshot pass blurs. */}
         <span title={health?.home} data-private>
@@ -151,6 +164,16 @@ export function Data({ settingsPatch }: { settingsPatch: SettingsPatch }) {
             Open data folder
           </Button>
         </span>
+        {health !== undefined && (
+          <div className="flex flex-wrap items-center gap-2">
+            <span data-private className="font-mono text-[12px] break-all text-muted">
+              {health.home}
+            </span>
+            <Button variant="secondary" size="sm" onClick={copyPath}>
+              Copy
+            </Button>
+          </div>
+        )}
       </div>
 
       <div className="rounded-[10px] border border-bad p-3">
