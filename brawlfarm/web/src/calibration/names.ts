@@ -125,10 +125,34 @@ const SCREEN_STATE_LABELS: Record<string, string> = {
   unknown: "Unknown screen",
 };
 
-/** Underscores to spaces, sentence case: enough to keep a raw identifier off the screen
- * whichever case it arrived in. */
+/** The abbreviations the identifiers are written in, expanded one underscore-separated
+ * token at a time. Per token rather than per name, so this stays a mechanical map and not
+ * a second place to word a label: the six names that need wording are above.
+ *
+ * A mapped token keeps the case written here, which is why humanise only ever capitalises
+ * the first character of the finished label. */
+const WORDS: Record<string, string> = {
+  btn: "button",
+  pos: "position",
+  dnd: "Do Not Disturb",
+  scid: "Supercell ID",
+  x: "X",
+  ok: "OK",
+  id: "ID",
+  ingame: "in-game",
+  centre: "center",
+  "24h": "24 h",
+  "30d": "30 d",
+};
+
+/** Underscores to spaces, abbreviations spelled out, sentence case: enough to keep a raw
+ * identifier off the screen whichever case it arrived in. */
 function humanise(name: string): string {
-  return sentence(name.split("_").join(" ").toLowerCase());
+  const words = name
+    .split("_")
+    .map((token) => token.toLowerCase())
+    .map((token) => WORDS[token] ?? token);
+  return sentence(words.join(" "));
 }
 
 export function anchorLabel(name: string): string {

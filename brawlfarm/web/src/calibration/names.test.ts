@@ -96,6 +96,20 @@ const SCREEN_STATES: [string, string][] = [
   ["unknown", "Unknown screen"],
 ];
 
+/** Abbreviations the identifiers carry that a reader should never have to decode. The map
+ * runs per underscore-separated token, so no entry here is per-name wording. */
+const HUMANISED: [string, string][] = [
+  ["BUSH_SELF_POS", "Bush self position"],
+  ["DND_MUTES_CONFIRM", "Do Not Disturb mutes confirm"],
+  ["DND_MUTE_FRIENDS_24H_RADIO", "Do Not Disturb mute friends 24 h radio"],
+  ["DND_MUTE_RECENT_30D", "Do Not Disturb mute recent 30 d"],
+  ["SCID_CLOSE_X", "Supercell ID close X"],
+  ["SCID_GEAR", "Supercell ID gear"],
+  ["SETTINGS_SUPERCELL_ID_BTN", "Settings supercell ID button"],
+  ["INGAME_MODAL_OK_BUTTON", "In-game modal OK button"],
+  ["JOYSTICK_CENTRE", "Joystick center"],
+];
+
 describe("SCREEN_OPTIONS", () => {
   it("offers Menu, Brawlers, Match and All in that order", () => {
     expect(SCREEN_OPTIONS).toEqual([
@@ -139,6 +153,22 @@ describe("constantLabel", () => {
   it("humanises a name it does not know", () => {
     expect(constantLabel("PLAY_BUTTON")).toBe("Play button");
     expect(constantLabel("SOMETHING_NEW")).toBe("Something new");
+  });
+});
+
+describe("the humanised fallback", () => {
+  it.each(HUMANISED)("%s reads as %s", (name, label) => {
+    expect(constantLabel(name)).toBe(label);
+  });
+
+  it("leaves a name with nothing to expand exactly as it was", () => {
+    expect(constantLabel("PLAY_BUTTON")).toBe("Play button");
+    expect(constantLabel("SOMETHING_NEW")).toBe("Something new");
+  });
+
+  it("is the one fallback behind every label on the page", () => {
+    expect(anchorLabel("bush_self_pos")).toBe("Bush self position");
+    expect(screenStateLabel("ingame_popup")).toBe("In-game popup");
   });
 });
 
