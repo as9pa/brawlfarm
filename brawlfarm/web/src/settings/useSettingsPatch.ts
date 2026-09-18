@@ -79,15 +79,19 @@ export function fieldError(errors: Record<string, string>, loc: string): string 
 
 /** What every settings section does with a patch: toast once the document is on disk, and
  * hand anything else back so the section can show it. A 422 is deliberately swallowed here,
- * because the hook has already put each message under its own field. */
+ * because the hook has already put each message under its own field.
+ *
+ * `quiet` is for the caller that says something of its own about the write it just made:
+ * "Settings saved" stacked under that sentence is two notes for one save. */
 export function saveSettingAsync(
   patch: SettingsPatch["patch"],
   mutate: (draft: AppSettings) => void,
   onFailure: (error: unknown) => void,
+  options: { quiet?: boolean } = {},
 ): Promise<void> {
   return patch(mutate).then(
     () => {
-      toast("Settings saved");
+      if (options.quiet !== true) toast("Settings saved");
     },
     (error: unknown) => {
       if (!(error instanceof ApiError && error.status === 422)) onFailure(error);

@@ -214,18 +214,22 @@ describe("Settings > Behavior", () => {
     // Only the advanced section moved, whatever else the defaults document differs on.
     expect(puts(calls)[0].behavior).toEqual(makeSettings().behavior);
     expect(current().advanced.gray_match).toBe(false);
-    await waitFor(() => {
-      expect(toastMessages()).toContain("Advanced switches back to defaults");
+    // One note for the write, not the generic one stacked under this one.
+    await vi.waitFor(() => {
+      expect(toastMessages()).toEqual(["Advanced switches back to defaults"]);
     });
 
     const undo = renderHook(() => useToasts()).result.current.at(-1)?.undo;
     expect(undo).toBeDefined();
+    // Awaited, so the undo's own write and anything it wanted to say have both happened.
     await undo?.();
     await waitFor(() => {
       expect(puts(calls)).toHaveLength(2);
     });
     expect(puts(calls)[1].advanced).toEqual(makeSettings().advanced);
     expect(current().advanced.gray_match).toBe(true);
+    // The undo is the same one write, so it raises no second note either.
+    expect(toastMessages()).toEqual(["Advanced switches back to defaults"]);
   });
 
   it("offers no way back when advanced is already at the defaults", async () => {
