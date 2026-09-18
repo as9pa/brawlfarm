@@ -142,7 +142,7 @@ describe("constantLabel", () => {
   it.each([
     ["CLOSE_X_BUTTON", "Close X button"],
     ["SAFE_DISMISS_POINT", "Safe place to tap"],
-    ["MOVE_ORIGIN", "Joystick centre"],
+    ["MOVE_ORIGIN", "Joystick center"],
     ["MATCH_THRESHOLD", "Match confidence"],
     ["IN_MATCH_THRESHOLD", "In-match confidence"],
     ["MATCHMAKING_THRESHOLD", "Players found confidence"],

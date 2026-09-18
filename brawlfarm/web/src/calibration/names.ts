@@ -107,7 +107,7 @@ const MENU_TAPS: ReadonlySet<string> = new Set([
 const CONSTANT_LABELS: Record<string, string> = {
   CLOSE_X_BUTTON: "Close X button",
   SAFE_DISMISS_POINT: "Safe place to tap",
-  MOVE_ORIGIN: "Joystick centre",
+  MOVE_ORIGIN: "Joystick center",
   MATCH_THRESHOLD: "Match confidence",
   IN_MATCH_THRESHOLD: "In-match confidence",
   MATCHMAKING_THRESHOLD: "Players found confidence",
