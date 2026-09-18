@@ -2,23 +2,23 @@
 
 An open-source Brawl Stars trophy farmer for BlueStacks on Windows, with a local control panel in your browser.
 
-Status: v1.0.0. Phases 1 to 7 of the plan are done; phase 8 (a calibration page, recalibration for the current game version, a desktop window and tray icon, a labeled frame recorder) follows. See `docs/PLAN.md`.
+Status: v1.1.0. Every phase in the plan has shipped; this release is the panel pass over copy, the component kit, fleet, instance, stats, settings, calibration and narrow screens. See `docs/PLAN.md` for the history.
 
 ## Screenshots
 
-The panel, running against a scratch data directory with three example instances: one offline, two stopped.
+The panel, running against a scratch data directory with three example instances on a scheduled break, with nothing listening on their adb ports.
 
 ![The Fleet page: one card per instance with today's games and trophies](docs/img/fleet.png)
-Fleet: every instance at a glance, with start, stop and restart controls.
+Fleet: every instance at a glance, with its figures for today and its start and stop controls.
 
 ![An instance page: live screen, farm plan, schedule and session totals](docs/img/instance.png)
 Instance: the live screen, the farm plan, the day's schedule and the session so far.
 
 ![The Settings page listing the configured instances](docs/img/settings.png)
-Settings: instances, adb connection, behavior switches, schedule and notifications.
+Settings: instances, connection, behavior switches, notifications, data and about.
 
-![The Calibration page: recorder, anchor scores and threshold overrides](docs/img/calibration.png)
-Calibration: what the workers see, the anchor scores and the threshold overrides in force.
+![The Calibration page: recorder and observe switches, what it looks for, and the thresholds in force](docs/img/calibration.png)
+Calibration: what the panel looks for on the screen, the recorder and observe switches, and the thresholds in force.
 
 ## What it does
 
