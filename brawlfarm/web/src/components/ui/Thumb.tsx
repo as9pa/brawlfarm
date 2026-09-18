@@ -12,7 +12,8 @@
  * the image element exactly as it is. Nothing is drawn over the image: the frame's own
  * timestamp goes up to the caller through `onFrame`, and the caller says how old the
  * picture is in its own words, beside everything else it has to say. A caller with
- * nothing else to say asks for `showClock` instead and gets that stamp in the caption.
+ * nothing else to say asks for `showClock` instead and gets a small stamp pinned to the
+ * corner of the frame, which is the one thing drawn over the picture.
  *
  * A change of `refreshKey` fetches immediately: that is the Instance page's Refresh
  * button. The `<img>` carries data-private so the pull request's screenshots can blur it.
@@ -39,7 +40,7 @@ export interface ThumbProps {
    * controls. The interval poll stays quiet: a control that went dead once a second would
    * flicker rather than inform. */
   onBusyChange?: (busy: boolean) => void;
-  /** Caption the frame with its age and the time it was taken, rather than nothing. */
+  /** Stamp the corner of the frame with its age and the time it was taken. */
   showClock?: boolean;
 }
 
@@ -170,12 +171,6 @@ export function Thumb({
   // here rather than twice below.
   const takenAtIso = stamp === null ? null : new Date(stamp.takenAt).toISOString();
   const takenAtClock = takenAtIso === null ? undefined : clock(takenAtIso);
-  // The stamp speaks for the caption: the page that asks for the clock never captions a
-  // break, and a break card never asks for the clock.
-  const shownCaption =
-    showClock && stamp !== null
-      ? `${age(stamp.takenAt, stamp.seenAt)} (${takenAtClock})`
-      : caption;
 
   return (
     <div className="relative aspect-video w-full overflow-hidden rounded-[6px] border border-line bg-panel-2">
@@ -189,7 +184,7 @@ export function Thumb({
       )}
       {/* One stack, not two overlays: a broken adb and a scheduled break happen together
        * all the time, and centering both on inset-0 drew the caption over the error. */}
-      {(error !== null || shownCaption !== undefined) && (
+      {(error !== null || caption !== undefined) && (
         <div
           data-testid="thumb-overlay"
           className="absolute inset-0 flex flex-col items-center justify-center gap-1 p-3 text-center"
@@ -202,14 +197,24 @@ export function Thumb({
               <span className="text-[12px] text-muted">Retrying in 15 s.</span>
             </>
           )}
-          {shownCaption !== undefined && (
+          {caption !== undefined && (
             <span className="text-[13px] text-text" title={takenAtClock}>
-              {shownCaption}
+              {caption}
             </span>
           )}
         </div>
       )}
       {overlay !== undefined && <div className="absolute left-2 top-2">{overlay}</div>}
+      {/* A corner chip rather than the centred block: the centre of a live frame is the
+          game, and a line of white text across it reads as part of the picture. */}
+      {showClock && stamp !== null && (
+        <span
+          title={takenAtClock}
+          className="absolute bottom-2 right-2 rounded-[6px] border border-line bg-panel-2 px-1.5 py-0.5 text-[11px] text-muted"
+        >
+          {`${age(stamp.takenAt, stamp.seenAt)} (${takenAtClock})`}
+        </span>
+      )}
     </div>
   );
 }

@@ -256,7 +256,12 @@ describe("Thumb", () => {
       await vi.advanceTimersByTimeAsync(0);
     });
     const at = clock("2026-09-10T12:00:00.000Z");
-    expect(screen.getByText(`5 s ago (${at})`)).toHaveAttribute("title", at);
+    const stamp = screen.getByText(`5 s ago (${at})`);
+    expect(stamp).toHaveAttribute("title", at);
+    // A corner chip, not the block that fills the frame: the picture stays readable.
+    expect(stamp.className).toContain("bottom-2");
+    expect(stamp.className).not.toContain("inset-0");
+    expect(screen.queryByTestId("thumb-overlay")).not.toBeInTheDocument();
   });
 
   it("leaves the caption alone without the clock, and titles it either way", async () => {
