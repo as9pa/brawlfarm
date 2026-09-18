@@ -1,5 +1,5 @@
-/** The settings frame: seven sections in the nav, the one you are on marked, the title with
- * its one sentence, and a section id that is not one of the seven saying so instead of
+/** The settings frame: six sections in the nav, the one you are on marked, the title with
+ * its one sentence, and a section id that is not one of the six saying so instead of
  * quietly moving you somewhere else. */
 import { screen, within } from "@testing-library/react";
 import { Route, Routes } from "react-router";
@@ -32,7 +32,7 @@ afterEach(() => {
 });
 
 describe("Settings", () => {
-  it("lists the seven sections in order and marks the one you are on", async () => {
+  it("lists the six sections in order and marks the one you are on", async () => {
     stubApi();
     mount("/settings/instances");
     const nav = screen.getByRole("navigation", { name: "Settings sections" });
@@ -40,11 +40,12 @@ describe("Settings", () => {
       "Instances",
       "Connection",
       "Behavior",
-      "Schedule",
       "Notifications",
       "Data",
       "About",
     ]);
+    // Schedule folded into Behavior, so its own link is gone.
+    expect(within(nav).queryByRole("link", { name: "Schedule" })).not.toBeInTheDocument();
     expect(within(nav).getByRole("link", { name: "Instances" })).toHaveAttribute(
       "aria-current",
       "page",
@@ -65,7 +66,7 @@ describe("Settings", () => {
     expect(screen.queryByText(/^Saved \d\d:\d\d$/)).not.toBeInTheDocument();
   });
 
-  it("says so when the section in the URL is not one of the seven", () => {
+  it("says so when the section in the URL is not one of the six", () => {
     stubApi();
     mount("/settings/nope");
     expect(screen.getByText("unknown settings section")).toBeInTheDocument();

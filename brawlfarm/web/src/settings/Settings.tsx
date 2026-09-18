@@ -19,12 +19,11 @@ import { Connection } from "./Connection";
 import { Data } from "./Data";
 import { Instances } from "./Instances";
 import { Notifications } from "./Notifications";
-import { Schedule } from "./Schedule";
 import { SETTINGS_SECTIONS, type SectionId, SettingsNav } from "./SettingsNav";
 import { type SettingsPatch, useSettingsPatch } from "./useSettingsPatch";
 import { ErrorBlock } from "../components/ui/ErrorBlock";
 
-/** Every section takes the same one prop, so the table below can hold all seven. Null is
+/** Every section takes the same one prop, so the table below can hold all six. Null is
  * in the return type because a section whose rows all read the settings document renders
  * nothing until the first GET lands, rather than a half-built row of empty controls. */
 type SectionView = (props: { settingsPatch: SettingsPatch }) => ReactElement | null;
@@ -35,7 +34,6 @@ const SECTION_VIEWS: Record<SectionId, SectionView> = {
   instances: Instances,
   connection: Connection,
   behavior: Behavior,
-  schedule: Schedule,
   notifications: Notifications,
   data: Data,
   about: About,

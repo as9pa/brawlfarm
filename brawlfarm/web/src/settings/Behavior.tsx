@@ -3,11 +3,13 @@
  *
  * Thirteen switches over two sections of the settings document, six of them plain and seven
  * behind Advanced, which starts collapsed because they are performance and safety switches
- * that are on for a reason.
+ * that are on for a reason. The schedule new instances start with sits under the plain six,
+ * because a schedule is a default you set once and then forget about.
  *
  * Each row is built by one of the two helpers below rather than by a literal table, so the
  * key is checked against the settings type at compile time and the dotted loc the API sends
- * a 422 under is derived from it instead of typed out twice.
+ * a 422 under is derived from it instead of typed out twice. The schedule row is written out
+ * instead, because it writes scheduler.default_enabled rather than a behavior key.
  */
 import { useState } from "react";
 
@@ -60,13 +62,37 @@ function advanced<K extends keyof AppSettings["advanced"]>(
 }
 
 const BASIC: readonly Toggle[] = [
-  behavior("winrate_aware", "Win-rate aware", "Prefer brawlers that win more in the current step."),
-  behavior("opportunity_cost", "Opportunity cost", "Skip brawlers whose next tier is far off."),
-  behavior("gas_aware", "Gas aware", "Move away from the gas earlier."),
-  behavior("bush_hide", "Bush hide", "Hide in bushes when the map allows."),
-  behavior("close_game_on_stop", "Close game on stop", "Close Brawl Stars when the instance stops."),
-  behavior("dnd_at_start", "DND at start", "Turn on Do Not Disturb when the instance starts."),
+  behavior(
+    "winrate_aware",
+    "Prefer brawlers that win",
+    "Picks the brawler with the best win rate in the current step.",
+  ),
+  behavior(
+    "opportunity_cost",
+    "Skip far-off tiers",
+    "Skips brawlers whose next tier is more than a session away.",
+  ),
+  behavior("gas_aware", "Leave the gas early", "Moves away from the gas one ring sooner."),
+  behavior("bush_hide", "Hide in bushes", "Hides in bushes when the map allows."),
+  behavior(
+    "close_game_on_stop",
+    "Close the game on stop",
+    "Closes Brawl Stars when the instance stops.",
+  ),
+  behavior(
+    "dnd_at_start",
+    "Do Not Disturb on start",
+    "Turns on Do Not Disturb when the instance starts.",
+  ),
 ];
+
+/** What the schedule row promises, taken from brawlfarm/core/scheduler.py: the session and
+ * break ranges it draws from, the longer outing, the start window and the daily total. */
+const SCHEDULE_DESCRIPTION =
+  "Sessions run 30 minutes to 2 hours, sometimes up to 2 and a half, with breaks of 45 " +
+  "minutes to 2 hours between them and one or two longer outings of 2 to 4 hours. Play " +
+  "starts within 2 hours of midnight and adds up to about 9 hours a day. Change the hours " +
+  "for one instance on its own page.";
 
 const ADVANCED: readonly Toggle[] = [
   advanced("fast_input", "Fast input", "Send taps through the faster adb path."),
@@ -114,7 +140,28 @@ export function Behavior({ settingsPatch }: { settingsPatch: SettingsPatch }) {
   return (
     <div>
       {failure !== null && <ErrorBlock error={failure} />}
-      <div>{rows(BASIC)}</div>
+      <div>
+        {rows(BASIC)}
+        <SettingRow
+          title="Schedule"
+          description={SCHEDULE_DESCRIPTION}
+          error={fieldError(fieldErrors, "scheduler.default_enabled")}
+        >
+          <Switch
+            checked={settings.scheduler.default_enabled}
+            onChange={(next) =>
+              saveSetting(
+                patch,
+                (document) => {
+                  document.scheduler.default_enabled = next;
+                },
+                setFailure,
+              )
+            }
+            label="Schedule on by default"
+          />
+        </SettingRow>
+      </div>
 
       <div className="mt-4">
         <div className="flex items-center gap-2">

@@ -1,5 +1,5 @@
 /**
- * The second-level nav, and the table that names the seven sections.
+ * The second-level nav, and the table that names the six sections.
  *
  * The table lives here rather than in Settings.tsx so the nav and the section heading read
  * the same labels and the same sentences from one place, and so the import only ever points
@@ -15,7 +15,6 @@ export type SectionId =
   | "instances"
   | "connection"
   | "behavior"
-  | "schedule"
   | "notifications"
   | "data"
   | "about";
@@ -37,8 +36,11 @@ export const SETTINGS_SECTIONS: readonly SettingsSection[] = [
     label: "Connection",
     description: "How brawlfarm reaches BlueStacks and the Brawl Stars API.",
   },
-  { id: "behavior", label: "Behavior", description: "How an instance plays." },
-  { id: "schedule", label: "Schedule", description: "The default for new instances." },
+  {
+    id: "behavior",
+    label: "Behavior",
+    description: "How an instance plays, and the schedule new instances start with.",
+  },
   { id: "notifications", label: "Notifications", description: "Where alerts go." },
   { id: "data", label: "Data", description: "Files on this machine." },
   { id: "about", label: "About", description: "Theme, version and links." },
