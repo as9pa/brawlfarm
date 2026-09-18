@@ -8,7 +8,7 @@
 import { NavLink } from "react-router";
 
 import { useInstances } from "../api/useInstances";
-import { TONE_DOT, stateTone } from "../lib/states";
+import { StateChip } from "../components/ui/StateChip";
 
 const SECTIONS: { to: string; label: string; soon: boolean }[] = [
   { to: "/", label: "Fleet", soon: false },
@@ -59,24 +59,17 @@ export function Rail() {
       <div className="hidden min-[820px]:block">
         <p className="px-3 pb-1 pt-3 text-[11px] uppercase tracking-wide text-muted">Instances</p>
         <ul className="space-y-0.5 px-2 pb-2">
-          {(instances ?? []).map((inst) => {
-            const tone = stateTone(inst.state);
-            return (
-              <li key={inst.name}>
-                <NavLink
-                  to={`/instances/${inst.name}`}
-                  className={({ isActive }) => linkClass(isActive)}
-                >
-                  <span
-                    data-tone={tone}
-                    aria-hidden="true"
-                    className={`h-1.5 w-1.5 shrink-0 rounded-full ${TONE_DOT[tone]}`}
-                  />
-                  <span className="truncate font-mono text-[12px]">{inst.name}</span>
-                </NavLink>
-              </li>
-            );
-          })}
+          {(instances ?? []).map((inst) => (
+            <li key={inst.name}>
+              <NavLink
+                to={`/instances/${inst.name}`}
+                className={({ isActive }) => linkClass(isActive)}
+              >
+                <span className="t-name min-w-0 truncate text-[13px]">{inst.name}</span>
+                <StateChip state={inst.state} />
+              </NavLink>
+            </li>
+          ))}
         </ul>
       </div>
     </nav>

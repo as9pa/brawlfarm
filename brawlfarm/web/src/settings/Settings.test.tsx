@@ -53,14 +53,15 @@ describe("Settings", () => {
       "href",
       "/settings/about",
     );
-    expect(await screen.findByRole("heading", { level: 2, name: "Instances" })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { level: 1, name: "Instances" })).toBeInTheDocument();
+    expect(screen.getAllByRole("heading", { level: 1 })).toHaveLength(1);
     expect(screen.getByText("Which BlueStacks instances brawlfarm farms.")).toBeInTheDocument();
   });
 
   it("shows no saved caption until something has been saved", async () => {
     stubApi();
     mount("/settings/instances");
-    expect(await screen.findByRole("heading", { level: 2, name: "Instances" })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { level: 1, name: "Instances" })).toBeInTheDocument();
     expect(screen.queryByText(/^Saved \d\d:\d\d$/)).not.toBeInTheDocument();
   });
 

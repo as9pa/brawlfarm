@@ -47,4 +47,9 @@ describe("Button", () => {
     await userEvent.click(button);
     expect(onClick).not.toHaveBeenCalled();
   });
+
+  it("takes an accessible name over its visible text", () => {
+    render(<Button aria-label="Alerts, 6 unread">Alerts</Button>);
+    expect(screen.getByRole("button", { name: "Alerts, 6 unread" })).toBeInTheDocument();
+  });
 });

@@ -31,25 +31,28 @@ afterEach(() => {
 });
 
 describe("Thumb", () => {
-  it("fetches the preview, shows its age and marks the image private", async () => {
+  it("fetches the preview, draws nothing over it and marks the image private", async () => {
     const { calls } = stubFetch(() => jpegResponse());
     render(<Thumb name="Pie64" refreshMs={false} />);
     const image = await screen.findByRole("img", { name: "Pie64 screen" });
     expect(image).toHaveAttribute("src", "blob:fake/1");
     expect(image).toHaveAttribute("data-private");
-    expect(screen.getByText("0 s ago")).toBeInTheDocument();
+    expect(image.parentElement).toHaveTextContent("");
     expect(calls[0].url).toBe("/api/instances/Pie64/preview.jpg");
   });
 
-  it("ages the caption from the frame's own timestamp, not from the fetch", async () => {
+  it("hands up the frame's own timestamp, not the moment of the fetch", async () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-09-10T12:00:05Z"));
     stubFetch(() => jpegResponse({ "last-modified": "Thu, 10 Sep 2026 12:00:00 GMT" }));
-    render(<Thumb name="Pie64" refreshMs={false} />);
+    const frames: number[] = [];
+    render(
+      <Thumb name="Pie64" refreshMs={false} onFrame={(takenAt) => frames.push(takenAt)} />,
+    );
     await act(async () => {
       await vi.advanceTimersByTimeAsync(0);
     });
-    expect(screen.getByText("5 s ago")).toBeInTheDocument();
+    expect(frames).toEqual([Date.parse("2026-09-10T12:00:00Z")]);
   });
 
   it("refreshes on the interval and revokes the url it replaced", async () => {

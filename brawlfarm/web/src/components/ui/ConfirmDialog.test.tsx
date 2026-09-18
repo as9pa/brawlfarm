@@ -32,7 +32,9 @@ describe("ConfirmDialog", () => {
     expect(confirm).toHaveAttribute("title", "Type Pie64_3 to confirm");
     expect(box).toHaveAttribute("placeholder", "Pie64_3");
     expect(
-      screen.getByText("Its data folder stays on disk. Type the name to confirm."),
+      screen.getByText(
+        "Its data folder stays on disk. Type the name to confirm.",
+      ),
     ).toBeInTheDocument();
 
     await userEvent.type(box, "pie64_3");
@@ -65,5 +67,25 @@ describe("ConfirmDialog", () => {
     rerender(remove(true, onConfirm, vi.fn()));
     expect(screen.getByLabelText("Type to confirm")).toHaveValue("");
     expect(screen.getByRole("button", { name: "Remove" })).toBeDisabled();
+  });
+
+  it("confirms on the button alone when there is no word to type", async () => {
+    const onConfirm = vi.fn();
+    render(
+      <ConfirmDialog
+        open
+        onClose={vi.fn()}
+        title="Dismiss all alerts?"
+        body="They leave the drawer and the bell count. Nothing is un-dismissed."
+        confirmLabel="Dismiss all"
+        tone="bad"
+        onConfirm={onConfirm}
+      />,
+    );
+    const confirm = screen.getByRole("button", { name: "Dismiss all" });
+    expect(confirm).toBeEnabled();
+    expect(screen.queryByLabelText("Type to confirm")).not.toBeInTheDocument();
+    await userEvent.click(confirm);
+    expect(onConfirm).toHaveBeenCalledTimes(1);
   });
 });

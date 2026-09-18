@@ -90,34 +90,35 @@ describe("App", () => {
     render(<App />);
     expect(screen.getByText("brawlfarm")).toBeInTheDocument();
     // The rail and the Fleet card both link to the same instance, so each is asked for
-    // where it lives: the rail entry inside the navigation landmark, the card by the
+    // where it lives: the rail entry inside the Sections landmark, the card by the
     // name its stretched link carries.
     expect(
-      await within(screen.getByRole("navigation")).findByRole("link", { name: "Pie64" }),
+      await within(screen.getByRole("navigation", { name: "Sections" })).findByRole("link", {
+        name: "Pie64 Farming",
+      }),
     ).toBeInTheDocument();
     expect(await screen.findByRole("link", { name: "Open Pie64" })).toBeInTheDocument();
   });
 
-  it("gives the page one h1, the top bar's route title", async () => {
+  it("gives the page one h1 and leaves the top bar without one", async () => {
     // Two level-one headings saying the same word is a screen reader reading the page
-    // name twice and a document outline with no top. The page's own heading sits under
-    // the bar's, so it is an h2.
+    // name twice and a document outline with no top. The bar carries a breadcrumb
+    // instead, so the page's own heading is the only h1 on screen.
     stubApi();
     render(<App />);
     expect(await screen.findByRole("link", { name: "Open Pie64" })).toBeInTheDocument();
     expect(screen.getAllByRole("heading", { level: 1 }).map((h) => h.textContent)).toEqual([
       "Fleet",
     ]);
-    expect(screen.getByRole("heading", { level: 2, name: "Fleet" })).toBeInTheDocument();
   });
 
   it("renders the Stats page at /stats", async () => {
-    // "Stats" is on screen three times here: the rail link, the bar's own h1 and the
+    // "Stats" is on screen three times here: the rail link, the bar's breadcrumb and the
     // page heading under it, so only a role query can pick out the one that matters.
     stubApi();
     window.history.pushState({}, "", "/stats");
     render(<App />);
-    expect(await screen.findByRole("heading", { level: 2, name: "Stats" })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { level: 1, name: "Stats" })).toBeInTheDocument();
   });
 
   it("applies the stored theme and never renders the API token", async () => {
@@ -202,10 +203,10 @@ describe("App", () => {
     stubApi();
     window.history.pushState({}, "", "/settings");
     render(<App />);
-    expect(await screen.findByRole("heading", { level: 2, name: "Instances" })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { level: 1, name: "Instances" })).toBeInTheDocument();
     expect(window.location.pathname).toBe("/settings/instances");
-    // Every section is one page as far as the top bar is concerned.
-    expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Settings");
+    // Every section is one page as far as the bar's breadcrumb is concerned.
+    expect(screen.getByRole("navigation", { name: "Breadcrumb" })).toHaveTextContent("Settings");
   });
 
   it("puts the wizard on its own page, outside the shell", async () => {

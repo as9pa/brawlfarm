@@ -19,13 +19,20 @@ describe("Drawer", () => {
 
   it("is a modal dialog named by its title, with its actions in the header", () => {
     render(
-      <Drawer open onClose={vi.fn()} title="Alerts" actions={<Button variant="quiet">Dismiss all</Button>}>
+      <Drawer
+        open
+        onClose={vi.fn()}
+        title="Alerts"
+        actions={<Button variant="quiet">Dismiss all</Button>}
+      >
         <p>rows</p>
       </Drawer>,
     );
     const dialog = screen.getByRole("dialog", { name: "Alerts" });
     expect(dialog).toHaveAttribute("aria-modal", "true");
-    expect(screen.getByRole("button", { name: "Dismiss all" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Dismiss all" }),
+    ).toBeInTheDocument();
   });
 
   it("closes on Escape", async () => {
@@ -73,5 +80,21 @@ describe("Drawer", () => {
       </Drawer>,
     );
     expect(screen.getByRole("button", { name: "Dismiss" })).toHaveFocus();
+  });
+
+  it("locks the page behind it and puts the body back the way it found it", () => {
+    document.body.style.overflow = "auto";
+    const panel = (open: boolean) => (
+      <Drawer open={open} onClose={vi.fn()} title="Alerts">
+        <p>rows</p>
+      </Drawer>
+    );
+    const { rerender } = render(panel(true));
+    expect(document.body.style.overflow).toBe("hidden");
+    // The captured value, not a hard-coded "": a second modal closing would otherwise
+    // unlock the page behind the first.
+    rerender(panel(false));
+    expect(document.body.style.overflow).toBe("auto");
+    document.body.style.overflow = "";
   });
 });

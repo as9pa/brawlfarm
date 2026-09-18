@@ -148,7 +148,9 @@ describe("Calibration", () => {
   it("names itself and preselects the first running instance", async () => {
     server();
     mount();
-    expect(screen.getByRole("heading", { name: "Calibration" })).toBeInTheDocument();
+    expect(screen.getAllByRole("heading", { level: 1 }).map((h) => h.textContent)).toEqual([
+      "Calibration",
+    ]);
     expect(
       await screen.findByText(
         "What brawlfarm sees. The page reads; calibration.toml and the templates folder write.",

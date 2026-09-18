@@ -119,7 +119,7 @@ export function Stats() {
   if (instancesQuery.isError) {
     return (
       <section className="flex flex-col gap-3">
-        <h2 className="text-[28px] font-semibold tracking-tight">Stats</h2>
+        <h1 className="text-[28px] font-semibold tracking-tight">Stats</h1>
         <ErrorBlock
           error={instancesQuery.error}
           onRetry={() => void instancesQuery.refetch()}
@@ -131,7 +131,7 @@ export function Stats() {
   if (stats.isError) {
     return (
       <section className="flex flex-col gap-3">
-        <h2 className="text-[28px] font-semibold tracking-tight">Stats</h2>
+        <h1 className="text-[28px] font-semibold tracking-tight">Stats</h1>
         {toolbar}
         <ErrorBlock error={stats.error} onRetry={() => void stats.refetch()} />
       </section>
@@ -140,7 +140,7 @@ export function Stats() {
 
   return (
     <section className="flex flex-col gap-3">
-      <h2 className="text-[28px] font-semibold tracking-tight">Stats</h2>
+      <h1 className="text-[28px] font-semibold tracking-tight">Stats</h1>
       {toolbar}
       {/* Above the empty state on purpose: a missing token explains the empty page. */}
       {strip}

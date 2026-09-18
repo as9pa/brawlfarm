@@ -10,6 +10,8 @@ export interface ButtonProps {
   onClick?: (event: MouseEvent<HTMLButtonElement>) => void;
   children: ReactNode;
   type?: "button" | "submit";
+  /** For a control whose visible text is shorter than its meaning, such as a count. */
+  "aria-label"?: string;
 }
 
 const VARIANTS: Record<NonNullable<ButtonProps["variant"]>, string> = {
@@ -32,12 +34,14 @@ export function Button({
   onClick,
   children,
   type = "button",
+  "aria-label": ariaLabel,
 }: ButtonProps) {
   return (
     <button
       type={type}
       disabled={disabled}
       title={disabled ? disabledReason : undefined}
+      aria-label={ariaLabel}
       onClick={onClick}
       className={`inline-flex items-center gap-1.5 rounded-[6px] font-medium transition-[background-color,border-color,color] duration-[120ms] disabled:cursor-not-allowed disabled:opacity-50 ${SIZES[size]} ${VARIANTS[variant]}`}
     >
