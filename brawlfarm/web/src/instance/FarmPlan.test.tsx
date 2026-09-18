@@ -12,6 +12,30 @@ import { renderWithProviders } from "../test/renderWithProviders";
 
 const PLAN = "/api/instances/Pie64/plan";
 
+/** The prestige caption, which is also the mode group's description. */
+const PRESTIGE_NOTE =
+  "Goal 1,000, the prestige threshold. Prestige ignores your goal and the quest-aware pick.";
+
+/** Fifteen brawlers, three past the cap the open list draws at. Names only: a fixture
+ * never carries a player tag. */
+const LONG_ROSTER = [
+  "SHELLY",
+  "COLT",
+  "BULL",
+  "BROCK",
+  "JESSIE",
+  "NITA",
+  "DYNAMIKE",
+  "EL PRIMO",
+  "BARLEY",
+  "POCO",
+  "ROSA",
+  "RICO",
+  "DARRYL",
+  "PENNY",
+  "CARL",
+].map((name, index) => makeRosterBrawler({ id: 100 + index, name, trophies: 900 - index * 10 }));
+
 function toastMessages(): string[] {
   return renderHook(() => useToasts()).result.current.map((item) => item.message);
 }
@@ -66,17 +90,17 @@ describe("FarmPlan", () => {
       maxed_fallback: null,
       quest_aware: false,
     });
-    expect(toastMessages()).toEqual(["Plan saved"]);
-    expect(screen.getByText(/^Saved \d\d:\d\d$/)).toBeInTheDocument();
+    expect(toastMessages()).toEqual(["Plan set to Prestige"]);
+    expect(screen.getByText(/^Mode saved \d\d:\d\d$/)).toBeInTheDocument();
     expect(await screen.findByRole("radio", { name: "Lowest" })).toBeInTheDocument();
-    expect(screen.getByText("Goal 1,000, the prestige threshold")).toBeInTheDocument();
+    expect(screen.getByText(PRESTIGE_NOTE)).toBeInTheDocument();
   });
 
   it("shows the goal for ladder and hides the prestige caption", async () => {
     mount();
     renderWithProviders(<FarmPlan name="Pie64" />);
     expect(await screen.findByLabelText("Goal")).toHaveValue(1000);
-    expect(screen.queryByText("Goal 1,000, the prestige threshold")).not.toBeInTheDocument();
+    expect(screen.queryByText(PRESTIGE_NOTE)).not.toBeInTheDocument();
   });
 
   it("says so in words when there is no current brawler and no queue", async () => {
@@ -346,6 +370,52 @@ describe("FarmPlan", () => {
     expect(await screen.findByText("Roster unavailable right now.")).toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "Settings, Connection" })).toBeNull();
   });
+
+  it("says what the Maxed fallback switch is for, as its own description", async () => {
+    mount();
+    renderWithProviders(<FarmPlan name="Pie64" />);
+    const toggle = await screen.findByRole("switch", { name: "Maxed fallback" });
+    const help = document.getElementById(String(toggle.getAttribute("aria-describedby")));
+    expect(help).toHaveTextContent(
+      "When the target brawler is at max rank, farm this one instead.",
+    );
+  });
+
+  it("tells the reader what Prestige ignores, as the mode group's description", async () => {
+    mount(makePlan({ mode: "prestige" }));
+    renderWithProviders(<FarmPlan name="Pie64" />);
+    const group = await screen.findByRole("radiogroup", { name: "Plan" });
+    const note = document.getElementById(String(group.getAttribute("aria-describedby")));
+    expect(note).toHaveTextContent(PRESTIGE_NOTE);
+  });
+
+  it("announces the roster toggle and the list it opens", async () => {
+    mount();
+    renderWithProviders(<FarmPlan name="Pie64" />);
+    const toggle = await screen.findByRole("button", { name: "Show all brawlers" });
+    expect(toggle).toHaveAttribute("aria-expanded", "false");
+    expect(toggle).toHaveAttribute("aria-controls", "plan-roster");
+    await userEvent.click(toggle);
+    expect(screen.getByRole("button", { name: "Hide all brawlers" })).toHaveAttribute(
+      "aria-expanded",
+      "true",
+    );
+    expect(screen.getByTestId("plan-roster")).toHaveAttribute("id", "plan-roster");
+  });
+
+  it("caps a long roster, lifts the cap on request, and filters by name", async () => {
+    mount(makePlan({ roster: LONG_ROSTER, queue: [] }));
+    renderWithProviders(<FarmPlan name="Pie64" />);
+    await userEvent.click(await screen.findByRole("button", { name: "Show all brawlers" }));
+    expect(screen.getByTestId("plan-roster").querySelectorAll("li")).toHaveLength(12);
+
+    await userEvent.click(screen.getByRole("button", { name: "Show all 15" }));
+    expect(screen.getByTestId("plan-roster").querySelectorAll("li")).toHaveLength(15);
+
+    await userEvent.type(screen.getByLabelText("Search brawlers"), "ar");
+    const rows = screen.getByTestId("plan-roster").querySelectorAll("li");
+    expect([...rows].map((li) => li.textContent)).toEqual(["BARLEY820", "DARRYL780", "CARL760"]);
+  });
 });
 
 /** One keystroke on a controlled field. fireEvent rather than userEvent: userEvent awaits
@@ -580,5 +650,68 @@ describe("FarmPlan pending writes", () => {
     expect(screen.getByText("adb did not answer")).toBeInTheDocument();
     expect(screen.getByLabelText("Goal")).toHaveValue(1000);
     expect(screen.getByLabelText("Fallback brawler")).toHaveValue("TARA");
+  });
+});
+
+/** A rejected value is explained where it was typed, and the complaint waits for the
+ * debounce so a number on its way to being valid is never told off mid-keystroke. */
+describe("FarmPlan inline validation", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+  });
+
+  afterEach(() => {
+    resetToasts();
+    vi.useRealTimers();
+    vi.unstubAllGlobals();
+  });
+
+  it("says why a fractional goal is rejected, saves nothing, and clears when it is whole", async () => {
+    const calls = mount();
+    renderWithProviders(<FarmPlan name="Pie64" />);
+    await tick(0);
+    const goal = screen.getByLabelText("Goal");
+
+    keystroke(goal, "1000.5");
+    expect(screen.queryByText("Whole numbers only")).not.toBeInTheDocument(); // still typing
+    await tick(500);
+    expect(screen.getByText("Whole numbers only")).toBeInTheDocument();
+    expect(goal).toHaveAttribute("aria-invalid", "true");
+    expect(puts(calls)).toHaveLength(0);
+
+    keystroke(goal, "1000");
+    expect(screen.queryByText("Whole numbers only")).not.toBeInTheDocument();
+    await tick(500);
+    expect(puts(calls)).toHaveLength(1);
+  });
+
+  it("names the field in the caption and leaves a field save without a toast", async () => {
+    const calls = mount();
+    renderWithProviders(<FarmPlan name="Pie64" />);
+    await tick(0);
+
+    keystroke(screen.getByLabelText("Goal"), "850");
+    await tick(500);
+    expect(puts(calls)).toHaveLength(1);
+    expect(screen.getByText(/^Goal saved \d\d:\d\d$/)).toBeInTheDocument();
+    expect(toastMessages()).toEqual([]);
+  });
+
+  it("refuses a fallback the roster does not have and saves one it does", async () => {
+    const calls = mount();
+    renderWithProviders(<FarmPlan name="Pie64" />);
+    await tick(0);
+    fireEvent.click(screen.getByRole("switch", { name: "Maxed fallback" }));
+
+    keystroke(screen.getByLabelText("Fallback brawler"), "BONNIE");
+    await tick(500);
+    expect(screen.getByText("Not in your roster")).toBeInTheDocument();
+    expect(puts(calls)).toHaveLength(0);
+
+    keystroke(screen.getByLabelText("Fallback brawler"), "tara");
+    await tick(500);
+    expect(screen.queryByText("Not in your roster")).not.toBeInTheDocument();
+    expect(puts(calls)).toHaveLength(1);
+    expect(screen.getByText(/^Fallback saved \d\d:\d\d$/)).toBeInTheDocument();
   });
 });

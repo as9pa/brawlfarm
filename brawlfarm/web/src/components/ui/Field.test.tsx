@@ -17,11 +17,13 @@ describe("Field", () => {
         type="number"
         suffix="trophies"
         min={0}
+        max={12}
       />,
     );
     const input = screen.getByLabelText("Goal");
     expect(input).toHaveValue(1000);
     expect(input).toHaveAttribute("min", "0");
+    expect(input).toHaveAttribute("max", "12");
     expect(screen.getByText("trophies")).toBeInTheDocument();
     await userEvent.type(input, "1");
     expect(onChange).toHaveBeenLastCalledWith("10001");
@@ -149,5 +151,13 @@ describe("Field", () => {
       />,
     );
     expect(screen.getByLabelText("Brawl Stars API token")).toHaveAttribute("spellcheck", "false");
+  });
+
+  it("tells the caller when focus has left the box", async () => {
+    const onBlur = vi.fn();
+    render(<Field label="Goal" id="goal" value="1000" onChange={vi.fn()} onBlur={onBlur} />);
+    await userEvent.click(screen.getByLabelText("Goal"));
+    await userEvent.tab();
+    expect(onBlur).toHaveBeenCalledTimes(1);
   });
 });

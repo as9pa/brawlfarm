@@ -17,14 +17,16 @@ import { BrawlerIcon } from "../components/ui/BrawlerIcon";
 import { Button } from "../components/ui/Button";
 import { ErrorBlock } from "../components/ui/ErrorBlock";
 import { Field } from "../components/ui/Field";
+import { PanelSkeleton } from "../components/ui/PanelSkeleton";
 import { Segmented } from "../components/ui/Segmented";
 import { Switch } from "../components/ui/Switch";
-import { count, NO_BRAWLER_YET, NOT_YET, QUEUE_EMPTY } from "../lib/copy";
+import { count, ELLIPSIS, modeName, NO_BRAWLER_YET, NOT_YET, QUEUE_EMPTY } from "../lib/copy";
 import { hhmm } from "../lib/time";
 import { toast } from "../lib/toast";
 
 const PRESTIGE_GOAL = 1000; // core/farmplan.PRESTIGE_GOAL: prestige finishes a brawler here
 const DEBOUNCE_MS = 500; // a typed field saves once the typing stops, not per keystroke
+const ROSTER_CAP = 12; // the open list draws this many, then offers the rest
 
 /** The five keys the API stores, lifted out of the enriched response. */
 function planOf(response: PlanResponse): FarmPlanBody {
@@ -94,11 +96,18 @@ export function FarmPlan({ name }: { name: string }) {
     refetchOnWindowFocus: false,
   });
   const [savedAt, setSavedAt] = useState<string | null>(null);
+  const [savedField, setSavedField] = useState<string | null>(null);
   const [failure, setFailure] = useState<unknown>(null);
   const [showAll, setShowAll] = useState(false);
+  const [rosterSearch, setRosterSearch] = useState("");
+  const [rosterCapped, setRosterCapped] = useState(true);
   const [fallbackOn, setFallbackOn] = useState<boolean | null>(null);
   const [goalText, setGoalText] = useState<string | null>(null);
   const [fallbackText, setFallbackText] = useState<string | null>(null);
+  // One state per box: a shared error would blame the goal for a fallback the roster
+  // does not have, and the reader would have to guess which box to fix.
+  const [goalError, setGoalError] = useState<string | null>(null);
+  const [fallbackError, setFallbackError] = useState<string | null>(null);
   const goalTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const fallbackTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const chain = useRef<Promise<void>>(Promise.resolve());
@@ -112,7 +121,7 @@ export function FarmPlan({ name }: { name: string }) {
     [],
   );
 
-  const run = async (patch: Partial<FarmPlanBody>) => {
+  const run = async (patch: Partial<FarmPlanBody>, label: string) => {
     const before = client.getQueryData<PlanResponse>(queryKeys.plan(name));
     if (before === undefined) return;
     client.setQueryData<PlanResponse>(queryKeys.plan(name), { ...before, ...patch });
@@ -121,7 +130,12 @@ export function FarmPlan({ name }: { name: string }) {
       client.setQueryData<PlanResponse>(queryKeys.plan(name), saved);
       setFailure(null);
       setSavedAt(new Date().toISOString());
-      toast("Plan saved");
+      setSavedField(label);
+      // The caption is the confirmation, one per save and it names the box. A mode
+      // switch is the exception: it redraws the whole panel, so it says so out loud.
+      if (patch.mode !== undefined) {
+        toast(`Plan set to ${modeName(patch.mode)}`, { tone: "ok" });
+      }
     } catch (error) {
       client.setQueryData<PlanResponse>(queryKeys.plan(name), before);
       // Only the box whose save failed goes back to the stored value; text the reader is
@@ -145,8 +159,8 @@ export function FarmPlan({ name }: { name: string }) {
    * that breaks in some unforeseen way cannot stop every later save: run() reports its
    * own failures inline already.
    */
-  const save = (patch: Partial<FarmPlanBody>) => {
-    chain.current = chain.current.then(() => run(patch)).catch(() => undefined);
+  const save = (patch: Partial<FarmPlanBody>, label: string) => {
+    chain.current = chain.current.then(() => run(patch, label)).catch(() => undefined);
   };
 
   /**
@@ -158,24 +172,53 @@ export function FarmPlan({ name }: { name: string }) {
     if (goalTimer.current !== null) clearTimeout(goalTimer.current);
     goalTimer.current = null;
     setGoalText(null);
+    setGoalError(null);
   };
 
   const cancelFallback = () => {
     if (fallbackTimer.current !== null) clearTimeout(fallbackTimer.current);
     fallbackTimer.current = null;
     setFallbackText(null);
+    setFallbackError(null);
+  };
+
+  /** What the goal box says about a value it will not save. An empty box is not wrong
+   * yet, so it says nothing about one. */
+  const checkGoal = (value: string) => {
+    const trimmed = value.trim();
+    setGoalError(trimmed === "" || /^\d+$/.test(trimmed) ? null : "Whole numbers only");
   };
 
   const onGoal = (value: string) => {
     setGoalText(value);
     if (goalTimer.current !== null) clearTimeout(goalTimer.current);
-    if (!/^\d+$/.test(value.trim())) return; // an integer >= 0; anything else waits
-    const goal_trophies = Number(value.trim());
+    const trimmed = value.trim();
+    if (!/^\d+$/.test(trimmed)) {
+      // An integer >= 0; anything else waits, and so does the complaint about it. 1000
+      // is typed through 1, 10 and 100, and a reader told off at every keystroke is
+      // being nagged rather than helped, so the message lands on the debounce tick or
+      // on the blur, never on the keystroke itself.
+      goalTimer.current = setTimeout(() => {
+        goalTimer.current = null;
+        checkGoal(value);
+      }, DEBOUNCE_MS);
+      return;
+    }
+    setGoalError(null);
+    const goal_trophies = Number(trimmed);
     goalTimer.current = setTimeout(() => {
       goalTimer.current = null;
       setGoalText(null);
-      save({ goal_trophies });
+      save({ goal_trophies }, "Goal");
     }, DEBOUNCE_MS);
+  };
+
+  /** The roster as the cache holds it now, which is the list the box is offering. A
+   * panel with no roster at all has nothing to check a name against, so it checks
+   * nothing: refusing every name there would leave the fallback unusable. */
+  const inRoster = (typed: string) => {
+    const known = client.getQueryData<PlanResponse>(queryKeys.plan(name))?.roster ?? [];
+    return known.length === 0 || known.some((b) => b.name.toUpperCase() === typed.toUpperCase());
   };
 
   const onFallback = (value: string) => {
@@ -184,13 +227,20 @@ export function FarmPlan({ name }: { name: string }) {
     const trimmed = value.trim();
     fallbackTimer.current = setTimeout(() => {
       fallbackTimer.current = null;
+      // A name the roster does not have is a brawler the worker could never pick, so
+      // it is refused in the box rather than stored.
+      if (trimmed !== "" && !inRoster(trimmed)) {
+        setFallbackError("Not in your roster");
+        return;
+      }
       setFallbackText(null);
-      save({ maxed_fallback: trimmed === "" ? null : trimmed });
+      setFallbackError(null);
+      save({ maxed_fallback: trimmed === "" ? null : trimmed }, "Fallback");
     }, DEBOUNCE_MS);
   };
 
   if (query.isPending) {
-    return <section className="rounded-[10px] border border-line bg-panel p-3" />;
+    return <PanelSkeleton label="the farm plan" rows={6} />;
   }
   if (query.isError) {
     return <ErrorBlock error={query.error} onRetry={() => void query.refetch()} />;
@@ -208,19 +258,27 @@ export function FarmPlan({ name }: { name: string }) {
   const showFallback = fallbackOn ?? plan.maxed_fallback !== null;
   const listId = `${name}-roster`;
   const questHelpId = `${name}-quest-help`;
+  const fallbackHelpId = `${name}-fallback-help`;
+  const prestigeNoteId = `${name}-prestige-note`;
+  const needle = rosterSearch.trim().toLowerCase();
+  const matches = roster.filter((b) => b.name.toLowerCase().includes(needle));
+  const shown = rosterCapped ? matches.slice(0, ROSTER_CAP) : matches;
 
   return (
     <section className="flex flex-col gap-3 rounded-[10px] border border-line bg-panel p-3">
       <div className="flex items-baseline gap-2">
         <h2 className="text-[13px] font-semibold">Farm plan</h2>
         {savedAt === null ? null : (
-          <span className="ml-auto text-[11px] text-muted">Saved {hhmm(savedAt)}</span>
+          <span className="ml-auto text-[11px] text-muted">
+            {savedField} saved {hhmm(savedAt)}
+          </span>
         )}
       </div>
       {failure === null ? null : <ErrorBlock error={failure} />}
 
       <Segmented
         label="Plan"
+        describedBy={prestige ? prestigeNoteId : undefined}
         value={plan.mode}
         options={[
           { value: "ladder", label: "Ladder" },
@@ -229,7 +287,7 @@ export function FarmPlan({ name }: { name: string }) {
         onChange={(mode) => {
           // Prestige takes the goal box away, so anything half typed into it goes too.
           if (mode !== plan.mode) cancelGoal();
-          save({ mode });
+          save({ mode }, "Mode");
         }}
       />
 
@@ -241,12 +299,15 @@ export function FarmPlan({ name }: { name: string }) {
             { value: "highest", label: "Highest" },
             { value: "lowest", label: "Lowest" },
           ]}
-          onChange={(prestige_start) => save({ prestige_start })}
+          onChange={(prestige_start) => save({ prestige_start }, "Start with")}
         />
       ) : null}
 
       {prestige ? (
-        <p className="text-[12px] text-muted">Goal {count(PRESTIGE_GOAL)}, the prestige threshold</p>
+        <p id={prestigeNoteId} className="text-[12px] text-muted">
+          Goal {count(PRESTIGE_GOAL)}, the prestige threshold. Prestige ignores your goal and the
+          quest-aware pick.
+        </p>
       ) : (
         <Field
           label="Goal"
@@ -256,12 +317,16 @@ export function FarmPlan({ name }: { name: string }) {
           suffix="trophies"
           value={goalText ?? String(plan.goal_trophies)}
           onChange={onGoal}
+          onBlur={() => checkGoal(goalText ?? "")}
+          error={goalError ?? undefined}
+          help={goalError === null ? "Whole numbers, in trophies." : undefined}
         />
       )}
 
       <Switch
         label="Maxed fallback"
         checked={showFallback}
+        describedBy={fallbackHelpId}
         onChange={(on) => {
           setFallbackOn(on);
           // Turning it off drops a name still being typed and clears the stored one;
@@ -269,10 +334,13 @@ export function FarmPlan({ name }: { name: string }) {
           // no fallback to the worker.
           if (!on) {
             cancelFallback();
-            if (plan.maxed_fallback !== null) save({ maxed_fallback: null });
+            if (plan.maxed_fallback !== null) save({ maxed_fallback: null }, "Fallback");
           }
         }}
       />
+      <p id={fallbackHelpId} className="text-[12px] text-muted">
+        When the target brawler is at max rank, farm this one instead.
+      </p>
       {showFallback ? (
         <>
           <Field
@@ -281,7 +349,8 @@ export function FarmPlan({ name }: { name: string }) {
             value={fallbackText ?? plan.maxed_fallback ?? ""}
             onChange={onFallback}
             list={listId}
-            placeholder="Brawler name"
+            placeholder={`Shelly${ELLIPSIS}`}
+            error={fallbackError ?? undefined}
           />
           <datalist id={listId}>
             {roster.map((b) => (
@@ -300,7 +369,7 @@ export function FarmPlan({ name }: { name: string }) {
             label="Pick quest brawlers"
             checked={plan.quest_aware ?? false}
             describedBy={questHelpId}
-            onChange={(quest_aware) => save({ quest_aware })}
+            onChange={(quest_aware) => save({ quest_aware }, "Pick quest brawlers")}
           />
           <p id={questHelpId} className="text-[12px] text-muted">
             Applies at session start only. The instance reads the quests screen and picks an owned
@@ -358,22 +427,54 @@ export function FarmPlan({ name }: { name: string }) {
 
       {roster.length === 0 ? null : (
         <div className="flex flex-col gap-1">
-          <Button variant="quiet" size="sm" onClick={() => setShowAll((open) => !open)}>
+          <Button
+            variant="quiet"
+            size="sm"
+            aria-expanded={showAll}
+            aria-controls="plan-roster"
+            onClick={() => setShowAll((open) => !open)}
+          >
             {showAll ? "Hide all brawlers" : "Show all brawlers"}
           </Button>
-          {/* The API already sorts the roster by trophies descending. */}
+          {/* The API already sorts the roster by trophies descending. The list is drawn a
+              screenful at a time: a cap, a search box and a scroll box, because a roster
+              of ninety names is a wall rather than a list. */}
           {showAll ? (
-            <ul data-testid="plan-roster">
-              {roster.map((b) => (
-                <li key={b.id} className="flex items-center gap-2 text-[13px]">
-                  <BrawlerIcon name={b.name} />
-                  <span className="font-mono">{b.name}</span>
-                  <span className="ml-auto font-mono text-[12px] tabular-nums text-muted">
-                    {b.trophies}
-                  </span>
-                </li>
-              ))}
-            </ul>
+            <>
+              <Field
+                label="Search brawlers"
+                id={`${name}-roster-search`}
+                width="full"
+                value={rosterSearch}
+                onChange={setRosterSearch}
+              />
+              <div role="presentation" className="flex gap-2 text-[12px] text-muted">
+                <span>Brawler</span>
+                <span className="ml-auto">Trophies</span>
+              </div>
+              <div className="max-h-[320px] overflow-y-auto">
+                <ul id="plan-roster" data-testid="plan-roster">
+                  {shown.map((b) => (
+                    <li
+                      key={b.id}
+                      style={{ contentVisibility: "auto" }}
+                      className="flex items-center gap-2 text-[13px]"
+                    >
+                      <BrawlerIcon name={b.name} />
+                      <span className="font-mono">{b.name}</span>
+                      <span className="ml-auto font-mono text-[12px] tabular-nums text-muted">
+                        {count(b.trophies)}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+              {rosterCapped && matches.length > ROSTER_CAP ? (
+                <Button variant="quiet" size="sm" onClick={() => setRosterCapped(false)}>
+                  Show all {count(matches.length)}
+                </Button>
+              ) : null}
+            </>
           ) : null}
         </div>
       )}

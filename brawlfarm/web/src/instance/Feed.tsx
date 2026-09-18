@@ -6,12 +6,16 @@ import { useEffect, useRef, useState } from "react";
 import { getFeed } from "../api/feed";
 import { queryKeys } from "../api/queries";
 import type { FeedEvent, FeedKind, FeedRecord, FeedResponse } from "../api/types";
+import { Button } from "../components/ui/Button";
 import { ErrorBlock } from "../components/ui/ErrorBlock";
+import { PanelSkeleton } from "../components/ui/PanelSkeleton";
 import { Segmented } from "../components/ui/Segmented";
 import { Switch } from "../components/ui/Switch";
+import { withDays } from "../lib/feedDays";
 import { collapseMirrors } from "../lib/feedMirrors";
 import { feedText } from "../lib/feedText";
-import { TONE_DOT } from "../lib/states";
+import { dateTime } from "../lib/format";
+import { TONE_DOT, type Tone } from "../lib/states";
 import { hhmmss } from "../lib/time";
 import { subscribe } from "../live/useEvents";
 
@@ -34,6 +38,13 @@ const FOLLOW_SLACK_PX = 40; // a nudge of the wheel is not "I want to read back"
 /** A long session writes thousands of lines; the reader scrolls back a screen or two, not
  * a whole afternoon, so the list keeps the newest 500 and lets the rest go. */
 const MAX_RECORDS = 500;
+
+/** The word a tone says out loud. A dot is a colour and nothing else to a reader who
+ * cannot see it, so the two tones that mean something went wrong name themselves. */
+const TONE_WORD: Partial<Record<Tone, string>> = {
+  warn: "Interrupt",
+  bad: "Error",
+};
 
 /** A line's identity: its 1-based seq inside the session file that produced it. */
 export function feedKey(session: string | null, record: FeedRecord): string {
@@ -126,37 +137,73 @@ export function Feed({ name, session }: { name: string; session: string | null }
           onChange={(next) => setKind(next)}
         />
         <div className="ml-auto">
-          <Switch checked={follow} onChange={setFollow} label="Follow" />
+          <Switch
+            checked={follow}
+            onChange={setFollow}
+            label="Follow"
+            describedBy={`${name}-follow-help`}
+          />
+          <p id={`${name}-follow-help`} className="text-[11px] text-muted">
+            Scrolling up turns this off.
+          </p>
         </div>
       </div>
       {query.isError ? (
         <ErrorBlock error={query.error} onRetry={() => void query.refetch()} />
-      ) : query.isPending ? null : shown.length === 0 ? (
+      ) : query.isPending ? (
+        <PanelSkeleton label="the feed" rows={5} bare />
+      ) : shown.length === 0 ? (
         <p className="p-2 text-[13px] text-muted">{EMPTY[kind]}</p>
       ) : (
         <div
           ref={listRef}
           onScroll={onScroll}
           data-testid="feed-list"
-          className="max-h-[420px] overflow-y-auto"
+          role="log"
+          aria-live="polite"
+          aria-relevant="additions"
+          className="max-h-[min(60vh,640px)] overflow-y-auto"
         >
           <ul>
-            {shown.map((record) => {
+            {withDays(shown, new Date().toISOString()).map((item) => {
+              if (item.kind === "day") {
+                return (
+                  <li key={`day-${item.label}`} className="pt-2 text-[11px] text-muted">
+                    {item.label}
+                  </li>
+                );
+              }
+              const record = item.record;
               const line = feedText(record);
+              const word = TONE_WORD[line.tone];
               return (
                 <li key={feedKey(active, record)} className="flex items-baseline gap-2 py-[3px]">
-                  <span className="font-mono text-[11px] tabular-nums text-muted">
+                  <span
+                    title={dateTime(record.ts)}
+                    className="font-mono text-[11px] tabular-nums text-muted"
+                  >
                     {hhmmss(record.ts)}
                   </span>
                   <span
                     aria-hidden="true"
                     className={`h-[6px] w-[6px] shrink-0 rounded-full ${TONE_DOT[line.tone]}`}
                   />
-                  <span className="text-[13px]">{line.text}</span>
+                  <span className="text-[13px]">
+                    {word !== undefined && <b className="font-semibold">{word}</b>}
+                    {word !== undefined && " "}
+                    {line.text}
+                  </span>
                 </li>
               );
             })}
           </ul>
+          {!follow && (
+            <div className="sticky bottom-0 flex justify-center pb-1">
+              <Button variant="secondary" size="sm" onClick={() => setFollow(true)}>
+                Jump to latest
+              </Button>
+            </div>
+          )}
         </div>
       )}
     </section>

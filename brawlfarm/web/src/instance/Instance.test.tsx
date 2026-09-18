@@ -1,6 +1,6 @@
 /** The /instances/:name frame: which row of the fleet it picks, what its header says
  * about that instance, and what each of its controls calls. */
-import { renderHook, screen, waitFor } from "@testing-library/react";
+import { renderHook, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { Route, Routes } from "react-router";
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
@@ -104,10 +104,13 @@ function mountPage() {
 }
 
 describe("Instance", () => {
-  it("renders nothing but the shell while the fleet is loading", () => {
+  it("announces a loading panel while the fleet is loading", () => {
     stubFetch(() => new Promise<Response>(() => {}));
-    const { container } = mountPage();
-    expect(container.textContent).toBe("");
+    mountPage();
+    expect(screen.getByRole("status", { name: "Loading Pie64" })).toHaveAttribute(
+      "aria-busy",
+      "true",
+    );
   });
 
   it("reports an unknown instance with the API's own words", async () => {
@@ -118,7 +121,7 @@ describe("Instance", () => {
     ).toBeInTheDocument();
   });
 
-  it("heads the page with the name, state, port, tag, phase and a screenshot link", async () => {
+  it("heads the page with the name, state and phase, and labels every token below", async () => {
     stubPage([
       makeInstance({
         name: "Pie64",
@@ -128,16 +131,43 @@ describe("Instance", () => {
         player_tag: "#2P0YLQ9",
       }),
     ]);
-    mountPage();
+    const { container } = mountPage();
     expect(await screen.findByRole("heading", { level: 1, name: "Pie64" })).toBeInTheDocument();
     expect(screen.getByText("Farming")).toBeInTheDocument();
-    expect(screen.getByText("5555")).toBeInTheDocument();
     expect(screen.getByText("Playing")).toBeInTheDocument();
+    // Every value in the second row carries its own label, so no bare number is left to
+    // guess at.
+    expect(screen.getByText("Player tag")).toBeInTheDocument();
     expect(screen.getByText("#2P0YLQ9")).toHaveAttribute("data-private");
-    const shot = screen.getByRole("link", { name: "Screenshot" });
-    expect(shot).toHaveAttribute("href", "/api/instances/Pie64/screenshot.png");
-    expect(shot).toHaveAttribute("target", "_blank");
-    expect(shot).toHaveAttribute("rel", "noreferrer");
+    expect(screen.getByText("ADB port")).toBeInTheDocument();
+    expect(screen.getByText("5555")).toBeInTheDocument();
+    expect(screen.getByText("Data folder")).toBeInTheDocument();
+    expect(screen.getByText("instances/Pie64")).toBeInTheDocument();
+    // The shell's breadcrumb already reads Fleet / Pie64, so the header does not say it
+    // a second time.
+    const header = container.querySelector("header") as HTMLElement;
+    expect(within(header).queryByRole("link", { name: "Fleet" })).not.toBeInTheDocument();
+  });
+
+  it("leaves the whole player tag group out when there is no tag", async () => {
+    stubPage([makeInstance({ name: "Pie64", player_tag: "" })]);
+    mountPage();
+    await screen.findByRole("heading", { level: 1, name: "Pie64" });
+    expect(screen.queryByText("Player tag")).not.toBeInTheDocument();
+  });
+
+  it("opens the screenshot from a button rather than a link", async () => {
+    stubPage([makeInstance({ name: "Pie64", state: "farming" })]);
+    const open = vi.fn();
+    vi.stubGlobal("open", open);
+    mountPage();
+    expect(screen.queryByRole("link", { name: "Screenshot" })).not.toBeInTheDocument();
+    await userEvent.click(await screen.findByRole("button", { name: "Screenshot" }));
+    expect(open).toHaveBeenCalledWith(
+      "/api/instances/Pie64/screenshot.png",
+      "_blank",
+      "noopener",
+    );
   });
 
   it("stops after this match and offers an undo that starts again", async () => {
@@ -174,12 +204,28 @@ describe("Instance", () => {
     });
   });
 
-  it("restarts the instance and only then says so", async () => {
+  it("asks before it restarts, and sends nothing when the question is cancelled", async () => {
     const calls = stubPage([makeInstance({ name: "Pie64", state: "farming" })]);
     mountPage();
     await userEvent.click(await screen.findByRole("button", { name: "Restart" }));
+    const dialog = await screen.findByRole("dialog", { name: "Restart Pie64?" });
+    expect(dialog).toHaveTextContent("The current match is abandoned.");
+    expect(calls.map((call) => call.url)).not.toContain("/api/instances/Pie64/restart");
+
+    await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(calls.map((call) => call.url)).not.toContain("/api/instances/Pie64/restart");
+    expect(toasts()).toHaveLength(0);
+  });
+
+  it("restarts the instance once the question is confirmed, and only then says so", async () => {
+    const calls = stubPage([makeInstance({ name: "Pie64", state: "farming" })]);
+    mountPage();
+    await userEvent.click(await screen.findByRole("button", { name: "Restart" }));
+    const dialog = await screen.findByRole("dialog", { name: "Restart Pie64?" });
+    await userEvent.click(within(dialog).getByRole("button", { name: "Restart" }));
     await waitFor(() => {
-      expect(calls.map((call) => call.url)).toContain("/api/instances/Pie64/restart");
+      const restarts = calls.filter((call) => call.url === "/api/instances/Pie64/restart");
+      expect(restarts).toHaveLength(1);
     });
     await waitFor(() => {
       expect(toasts()[0]?.message).toBe("Restarting Pie64");
@@ -205,6 +251,41 @@ describe("Instance", () => {
     expect(toasts()[0].message).toBe("Retrying Pie64 now");
   });
 
+  it("orders the panels by job: watch, then read, then the numbers and the plans", async () => {
+    stubPage([makeInstance({ name: "Pie64", state: "farming" })]);
+    const { container } = mountPage();
+    await screen.findByRole("heading", { level: 1, name: "Pie64" });
+    await waitFor(() => {
+      const headings = screen
+        .getAllByRole("heading", { level: 2 })
+        .map((heading) => heading.textContent);
+      expect(headings).toEqual(["Live screen", "Feed", "Session", "Farm plan", "Schedule"]);
+    });
+    // One DOM order at both widths, so the tab order and the reading order agree.
+    for (const id of ["watch", "session", "plan", "schedule"]) {
+      expect(container.querySelectorAll(`#${id}`)).toHaveLength(1);
+    }
+  });
+
+  it("offers a jump bar that reaches the four panels the page can scroll past", async () => {
+    stubPage([makeInstance({ name: "Pie64", state: "farming" })]);
+    mountPage();
+    const bar = await screen.findByRole("navigation", { name: "Jump to a panel" });
+    const links = within(bar).getAllByRole("link");
+    expect(links.map((link) => link.textContent)).toEqual([
+      "Watch",
+      "Session",
+      "Plan",
+      "Schedule",
+    ]);
+    expect(links.map((link) => link.getAttribute("href"))).toEqual([
+      "#watch",
+      "#session",
+      "#plan",
+      "#schedule",
+    ]);
+  });
+
   it("speaks the API's own sentence when a control fails, and says nothing else", async () => {
     stubFailingPage("adb did not answer");
     mountPage();
@@ -220,6 +301,8 @@ describe("Instance", () => {
     const calls = stubFailingPage("BlueStacks did not come back");
     mountPage();
     await userEvent.click(await screen.findByRole("button", { name: "Restart" }));
+    const dialog = await screen.findByRole("dialog", { name: "Restart Pie64?" });
+    await userEvent.click(within(dialog).getByRole("button", { name: "Restart" }));
     await waitFor(() => {
       expect(toasts()[0]?.message).toBe("BlueStacks did not come back");
     });

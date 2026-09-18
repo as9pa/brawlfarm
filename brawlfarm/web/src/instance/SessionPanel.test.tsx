@@ -7,6 +7,11 @@ import { SessionPanel } from "./SessionPanel";
 import { makeInstance, makeLastSession } from "../test/fixtures";
 import { renderWithProviders } from "../test/renderWithProviders";
 
+/** The panel's own heading, which names the session or the last one. */
+function heading(): HTMLElement {
+  return screen.getByRole("heading", { level: 2 });
+}
+
 /** One <dd> by the label in the <dt> beside it. */
 function figure(label: string): HTMLElement {
   const term = screen.getByText(label);
@@ -115,6 +120,7 @@ describe("SessionPanel", () => {
       />,
     );
     expect(screen.getByText("Session ended Sep 12, 22:14")).toBeInTheDocument();
+    expect(heading().textContent).toBe("Last session");
     expect(figure("Games")).toHaveTextContent("12");
     expect(figure("Trophies")).toHaveTextContent("+86");
     expect(figure("Avg rank")).toHaveTextContent("3.4");
@@ -202,5 +208,27 @@ describe("SessionPanel", () => {
     expect(rank).toHaveTextContent("No games yet");
     expect(rank.className).not.toContain("font-mono");
     expect(rank.className).toContain("text-muted");
+  });
+  it("names the session while it runs and calls it the last one once it is over", () => {
+    const { rerender } = render(
+      <SessionPanel inst={farming} avgRank={3.42} interrupts={4} stopAt={null} />,
+    );
+    expect(heading().textContent).toBe("Session");
+    rerender(
+      <SessionPanel
+        inst={makeInstance({ name: "Pie64", state: "stopped", games_played: null, session: null })}
+        avgRank={null}
+        interrupts={0}
+        stopAt="2026-09-11T14:15:40"
+      />,
+    );
+    expect(heading().textContent).toBe("Last session");
+  });
+
+  it("announces a changed figure without reading the whole panel out", () => {
+    render(<SessionPanel inst={farming} avgRank={3.42} interrupts={4} stopAt={null} />);
+    const figures = screen.getByText("Games").closest("dl") as HTMLElement;
+    expect(figures).toHaveAttribute("aria-live", "polite");
+    expect(figures).toHaveAttribute("aria-atomic", "false");
   });
 });

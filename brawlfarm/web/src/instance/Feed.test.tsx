@@ -76,6 +76,19 @@ describe("Feed", () => {
     expect([second.get("kind"), second.get("limit")]).toEqual(["errors", "200"]);
   });
 
+  it("says the feed is loading without drawing a second box around it", async () => {
+    stubFetch(() => new Promise<Response>(() => {}));
+    const { container } = renderWithProviders(<Feed name="Pie64" session={SESSION} />);
+    const panel = await screen.findByRole("status", { name: "Loading the feed" });
+    expect(panel).toHaveAttribute("aria-busy", "true");
+    // The filter row stays up while the first page loads, so the skeleton sits inside
+    // the panel rather than replacing it: the section is the only box on screen.
+    const boxes = [...container.querySelectorAll("*")].filter((el) =>
+      el.className.toString().includes("rounded-[10px]"),
+    );
+    expect(boxes).toHaveLength(1);
+  });
+
   it("shows the filter's own empty copy", async () => {
     stubFeed(() => []);
     renderWithProviders(<Feed name="Pie64" session={SESSION} />);
@@ -172,6 +185,28 @@ describe("Feed", () => {
     client.clear(); // the app's gcTime would leave this client's timers behind
   });
 
+  it("announces the lines it adds and nothing else", async () => {
+    stubFeed(() => [makeFeedRecord({ seq: 1 })]);
+    renderWithProviders(<Feed name="Pie64" session={SESSION} />);
+    await screen.findByText("Playing");
+    const list = screen.getByTestId("feed-list");
+    expect(list).toHaveAttribute("role", "log");
+    expect(list).toHaveAttribute("aria-live", "polite");
+    // Without this the reader is read the whole session again on every append.
+    expect(list).toHaveAttribute("aria-relevant", "additions");
+  });
+
+  it("says in words what the tone dot says in colour, and dates each stamp", async () => {
+    stubFeed(() => [
+      makeFeedRecord({ seq: 1, event: "popup_close", category: "interrupts", fields: {} }),
+      makeFeedRecord({ seq: 2, event: "crash", category: "errors", fields: {} }),
+    ]);
+    renderWithProviders(<Feed name="Pie64" session={SESSION} />);
+    expect(await screen.findByText("Interrupt")).toBeInTheDocument();
+    expect(screen.getByText("Error")).toBeInTheDocument();
+    expect(screen.getAllByText("19:05:40")[0]).toHaveAttribute("title", "Sep 11, 19:05");
+  });
+
   it("keeps the newest 500 lines and drops the oldest", () => {
     let feed: FeedResponse = { session: SESSION, records: [makeFeedRecord({ seq: 1 })] };
     for (let seq = 2; seq <= 520; seq += 1) {
@@ -203,5 +238,32 @@ describe("Feed", () => {
     await userEvent.click(follow);
     expect(follow).toHaveAttribute("aria-checked", "true");
     expect(list.scrollTop).toBe(400);
+  });
+
+  it("offers a way back to the newest line once the reader has scrolled up", async () => {
+    stubFeed(() => [makeFeedRecord({ seq: 1 })]);
+    renderWithProviders(<Feed name="Pie64" session={SESSION} />);
+    await screen.findByText("Playing");
+    const list = screen.getByTestId("feed-list");
+    Object.defineProperty(list, "scrollHeight", { value: 400, configurable: true });
+    Object.defineProperty(list, "clientHeight", { value: 200, configurable: true });
+    // Nothing to jump to while the list is already following the newest line.
+    expect(screen.queryByRole("button", { name: "Jump to latest" })).not.toBeInTheDocument();
+
+    list.scrollTop = 100;
+    fireEvent.scroll(list);
+    await userEvent.click(screen.getByRole("button", { name: "Jump to latest" }));
+    expect(screen.getByRole("switch", { name: "Follow" })).toHaveAttribute("aria-checked", "true");
+    expect(list.scrollTop).toBe(400);
+    expect(screen.queryByRole("button", { name: "Jump to latest" })).not.toBeInTheDocument();
+  });
+
+  it("explains what turns Follow off", async () => {
+    stubFeed(() => [makeFeedRecord({ seq: 1 })]);
+    renderWithProviders(<Feed name="Pie64" session={SESSION} />);
+    await screen.findByText("Playing");
+    expect(screen.getByRole("switch", { name: "Follow" })).toHaveAccessibleDescription(
+      "Scrolling up turns this off.",
+    );
   });
 });

@@ -31,12 +31,19 @@ export function hhmm(iso: string): string {
 
 const DAY = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
 
+/** "Sep 17": the short date, for a day that needs naming without a clock on it. */
+export function monthDay(iso: string): string {
+  const at = new Date(iso);
+  if (Number.isNaN(at.getTime())) return "";
+  return DAY.format(at);
+}
+
 /** "Sep 17, 05:25": the same wall clock as hhmm with the day in front, for a caption that
  * can still be on screen the morning after the moment it describes. */
 export function dayTime(iso: string): string {
   const at = new Date(iso);
   if (Number.isNaN(at.getTime())) return "";
-  return `${DAY.format(at)}, ${hhmm(iso)}`;
+  return `${monthDay(iso)}, ${hhmm(iso)}`;
 }
 
 export function hhmmss(iso: string): string {

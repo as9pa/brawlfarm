@@ -12,6 +12,9 @@ export interface ButtonProps {
   type?: "button" | "submit";
   /** For a control whose visible text is shorter than its meaning, such as a count. */
   "aria-label"?: string;
+  /** A disclosure button says whether what it opens is open, and which element that is. */
+  "aria-expanded"?: boolean;
+  "aria-controls"?: string;
 }
 
 const VARIANTS: Record<NonNullable<ButtonProps["variant"]>, string> = {
@@ -35,6 +38,8 @@ export function Button({
   children,
   type = "button",
   "aria-label": ariaLabel,
+  "aria-expanded": ariaExpanded,
+  "aria-controls": ariaControls,
 }: ButtonProps) {
   return (
     <button
@@ -42,6 +47,8 @@ export function Button({
       disabled={disabled}
       title={disabled ? disabledReason : undefined}
       aria-label={ariaLabel}
+      aria-expanded={ariaExpanded}
+      aria-controls={ariaControls}
       onClick={onClick}
       className={`inline-flex items-center gap-1.5 rounded-[6px] font-medium transition-[background-color,border-color,color] duration-[120ms] disabled:cursor-not-allowed disabled:opacity-50 ${SIZES[size]} ${VARIANTS[variant]}`}
     >

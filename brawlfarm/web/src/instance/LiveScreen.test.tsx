@@ -4,6 +4,7 @@ import { act, fireEvent, screen } from "@testing-library/react";
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { LiveScreen } from "./LiveScreen";
+import { ELLIPSIS } from "../lib/copy";
 import { type FetchCall, jpegResponse, stubFetch } from "../test/http";
 import { renderWithProviders } from "../test/renderWithProviders";
 
@@ -69,5 +70,46 @@ describe("LiveScreen", () => {
       await vi.advanceTimersByTimeAsync(3000);
     });
     expect(frames()).toBe(4);
+  });
+  it("names the button for a pressed capture and refuses a second press", async () => {
+    vi.useFakeTimers();
+    let land = () => {};
+    let call = 0;
+    stubFetch(() => {
+      call += 1;
+      // The frame the page loads on its own lands at once; the pressed one is held.
+      if (call === 1) return jpegResponse();
+      return new Promise<Response>((resolve) => {
+        land = () => resolve(jpegResponse());
+      });
+    });
+    renderWithProviders(<LiveScreen name="Pie64" />);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    expect(screen.getByRole("button", { name: "Refresh" })).toBeEnabled();
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Refresh" }));
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    const refreshing = screen.getByRole("button", { name: `Refreshing${ELLIPSIS}` });
+    expect(refreshing).toBeDisabled();
+    // A dead control still says why it is dead.
+    expect(refreshing).toHaveAttribute("title", "Refreshing the screen");
+    await act(async () => {
+      land();
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    expect(screen.getByRole("button", { name: "Refresh" })).toBeEnabled();
+  });
+
+  it("leaves the button alone while the page polls in the background", async () => {
+    vi.useFakeTimers();
+    renderWithProviders(<LiveScreen name="Pie64" />);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(3000);
+    });
+    expect(screen.getByRole("button", { name: "Refresh" })).toBeEnabled();
   });
 });
