@@ -37,7 +37,7 @@ const DAY_SPAN = "Midnight to midnight.";
  * zone offset, which JavaScript reads as local time, so this stays in one zone
  * throughout and never has to think about UTC.
  */
-function dayStart(iso: string): number {
+export function dayStart(iso: string): number {
   const d = new Date(iso);
   return new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
 }

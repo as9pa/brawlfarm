@@ -10,13 +10,20 @@
  */
 import { describe, expect, it } from "vitest";
 
-import { clock, dateTime, num, plural, signed } from "./format";
+import { clock, dateTime, monthDay, num, plural, signed } from "./format";
 
 describe("num", () => {
   it("groups the thousands and leaves zero and a negative readable", () => {
     expect(num(12345)).toBe("12,345");
     expect(num(0)).toBe("0");
     expect(num(-1234567)).toBe("-1,234,567");
+  });
+});
+
+describe("monthDay", () => {
+  it("writes the short month and the day, and nothing for a bad stamp", () => {
+    expect(monthDay("2026-09-15T12:00:00")).toBe("Sep 15");
+    expect(monthDay("not a stamp")).toBe("");
   });
 });
 
