@@ -247,6 +247,41 @@ describe("Instance", () => {
     expect(toasts()[0].message).toBe("Retrying Pie64 now");
   });
 
+  it("orders the panels by job: watch, then read, then the numbers and the plans", async () => {
+    stubPage([makeInstance({ name: "Pie64", state: "farming" })]);
+    const { container } = mountPage();
+    await screen.findByRole("heading", { level: 1, name: "Pie64" });
+    await waitFor(() => {
+      const headings = screen
+        .getAllByRole("heading", { level: 2 })
+        .map((heading) => heading.textContent);
+      expect(headings).toEqual(["Live screen", "Feed", "Session", "Farm plan", "Schedule"]);
+    });
+    // One DOM order at both widths, so the tab order and the reading order agree.
+    for (const id of ["watch", "session", "plan", "schedule"]) {
+      expect(container.querySelectorAll(`#${id}`)).toHaveLength(1);
+    }
+  });
+
+  it("offers a jump bar that reaches the four panels the page can scroll past", async () => {
+    stubPage([makeInstance({ name: "Pie64", state: "farming" })]);
+    mountPage();
+    const bar = await screen.findByRole("navigation", { name: "Jump to a panel" });
+    const links = within(bar).getAllByRole("link");
+    expect(links.map((link) => link.textContent)).toEqual([
+      "Watch",
+      "Session",
+      "Plan",
+      "Schedule",
+    ]);
+    expect(links.map((link) => link.getAttribute("href"))).toEqual([
+      "#watch",
+      "#session",
+      "#plan",
+      "#schedule",
+    ]);
+  });
+
   it("speaks the API's own sentence when a control fails, and says nothing else", async () => {
     stubFailingPage("adb did not answer");
     mountPage();

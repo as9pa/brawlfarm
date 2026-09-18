@@ -42,6 +42,15 @@ const NOT_RUNNING: ReadonlySet<InstanceState> = new Set<InstanceState>([
   "offline",
 ]);
 
+/** The jump bar's four stops, in the page's own order. The feed has no stop of its own:
+ * it sits under the live screen, which Watch already reaches. */
+const JUMPS: { id: string; label: string }[] = [
+  { id: "watch", label: "Watch" },
+  { id: "session", label: "Session" },
+  { id: "plan", label: "Plan" },
+  { id: "schedule", label: "Schedule" },
+];
+
 function Header({ inst, onDone }: { inst: InstancePayload; onDone: () => void }) {
   const client = useQueryClient();
   const [confirmRestart, setConfirmRestart] = useState(false);
@@ -192,20 +201,42 @@ export function Instance() {
   return (
     <div className="flex flex-col gap-4">
       <Header inst={inst} onDone={refresh} />
+      {/* One column below 1100 px is a long scroll, so the four panels worth jumping to
+          get plain anchors. The browser does the scrolling and the keyboard reaches them
+          for free: no active state to track and no scroll listener to keep in step. */}
+      <nav
+        aria-label="Jump to a panel"
+        className="sticky top-0 z-10 -mx-1 flex gap-4 border-b border-line bg-panel px-1 py-2 text-[12px] min-[1100px]:hidden"
+      >
+        {JUMPS.map((jump) => (
+          <a key={jump.id} href={`#${jump.id}`} className="text-muted hover:text-text">
+            {jump.label}
+          </a>
+        ))}
+      </nav>
       <div className="grid grid-cols-1 gap-4 min-[1100px]:grid-cols-[3fr_2fr]">
         <div className="flex flex-col gap-4">
-          <LiveScreen name={inst.name} />
+          {/* scroll-mt keeps the sticky bar off the heading it has just jumped to. */}
+          <div id="watch" className="scroll-mt-12">
+            <LiveScreen name={inst.name} />
+          </div>
           <Feed name={inst.name} session={inst.session?.session ?? null} />
         </div>
         <div className="flex flex-col gap-4">
-          <FarmPlan name={inst.name} />
-          <Schedule name={inst.name} />
-          <SessionPanel
-            inst={inst}
-            avgRank={stats.data?.summary.avg_rank ?? null}
-            interrupts={interrupts}
-            stopAt={stopAt}
-          />
+          <div id="session" className="scroll-mt-12">
+            <SessionPanel
+              inst={inst}
+              avgRank={stats.data?.summary.avg_rank ?? null}
+              interrupts={interrupts}
+              stopAt={stopAt}
+            />
+          </div>
+          <div id="plan" className="scroll-mt-12">
+            <FarmPlan name={inst.name} />
+          </div>
+          <div id="schedule" className="scroll-mt-12">
+            <Schedule name={inst.name} />
+          </div>
         </div>
       </div>
     </div>
