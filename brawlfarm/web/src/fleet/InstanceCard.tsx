@@ -93,7 +93,7 @@ function OfflineBlock({ note, onRetry }: { note: string; onRetry: ReactNode }) {
   return (
     <div className="flex aspect-video w-full flex-col items-center justify-center gap-1.5 rounded-[6px] border border-line bg-panel-2 p-3 text-center">
       <p className="text-[13px] text-text">{note === "" ? NOT_SET : note}</p>
-      <p className="text-[12px] text-muted">Open the instance, or {onRetry}.</p>
+      <p className="text-[12px] text-muted">Open the instance, or {onRetry}</p>
     </div>
   );
 }
