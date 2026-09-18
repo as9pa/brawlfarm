@@ -247,6 +247,7 @@ export function Instances({ settingsPatch }: { settingsPatch: SettingsPatch }) {
     {
       key: "adb_port",
       label: "Port",
+      title: "The adb port BlueStacks listens on",
       mono: true,
       width: "140px",
       render: (row) => (

@@ -115,16 +115,15 @@ describe("Settings > Connection", () => {
     ).toBeInTheDocument();
   });
 
-  it("shows the whole adb path, wrapped rather than clipped", async () => {
+  it("keeps the whole adb path in a box that fills its row", async () => {
     server({ doc: makeSettings({ connection: { adb_path: LONG_PATH, brawl_api_token: "" } }) });
     mount();
     const box = await screen.findByLabelText("ADB path");
-    // The whole path is in the DOM, the box fills its row, and it stays mono and wraps.
+    // The whole path is what the field holds, in a box that fills its row and stays mono.
     await waitFor(() => {
       expect(box).toHaveValue(LONG_PATH);
     });
     expect(box).toHaveClass("w-full", "font-mono");
-    expect(box.closest("[class*='break-all']")).not.toBeNull();
   });
 
   it("chips the scan while it is still running", async () => {
@@ -164,7 +163,25 @@ describe("Settings > Connection", () => {
     expect(
       await screen.findByText(/The Brawl Stars API rejected the token/),
     ).toBeInTheDocument();
+    // A refusal has a sentence of its own, so it raises no toast on top of it.
     expect(toastMessages()).toEqual(["Settings saved"]);
+  });
+
+  it("says so when the check passed", async () => {
+    const { calls } = server();
+    mount();
+    await screen.findByLabelText("ADB path");
+    await userEvent.click(screen.getByRole("button", { name: "Check connection" }));
+    await waitFor(() => {
+      expect(calls.filter((call) => call.url === "/api/connection/check")).toHaveLength(1);
+    });
+    // vi.waitFor, not waitFor: the DOM-mutation poller re-mounts the hook toastMessages()
+    // renders on every mutation, and a wait that never passes takes the worker's heap with it.
+    await vi.waitFor(() => {
+      expect(toastMessages()).toHaveLength(1);
+    });
+    // The strip says nothing when there is nothing wrong, so the good answer is a toast.
+    expect(toastMessages()).toEqual(["The Brawl Stars API accepted the token."]);
   });
 
   it("puts the API's message under the ADB path row", async () => {

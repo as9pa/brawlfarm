@@ -177,6 +177,11 @@ describe("Settings > Instances", () => {
     mount();
     const [pie64] = await rows();
     expect(screen.getAllByRole("columnheader")[1]).toHaveTextContent("Port");
+    // The short header keeps the long answer in its tooltip.
+    expect(screen.getAllByRole("columnheader")[1]).toHaveAttribute(
+      "title",
+      "The adb port BlueStacks listens on",
+    );
     expect(screen.queryByRole("columnheader", { name: "ADB port" })).toBeNull();
     expect(
       screen.getByText("Scan again finds running BlueStacks instances."),

@@ -13,8 +13,9 @@
  *
  * Check connection asks GET /api/connection/check, which reads the token and the player tags
  * from disk and never takes a typed value, so it waits until the form has nothing unsaved in
- * it. Its answer is the same strip the stats page shows, because the five statuses already
- * have one sentence each and a second wording for them would be a second thing to keep true.
+ * it. Its answer is the same strip the stats page shows, because the four statuses that name
+ * something to fix already have one sentence each and a second wording for them would be a
+ * second thing to keep true. A pass has nothing to fix, and no strip, so it raises a toast.
  */
 import { useEffect, useState } from "react";
 import { Link } from "react-router";
@@ -33,6 +34,7 @@ import { Button } from "../components/ui/Button";
 import { Chip } from "../components/ui/Chip";
 import { ErrorBlock } from "../components/ui/ErrorBlock";
 import { Field } from "../components/ui/Field";
+import { toast } from "../lib/toast";
 import { ConnectionStrip } from "../stats/ConnectionStrip";
 
 const TOKEN_LINE = "Create a key at developer.brawlstars.com and allow this machine's IP address.";
@@ -95,6 +97,11 @@ export function Connection({ settingsPatch }: { settingsPatch: SettingsPatch }) 
     void getConnection()
       .then((answer) => {
         setCheck(answer);
+        // The strip has a sentence for every status but ok, where it renders nothing at all,
+        // so the one answer with nothing to fix is the one that needs a toast.
+        if (answer.status === "ok") {
+          toast("The Brawl Stars API accepted the token.", { tone: "ok" });
+        }
       })
       .catch((error: unknown) => {
         setFailure(error);
@@ -114,17 +121,13 @@ export function Connection({ settingsPatch }: { settingsPatch: SettingsPatch }) 
         error={fieldError(fieldErrors, "connection.adb_path")}
       >
         <div className="space-y-2" onBlur={adbPath.onBlur}>
-          {/* The wrapper carries the wrapping rule so Field keeps the props phase 4 gave it:
-              a path is the one value here that runs past the end of its box. */}
-          <span className="block [&_input]:break-all">
-            <Field
-              label="ADB path"
-              id="connection-adb-path"
-              value={adbPath.value}
-              onChange={adbPath.onChange}
-              width="full"
-            />
-          </span>
+          <Field
+            label="ADB path"
+            id="connection-adb-path"
+            value={adbPath.value}
+            onChange={adbPath.onChange}
+            width="full"
+          />
           <div className="flex flex-wrap items-center gap-2">
             {scanning && (
               <>
