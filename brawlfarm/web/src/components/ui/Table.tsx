@@ -78,6 +78,13 @@ const HEADER: Record<"caps" | "sentence", string> = {
   sentence: "px-2 py-1.5 text-left text-[11px] font-medium text-muted",
 };
 
+/** The casing half of the same two styles. A sortable column's label lives in a button
+ * inside the th, and both halves of one header have to read the same way. */
+const HEADER_CASE: Record<"caps" | "sentence", string> = {
+  caps: "uppercase tracking-wide",
+  sentence: "",
+};
+
 export function Table<Row>({
   columns,
   rows,
@@ -124,7 +131,7 @@ export function Table<Row>({
                   <button
                     type="button"
                     onClick={() => onSort(column.key)}
-                    className={`flex w-full items-center gap-1 text-left uppercase tracking-wide ${FOCUS_RING}`}
+                    className={`flex w-full items-center gap-1 text-left ${FOCUS_RING} ${HEADER_CASE[headers]}`}
                   >
                     {column.label === "" ? (
                       <span className="sr-only">{column.key}</span>

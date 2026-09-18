@@ -67,7 +67,7 @@ export function StatsToolbar({
         {instances.length === 1 ? (
           <span
             data-testid="instance-label"
-            className="t-figure inline-flex h-6 items-center px-2 text-[12px] text-muted"
+            className="t-name inline-flex h-6 items-center px-2 text-[12px] text-muted"
           >
             {instances[0]}
           </span>

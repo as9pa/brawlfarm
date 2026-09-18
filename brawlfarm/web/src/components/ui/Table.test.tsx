@@ -168,6 +168,24 @@ describe("Table", () => {
     expect(screen.getByRole("columnheader", { name: "icon" })).not.toHaveAttribute("aria-sort");
   });
 
+  it("gives a sortable header's button the casing the headers prop asked for", () => {
+    renderWithProviders(
+      <Table
+        columns={[
+          { key: "name", label: "Brawler", sortable: true },
+          { key: "games", label: "Games", sortable: true },
+        ]}
+        rows={[{ name: "NORI", games: 3 }]}
+        rowKey={(row) => row.name}
+        empty="No games in this range."
+        headers="sentence"
+        sort={{ key: "games", dir: "desc" }}
+        onSort={() => undefined}
+      />,
+    );
+    expect(screen.getByRole("button", { name: "Brawler" }).className).not.toContain("uppercase");
+  });
+
   it("calls onSort once per header click, with that column's key", async () => {
     const onSort = vi.fn();
     renderWithProviders(
