@@ -169,31 +169,82 @@ describe("Thumb", () => {
     unmount();
     expect(revoked).toEqual(["blob:fake/1"]);
   });
-  it("says when a capture is in flight, and never says the same thing twice", async () => {
+  it("says when a pressed capture is in flight, and never says the same thing twice", async () => {
     vi.useFakeTimers();
     stubFetch(() => jpegResponse({ etag: '"one"' }));
     const busy: boolean[] = [];
-    render(<Thumb name="Pie64" refreshMs={1000} onBusyChange={(next) => busy.push(next)} />);
+    const onBusyChange = (next: boolean) => busy.push(next);
+    const { rerender } = render(
+      <Thumb name="Pie64" refreshMs={1000} refreshKey={0} onBusyChange={onBusyChange} />,
+    );
     await act(async () => {
       await vi.advanceTimersByTimeAsync(0);
     });
-    expect(busy).toEqual([true, false]);
-    // The second poll is a 304, and it opens and closes exactly like the first.
+    // Neither the load a mount starts nor the poll a second later is a press, and a
+    // control that went dead once a second would flicker rather than inform.
+    expect(busy).toEqual([]);
     await act(async () => {
       await vi.advanceTimersByTimeAsync(1000);
     });
-    expect(busy).toEqual([true, false, true, false]);
-  });
+    expect(busy).toEqual([]);
 
-  it("closes the in-flight signal when the capture fails", async () => {
-    vi.useFakeTimers();
-    stubFetch(() => jsonResponse({ detail: "boom" }, 503));
-    const busy: boolean[] = [];
-    render(<Thumb name="Pie64" refreshMs={false} onBusyChange={(next) => busy.push(next)} />);
+    rerender(<Thumb name="Pie64" refreshMs={1000} refreshKey={1} onBusyChange={onBusyChange} />);
     await act(async () => {
       await vi.advanceTimersByTimeAsync(0);
     });
     expect(busy).toEqual([true, false]);
+    // The poll the press scheduled is background again.
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1000);
+    });
+    expect(busy).toEqual([true, false]);
+  });
+
+  it("closes the in-flight signal when the pressed capture fails", async () => {
+    vi.useFakeTimers();
+    stubFetch(() => jsonResponse({ detail: "boom" }, 503));
+    const busy: boolean[] = [];
+    const onBusyChange = (next: boolean) => busy.push(next);
+    const { rerender } = render(
+      <Thumb name="Pie64" refreshMs={false} refreshKey={0} onBusyChange={onBusyChange} />,
+    );
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    rerender(<Thumb name="Pie64" refreshMs={false} refreshKey={1} onBusyChange={onBusyChange} />);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    expect(busy).toEqual([true, false]);
+  });
+
+  it("frees the control when a prop change throws away the pressed capture", async () => {
+    vi.useFakeTimers();
+    let land = () => {};
+    stubFetch(
+      () =>
+        new Promise<Response>((resolve) => {
+          land = () => resolve(jpegResponse());
+        }),
+    );
+    const busy: boolean[] = [];
+    const onBusyChange = (next: boolean) => busy.push(next);
+    const { rerender } = render(
+      <Thumb name="Pie64" refreshMs={1000} refreshKey={0} onBusyChange={onBusyChange} />,
+    );
+    rerender(<Thumb name="Pie64" refreshMs={1000} refreshKey={1} onBusyChange={onBusyChange} />);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    expect(busy).toEqual([true]);
+    // The tab goes hidden mid-capture: that fetch never settles, and the control it
+    // disabled has to be freed anyway.
+    rerender(<Thumb name="Pie64" refreshMs={false} refreshKey={1} onBusyChange={onBusyChange} />);
+    expect(busy).toEqual([true, false]);
+    await act(async () => {
+      land();
+      await vi.advanceTimersByTimeAsync(0);
+    });
   });
 
   it("stamps the frame with its age and the clock when the clock is asked for", async () => {

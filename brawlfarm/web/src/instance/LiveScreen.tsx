@@ -4,7 +4,8 @@
  * opens in a tab, can be copied, and reaches the keyboard like any other link.
  *
  * The button is the only sign that a capture is in flight: the label changes and the
- * control goes dead until the frame lands, which costs no icon and no spinner.
+ * control goes dead until the frame it asked for lands, which costs no icon and no
+ * spinner. The once-a-second poll behind it says nothing, or the button would flicker.
  */
 import { useState } from "react";
 

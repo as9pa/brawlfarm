@@ -35,7 +35,9 @@ export interface ThumbProps {
   refreshKey?: number;
   /** The millisecond stamp of each new frame, for a caller that shows its age. */
   onFrame?: (takenAt: number) => void;
-  /** True while a capture is in flight, so a caller can say so on its own controls. */
+  /** True while a capture the caller asked for is in flight, so it can say so on its own
+   * controls. The interval poll stays quiet: a control that went dead once a second would
+   * flicker rather than inform. */
   onBusyChange?: (busy: boolean) => void;
   /** Caption the frame with its age and the time it was taken, rather than nothing. */
   showClock?: boolean;
@@ -66,15 +68,34 @@ export function Thumb({
   const onBusyChangeRef = useRef(onBusyChange);
   onBusyChangeRef.current = onBusyChange;
   // Only a change goes up. A caller keeps this in state, and a repeat of the value it
-  // already holds would rerender it once a second for nothing.
+  // already holds would rerender it for nothing.
   const busyRef = useRef(false);
+  // The refreshKey the box has already fetched for: a different one means a press, which
+  // is the only load that announces itself.
+  const pressedRef = useRef(refreshKey);
   // The ETag of the frame on screen, tied to the instance it came from: a Thumb that is
   // handed a new name must not claim to already hold that instance's frame.
   const seenRef = useRef<{ name: string; etag: string | null }>({ name, etag: null });
 
+  // Declared before the fetch effect so that on unmount its cleanup runs first, and the
+  // fetch effect's cleanup can tell a teardown from a plain re-run.
+  const mountedRef = useRef(true);
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
+
   useEffect(() => {
     let cancelled = false;
     let timer: ReturnType<typeof setTimeout> | null = null;
+    // Only the first load of a run the press started speaks; every poll it schedules
+    // afterwards is background again.
+    const pressed = refreshKey !== pressedRef.current;
+    pressedRef.current = refreshKey;
+    let first = true;
+    let announced = false;
 
     const schedule = (delay: number | false) => {
       if (delay === false || cancelled) return;
@@ -92,7 +113,12 @@ export function Thumb({
     };
 
     const load = async (): Promise<void> => {
-      report(true);
+      const speaks = pressed && first;
+      first = false;
+      if (speaks) {
+        announced = true;
+        report(true);
+      }
       try {
         const seen = seenRef.current;
         const frame = await fetchPreview(name, seen.name === name ? seen.etag : null);
@@ -108,12 +134,12 @@ export function Thumb({
           onFrameRef.current?.(frame.takenAt);
         }
         setError(null);
-        report(false);
+        if (speaks) report(false);
         schedule(refreshMs);
       } catch (failure) {
         if (cancelled) return;
         setError(failure instanceof ApiError ? failure : new ApiError(0, String(failure)));
-        report(false);
+        if (speaks) report(false);
         schedule(ERROR_RETRY_MS);
       }
     };
@@ -122,6 +148,9 @@ export function Thumb({
     return () => {
       cancelled = true;
       if (timer !== null) clearTimeout(timer);
+      // A pressed capture thrown away by a prop change never settles, so the control it
+      // disabled is freed here instead. On unmount there is no control left to free.
+      if (announced && mountedRef.current) report(false);
     };
   }, [name, refreshMs, refreshKey]);
 

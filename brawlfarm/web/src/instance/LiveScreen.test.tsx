@@ -70,23 +70,41 @@ describe("LiveScreen", () => {
     });
     expect(frames()).toBe(4);
   });
-  it("names the button for the capture in flight and refuses a second press", async () => {
+  it("names the button for a pressed capture and refuses a second press", async () => {
     vi.useFakeTimers();
     let land = () => {};
-    stubFetch(
-      () =>
-        new Promise<Response>((resolve) => {
-          land = () => resolve(jpegResponse());
-        }),
-    );
+    let call = 0;
+    stubFetch(() => {
+      call += 1;
+      // The frame the page loads on its own lands at once; the pressed one is held.
+      if (call === 1) return jpegResponse();
+      return new Promise<Response>((resolve) => {
+        land = () => resolve(jpegResponse());
+      });
+    });
     renderWithProviders(<LiveScreen name="Pie64" />);
     await act(async () => {
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    expect(screen.getByRole("button", { name: "Refresh" })).toBeEnabled();
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Refresh" }));
       await vi.advanceTimersByTimeAsync(0);
     });
     expect(screen.getByRole("button", { name: "Refreshing…" })).toBeDisabled();
     await act(async () => {
       land();
       await vi.advanceTimersByTimeAsync(0);
+    });
+    expect(screen.getByRole("button", { name: "Refresh" })).toBeEnabled();
+  });
+
+  it("leaves the button alone while the page polls in the background", async () => {
+    vi.useFakeTimers();
+    renderWithProviders(<LiveScreen name="Pie64" />);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(3000);
     });
     expect(screen.getByRole("button", { name: "Refresh" })).toBeEnabled();
   });
