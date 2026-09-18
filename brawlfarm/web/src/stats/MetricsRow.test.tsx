@@ -50,7 +50,21 @@ describe("MetricsRow", () => {
     );
     expect(within(figure("Average rank")).getByTestId("metric-value")).toHaveTextContent("3.3");
     expect(within(figure("Top-4 rate")).getByTestId("metric-value")).toHaveTextContent("75%");
-    expect(within(figure("Time farmed")).getByTestId("metric-value")).toHaveTextContent("1.53 h");
+    expect(within(figure("Time farmed")).getByTestId("metric-value")).toHaveTextContent(
+      "1 h 32 min",
+    );
+  });
+
+  it("reads time farmed in hours and minutes", () => {
+    renderWithProviders(<MetricsRow summary={summary({ hours_farmed: 1.85 })} />);
+    expect(within(figure("Time farmed")).getByTestId("metric-value")).toHaveTextContent(
+      "1 h 51 min",
+    );
+  });
+
+  it("groups a five-figure game count", () => {
+    renderWithProviders(<MetricsRow summary={summary({ games: 110738 })} />);
+    expect(within(figure("Games")).getByTestId("metric-value")).toHaveTextContent("110,738");
   });
 
   it("tints the trophy figure by its sign", () => {
@@ -105,11 +119,11 @@ describe("MetricsRow", () => {
     }
   });
 
-  it("gives every number tabular figures", () => {
+  it("gives every number tabular figures and keeps its unit on the same line", () => {
     renderWithProviders(<MetricsRow summary={summary()} />);
     for (const node of screen.getAllByTestId("metric-value")) {
-      expect(node).toHaveClass("font-mono");
-      expect(node).toHaveClass("tabular-nums");
+      expect(node).toHaveClass("t-figure");
+      expect(node).toHaveClass("whitespace-nowrap");
     }
   });
 });

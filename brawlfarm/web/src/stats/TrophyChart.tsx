@@ -21,9 +21,17 @@
 import { type KeyboardEvent, type MouseEvent, useState } from "react";
 
 import type { StatsPoint, StatsRange, StatsSeries } from "../api/types";
+import { Button } from "../components/ui/Button";
+import { Segmented } from "../components/ui/Segmented";
 import { Table, type Column } from "../components/ui/Table";
 import { NOT_RECORDED } from "../lib/copy";
+import { monthDay, num, signed } from "../lib/format";
+import { type DayRow, rollUpDays } from "./days";
 import { formatMoment } from "./format";
+
+/** The chart or the same numbers as a table. The chart owns the vocabulary because it
+ * owns both views; the page owns which one is showing, so a reload and a link keep it. */
+export type StatsView = "chart" | "table";
 
 export interface TrophyChartProps {
   series: StatsSeries[];
@@ -33,9 +41,50 @@ export interface TrophyChartProps {
   /** Which range is showing. Only the clock reads it: a range wider than today needs the
    * day on every stamp or the axis and the table lose which one they mean. */
   range: StatsRange;
+  /** Which of the two views is showing. Controlled, because it lives in the URL. */
+  view: StatsView;
+  onView: (next: StatsView) => void;
 }
 
 export const CHART_LABEL = "Cumulative trophy change";
+/** The unit, printed once on the y axis. The figures in that column are trophies and
+ * nothing else, so the axis says so instead of leaving a column of bare numbers. */
+export const CHART_UNIT = "trophies";
+
+/** The panel heading: what the lines are, what they do to get there and over how long.
+ * The svg keeps CHART_LABEL as its name, so a reader hears the chart named the way it
+ * always was and a sighted reader gains the range the heading spells out. */
+const CAPTIONS: Record<StatsRange, string> = {
+  today: "Trophies, cumulative, today",
+  "7d": "Trophies, cumulative, last 7 days",
+  "30d": "Trophies, cumulative, last 30 days",
+  all: "Trophies, cumulative, all time",
+};
+
+export function captionFor(range: StatsRange): string {
+  return CAPTIONS[range];
+}
+
+/** The steps a person reads without doing arithmetic. A trophy total is a small integer
+ * on one range and four figures on another, so the list spans both. */
+const TICK_STEPS: readonly number[] = [1, 2, 5, 10, 25, 50, 100, 250, 500, 1000, 2500, 5000];
+
+/** The round numbers inside the domain, descending, zero always among them: the smallest
+ * step from TICK_STEPS that lands three, four or five of its multiples in [lo, hi]. The
+ * domain always brackets zero, so zero is always one of those multiples. A range too
+ * narrow for three round numbers keeps the one value the zero rule is drawn at. */
+export function niceTicks(lo: number, hi: number): number[] {
+  for (const step of TICK_STEPS) {
+    const first = Math.ceil(lo / step);
+    const last = Math.floor(hi / step);
+    const count = last - first + 1;
+    if (count < 3 || count > 5) continue;
+    const values: number[] = [];
+    for (let at = last; at >= first; at -= 1) values.push(at * step);
+    return values;
+  }
+  return [0];
+}
 
 /** In series order, cycling. Every one of these exists in styles/theme.css; the proposal
  * named an "--info" tone, which does not. */
@@ -53,9 +102,26 @@ const PLOT_H = 180;
 const PAD_Y = 10; // so a point at the very top or bottom is not half a stroke off the box
 const VALUE_PAD = 0.05; // the brief's 5 %
 const EMPTY = "No games in this range.";
+/** How many dated stamps the x axis prints at most, the two ends included. */
+const X_TICKS = 5;
+/** The room a dated stamp needs on the x axis, in the coordinate space the paths are
+ * drawn in. A candidate that does not clear its neighbour by this much is dropped rather
+ * than nudged: three stamps drawn over each other say less than one. */
+const X_LABEL_GAP = 120;
+/** How many day rows the table shows before it asks. Two weeks is a screen of rows and
+ * the width of the range most of the panel is read at. */
+const DAY_CAP = 14;
 /** The line box at 11 px type, the gap the end labels are nudged by. Two y-axis labels
  * closer together than this would overprint each other. */
 const LABEL_H = 12;
+
+/** The same three tones the brawler table reads a net by, so a day and a brawler agree
+ * on what a gain looks like. */
+function netTone(net: number): string {
+  if (net > 0) return "text-accent";
+  if (net < 0) return "text-bad";
+  return "text-muted";
+}
 
 function colorFor(index: number): string {
   return SERIES_COLORS[index % SERIES_COLORS.length];
@@ -76,12 +142,14 @@ function valueAt(points: StatsPoint[], moment: number): number | null {
   return found;
 }
 
-export function TrophyChart({ series, instances, range }: TrophyChartProps) {
+export function TrophyChart({ series, instances, range, view, onView }: TrophyChartProps) {
   /** The panel's one clock format: the recent games table reads the same way, so the
    * crosshair, the ends and the table all agree on what a stamp looks like. */
   const clock = (iso: string): string => formatMoment(iso, range);
-  const [showTable, setShowTable] = useState(false);
   const [hover, setHover] = useState<number | null>(null);
+  // View-only and deliberately not in the URL: the range and the view are what a link
+  // carries, and how far one table is unrolled is not worth a history entry.
+  const [showAll, setShowAll] = useState(false);
   const [cursor, setCursor] = useState<number | null>(null);
   const active = hover ?? cursor;
 
@@ -113,16 +181,33 @@ export function TrophyChart({ series, instances, range }: TrophyChartProps) {
     PAD_Y + ((hi - value) / (hi - lo)) * (PLOT_H - PAD_Y * 2);
   const topPercent = (y: number): string => `${(y / PLOT_H) * 100}%`;
 
-  /** The y axis: the two extremes and the zero the lines are read against. Zero goes in
-   * first and is never dropped, because its rule is drawn whatever the labels do, and an
-   * extreme landing within a label height of one already kept is dropped rather than
-   * printed over it. A run of losses, where the maximum IS zero, is the common case. */
-  const ticks: { value: number; y: number }[] = [{ value: 0, y: yFor(0) }];
-  for (const value of [rawHi, rawLo]) {
-    const y = yFor(value);
-    if (ticks.every((tick) => Math.abs(tick.y - y) >= LABEL_H)) ticks.push({ value, y });
+  /** The y axis: round numbers inside the real domain rather than its two ragged
+   * extremes, so every gridline is a figure a point can be read against. Three to five
+   * multiples of one step are always further apart than a label height. */
+  const ticks = niceTicks(rawLo, rawHi);
+
+  /** The x axis: the two ends always, and as many of the X_TICKS evenly spaced moments
+   * between as fit. A candidate is placed only where it clears the last placed label and
+   * the far end by X_LABEL_GAP, so an hour of games bunched together drops labels instead
+   * of printing them over each other. Two neighbours that format the same are one label,
+   * so a range whose ends fall on one day does not print that day twice. */
+  const xTicks: { ms: number; text: string }[] = [];
+  const placeLabel = (ms: number): void => {
+    const text = clock(new Date(ms).toISOString());
+    const previous = xTicks[xTicks.length - 1];
+    if (previous === undefined || previous.text !== text) xTicks.push({ ms, text });
+  };
+  if (moments.length > 0) {
+    placeLabel(firstMs);
+    const lastX = xFor(lastMs);
+    for (let i = 1; i < X_TICKS - 1; i += 1) {
+      const ms = moments[Math.round((i * (moments.length - 1)) / (X_TICKS - 1))];
+      const at = xFor(ms);
+      const kept = xFor(xTicks[xTicks.length - 1].ms);
+      if (at - kept >= X_LABEL_GAP && lastX - at >= X_LABEL_GAP) placeLabel(ms);
+    }
+    if (lastMs !== firstMs) placeLabel(lastMs);
   }
-  ticks.sort((a, b) => a.y - b.y);
 
   const pathOf = (points: StatsPoint[]): string =>
     points
@@ -144,9 +229,13 @@ export function TrophyChart({ series, instances, range }: TrophyChartProps) {
     .filter((label): label is { name: string; color: string; y: number } => label.y !== null)
     .sort((a, b) => a.y - b.y)) {
     const above = placed[placed.length - 1];
-    placed.push({ ...label, y: above === undefined ? label.y : Math.max(label.y, above.y + 12) });
+    placed.push({
+      ...label,
+      y: above === undefined ? label.y : Math.max(label.y, above.y + LABEL_H),
+    });
   }
-  const endLabels = placed;
+  // A single series is already named by the legend, so an end label would name it twice.
+  const endLabels = drawn.length > 1 ? placed : [];
 
   const readout =
     active === null
@@ -186,30 +275,48 @@ export function TrophyChart({ series, instances, range }: TrophyChartProps) {
     setHover(Math.round(ratio * (moments.length - 1)));
   };
 
-  const columns: Column<{ t: string; values: (number | null)[] }>[] = [
+  /** One row a day, not one a game: a 30-day range was hundreds of rows of a running
+   * total with no net and no count. The selection is named by the toolbar and the legend,
+   * so no column names an instance either. */
+  // Newest day first, because that is the day the panel is opened to read, and the cap
+  // keeps the newest DAY_CAP of them rather than the fortnight the range opens on.
+  const dayRows = rollUpDays(ordered).reverse();
+  const shown = showAll ? dayRows : dayRows.slice(0, DAY_CAP);
+  const columns: Column<DayRow>[] = [
     {
-      key: "t",
-      label: "Time",
-      mono: true,
-      width: range === "today" ? "80px" : "120px",
-      render: (row) => clock(row.t),
+      key: "date",
+      label: "Date",
+      width: "120px",
+      // At local midnight, because a bare YYYY-MM-DD parses as UTC and would read as the
+      // day before on every machine west of it.
+      render: (row) => <span className="t-figure">{monthDay(`${row.date}T00:00:00`)}</span>,
     },
-    ...ordered.map((s, index) => ({
-      key: s.instance,
-      label: s.instance,
-      mono: true,
-      render: (row: { t: string; values: (number | null)[] }) =>
-        row.values[index] === null ? NOT_RECORDED : String(row.values[index]),
-    })),
+    {
+      key: "games",
+      label: "Games",
+      width: "80px",
+      render: (row) => <span className="t-figure">{num(row.games)}</span>,
+    },
+    {
+      key: "net",
+      label: "Net trophies",
+      width: "120px",
+      render: (row) => (
+        <span className={`t-figure ${netTone(row.net)}`}>{signed(row.net)}</span>
+      ),
+    },
+    {
+      key: "cum",
+      label: "Cumulative",
+      width: "120px",
+      render: (row) => <span className="t-figure">{num(row.cum)}</span>,
+    },
   ];
-  const rows = moments.map((ms) => ({
-    t: new Date(ms).toISOString(),
-    values: ordered.map((s) => valueAt(s.points, ms)),
-  }));
 
   return (
     <section className="flex flex-col gap-2 rounded-[10px] border border-line bg-panel p-3">
       <div className="flex items-center gap-3">
+        <h2 className="text-[13px] font-semibold">{captionFor(range)}</h2>
         <div data-testid="chart-legend" className="flex flex-wrap items-center gap-3">
           {ordered.map((s, index) => (
             <span
@@ -226,18 +333,37 @@ export function TrophyChart({ series, instances, range }: TrophyChartProps) {
             </span>
           ))}
         </div>
-        <button
-          type="button"
-          aria-pressed={showTable}
-          onClick={() => setShowTable((open) => !open)}
-          className="ml-auto text-[12px] text-muted hover:text-text"
-        >
-          Table
-        </button>
+        <div className="ml-auto">
+          <Segmented
+            label="View"
+            value={view}
+            options={[
+              { value: "chart", label: "Chart" },
+              { value: "table", label: "Table" },
+            ]}
+            onChange={onView}
+          />
+        </div>
       </div>
 
-      {showTable ? (
-        <Table columns={columns} rows={rows} rowKey={(row) => row.t} empty={EMPTY} />
+      {view === "table" ? (
+        <>
+          <Table
+            columns={columns}
+            rows={shown}
+            rowKey={(row) => row.date}
+            empty={EMPTY}
+            headers="sentence"
+            minWidth="440px"
+          />
+          {dayRows.length > DAY_CAP ? (
+            <div>
+              <Button variant="quiet" size="sm" onClick={() => setShowAll((open) => !open)}>
+                {showAll ? `Show ${num(DAY_CAP)} days` : `Show all ${num(dayRows.length)} days`}
+              </Button>
+            </div>
+          ) : null}
+        </>
       ) : moments.length === 0 ? (
         <p data-testid="chart-empty" className="h-[180px] text-[13px] text-muted">
           {EMPTY}
@@ -245,20 +371,20 @@ export function TrophyChart({ series, instances, range }: TrophyChartProps) {
       ) : (
         <>
           <div className="flex gap-2">
-            <div
-              data-testid="chart-axis"
-              className="relative w-[44px] shrink-0"
-              style={{ height: `${PLOT_H}px` }}
-            >
-              {ticks.map((tick) => (
-                <span
-                  key={tick.value}
-                  className="absolute right-0 -translate-y-1/2 text-[11px] tabular-nums text-muted"
-                  style={{ top: topPercent(tick.y) }}
-                >
-                  {tick.value}
-                </span>
-              ))}
+            <div data-testid="chart-axis" className="flex w-[44px] shrink-0 flex-col items-end">
+              <div className="relative w-full" style={{ height: `${PLOT_H}px` }}>
+                {ticks.map((tick) => (
+                  <span
+                    key={tick}
+                    data-tick=""
+                    className="t-figure absolute right-0 -translate-y-1/2 text-[11px] text-muted"
+                    style={{ top: topPercent(yFor(tick)) }}
+                  >
+                    {num(tick)}
+                  </span>
+                ))}
+              </div>
+              <span className="text-[11px] text-muted">{CHART_UNIT}</span>
             </div>
 
             <div className="relative min-w-0 flex-1 pr-[72px]" style={{ height: `${PLOT_H}px` }}>
@@ -273,6 +399,21 @@ export function TrophyChart({ series, instances, range }: TrophyChartProps) {
                 onMouseLeave={() => setHover(null)}
                 className="block h-full w-full focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
               >
+                {ticks.map((tick) => (
+                  <line
+                    key={tick}
+                    data-gridline=""
+                    x1={0}
+                    x2={PLOT_W}
+                    y1={yFor(tick)}
+                    y2={yFor(tick)}
+                    stroke="var(--line)"
+                    strokeWidth={1}
+                    vectorEffect="non-scaling-stroke"
+                    className="opacity-40"
+                  />
+                ))}
+                {/* After the gridlines, so the rule the lines are read against wins. */}
                 <line
                   x1={0}
                   x2={PLOT_W}
@@ -324,9 +465,19 @@ export function TrophyChart({ series, instances, range }: TrophyChartProps) {
             </div>
           </div>
 
-          <div className="flex justify-between pl-[52px] pr-[72px] text-[11px] tabular-nums text-muted">
-            <span>{clock(new Date(firstMs).toISOString())}</span>
-            <span>{clock(new Date(lastMs).toISOString())}</span>
+          <div
+            data-testid="chart-x-axis"
+            className="relative ml-[52px] mr-[72px] h-[14px] text-[11px] text-muted"
+          >
+            {xTicks.map((tick) => (
+              <span
+                key={tick.ms}
+                className="t-figure absolute whitespace-nowrap"
+                style={{ left: `${(xFor(tick.ms) / PLOT_W) * 100}%` }}
+              >
+                {tick.text}
+              </span>
+            ))}
           </div>
 
           {readout === null ? null : (

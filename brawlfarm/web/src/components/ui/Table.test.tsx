@@ -29,6 +29,61 @@ const COLUMNS: readonly Column<Row>[] = [
 ];
 
 describe("Table", () => {
+  it("reads its headers in caps by default and in sentence case when asked", () => {
+    const { unmount } = render(
+      <Table
+        columns={COLUMNS}
+        rows={ROWS}
+        rowKey={(row) => row.name}
+        empty="nothing"
+        headers="sentence"
+      />,
+    );
+    expect(screen.getByRole("columnheader", { name: "Name" }).className).not.toContain(
+      "uppercase",
+    );
+    unmount();
+    render(<Table columns={COLUMNS} rows={ROWS} rowKey={(row) => row.name} empty="nothing" />);
+    expect(screen.getByRole("columnheader", { name: "Name" }).className).toContain("uppercase");
+  });
+
+  it("puts a minimum width on the table element itself", () => {
+    const { container } = render(
+      <Table
+        columns={COLUMNS}
+        rows={ROWS}
+        rowKey={(row) => row.name}
+        empty="nothing"
+        minWidth="720px"
+      />,
+    );
+    expect(container.querySelector("table")).toHaveStyle({ minWidth: "720px" });
+  });
+
+  it("cues the scrollable edge only when there is a minimum width", () => {
+    const { container, unmount } = render(
+      <Table
+        columns={COLUMNS}
+        rows={ROWS}
+        rowKey={(row) => row.name}
+        empty="nothing"
+        minWidth="720px"
+      />,
+    );
+    const cue = container.querySelector('span[aria-hidden="true"].pointer-events-none');
+    expect(cue).not.toBeNull();
+    // Outside the scrolling box, or it would slide off the edge it is there to mark.
+    expect(cue?.parentElement?.className).toBe("relative");
+    expect(cue?.previousElementSibling?.className).toContain("overflow-x-auto");
+    unmount();
+    const plain = render(
+      <Table columns={COLUMNS} rows={ROWS} rowKey={(row) => row.name} empty="nothing" />,
+    );
+    expect(
+      plain.container.querySelector('span[aria-hidden="true"].pointer-events-none'),
+    ).toBeNull();
+  });
+
   it("is a real table with one header per column", () => {
     render(<Table columns={COLUMNS} rows={ROWS} rowKey={(row) => row.name} empty="nothing" />);
     expect(screen.getAllByRole("columnheader").map((th) => th.textContent)).toEqual([
@@ -111,6 +166,24 @@ describe("Table", () => {
     );
     // A column that is not sortable gets no aria-sort at all, sorted table or not.
     expect(screen.getByRole("columnheader", { name: "icon" })).not.toHaveAttribute("aria-sort");
+  });
+
+  it("gives a sortable header's button the casing the headers prop asked for", () => {
+    renderWithProviders(
+      <Table
+        columns={[
+          { key: "name", label: "Brawler", sortable: true },
+          { key: "games", label: "Games", sortable: true },
+        ]}
+        rows={[{ name: "NORI", games: 3 }]}
+        rowKey={(row) => row.name}
+        empty="No games in this range."
+        headers="sentence"
+        sort={{ key: "games", dir: "desc" }}
+        onSort={() => undefined}
+      />,
+    );
+    expect(screen.getByRole("button", { name: "Brawler" }).className).not.toContain("uppercase");
   });
 
   it("calls onSort once per header click, with that column's key", async () => {

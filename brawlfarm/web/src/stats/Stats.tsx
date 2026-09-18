@@ -11,6 +11,7 @@
  * configured list, and firing once without it and again with it would double every load.
  */
 import { useQuery } from "@tanstack/react-query";
+import { useEffect, useRef } from "react";
 import { useSearchParams } from "react-router";
 
 import { BrawlerTable } from "./BrawlerTable";
@@ -19,16 +20,19 @@ import { MetricsRow } from "./MetricsRow";
 import { RankBars } from "./RankBars";
 import { RecentGames } from "./RecentGames";
 import { StatsToolbar } from "./StatsToolbar";
-import { TrophyChart } from "./TrophyChart";
+import { type StatsView, TrophyChart } from "./TrophyChart";
 import { getConnection } from "../api/connection";
 import { queryKeys } from "../api/queries";
 import { getStats, statsCsvHref } from "../api/stats";
 import type { StatsRange } from "../api/types";
 import { useInstances } from "../api/useInstances";
 import { ErrorBlock } from "../components/ui/ErrorBlock";
+import { toast } from "../lib/toast";
 
 export const RANGES: readonly StatsRange[] = ["today", "7d", "30d", "all"];
+export const VIEWS: readonly StatsView[] = ["chart", "table"];
 const DEFAULT_RANGE: StatsRange = "7d";
+const DEFAULT_VIEW: StatsView = "chart";
 /** The server caches its answer for five minutes, so asking again inside that window only
  * costs a round trip to be told the same thing. */
 const CONNECTION_STALE_MS = 300_000;
@@ -37,6 +41,12 @@ const CONNECTION_STALE_MS = 300_000;
  * match, and an empty page is a worse first impression than a slightly wider one. */
 export function parseRange(raw: string | null): StatsRange {
   return RANGES.includes((raw ?? "") as StatsRange) ? (raw as StatsRange) : DEFAULT_RANGE;
+}
+
+/** An absent or unparsable view is the chart: it is what the page is for, and the table
+ * is the second look at the same numbers. */
+export function parseView(raw: string | null): StatsView {
+  return VIEWS.includes((raw ?? "") as StatsView) ? (raw as StatsView) : DEFAULT_VIEW;
 }
 
 function Skeleton() {
@@ -58,15 +68,33 @@ export function Stats() {
   const configured = (instancesQuery.data ?? []).map((inst) => inst.name);
 
   const range = parseRange(params.get("range"));
+  const view = parseView(params.get("view"));
   const asked = (params.get("instances") ?? "")
     .split(",")
     .map((name) => name.trim())
     .filter((name) => name !== "");
   const narrowed = configured.filter((name) => asked.includes(name));
+  const dropped = asked.filter((name) => !configured.includes(name));
+  const droppedNames = dropped.join(", ");
+  const droppedMessage =
+    dropped.length === 1
+      ? `${droppedNames} is no longer configured`
+      : `${droppedNames} are no longer configured`;
   const selected = narrowed.length === 0 ? configured : narrowed;
   // Empty means "every configured instance", which is the API's own default, so a full
   // selection and no selection share one URL and one cache entry.
   const scope = selected.length === configured.length ? [] : selected;
+
+  // A stale link is narrowed quietly in the request, so the dropped names are said out
+  // loud once. Only after the list has arrived: a pending list drops every asked name.
+  // The ref keys the telling on the dropped names, so a re-render says nothing again.
+  const told = useRef("");
+  useEffect(() => {
+    if (!instancesQuery.isSuccess || droppedNames === "") return;
+    if (told.current === droppedNames) return;
+    told.current = droppedNames;
+    toast(droppedMessage, { tone: "info" });
+  }, [droppedMessage, droppedNames, instancesQuery.isSuccess]);
 
   const stats = useQuery({
     queryKey: queryKeys.stats(range, scope),
@@ -80,14 +108,16 @@ export function Stats() {
     refetchOnWindowFocus: false,
   });
 
-  const write = (next: { range?: StatsRange; instances?: string[] }) => {
+  const write = (next: { range?: StatsRange; instances?: string[]; view?: StatsView }) => {
     const params2 = new URLSearchParams();
     const wantRange = next.range ?? range;
     const wantInstances = next.instances ?? selected;
+    const wantView = next.view ?? view;
     if (wantRange !== DEFAULT_RANGE) params2.set("range", wantRange);
     if (wantInstances.length !== configured.length) {
       params2.set("instances", wantInstances.join(","));
     }
+    if (wantView !== DEFAULT_VIEW) params2.set("view", wantView);
     setParams(params2, { replace: true });
   };
 
@@ -153,8 +183,14 @@ export function Stats() {
           <div data-testid="metrics-row">
             <MetricsRow summary={stats.data.summary} />
           </div>
-          <TrophyChart series={stats.data.series} instances={selected} range={range} />
-          <div className="grid gap-3 min-[900px]:grid-cols-[1fr_320px]">
+          <TrophyChart
+            series={stats.data.series}
+            instances={selected}
+            range={range}
+            view={view}
+            onView={(next) => write({ view: next })}
+          />
+          <div className="grid items-start gap-3 min-[900px]:grid-cols-[1fr_320px]">
             <section className="flex flex-col gap-2 rounded-[10px] border border-line bg-panel p-3">
               <h2 className="text-[13px] font-semibold">Brawlers</h2>
               <BrawlerTable rows={stats.data.brawlers} />

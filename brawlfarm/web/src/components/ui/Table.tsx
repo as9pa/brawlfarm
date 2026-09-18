@@ -17,6 +17,18 @@
  * The overflow box is itself positioned so that absolutely positioned span stays clipped
  * inside it instead of escaping to the nearest positioned ancestor.
  *
+ * A table with a `minWidth` overflows on a narrow panel, so it also gets a fading strip down
+ * its right edge: a table that has to be scrolled sideways needs to look like one. The strip
+ * is decoration and nothing else, so it is aria-hidden and takes no pointer events. It is a
+ * sibling of the overflow box rather than a child of it, positioned on a wrapper of its own:
+ * inside the box it would be placed against the scrolling content and slide off the edge it
+ * is there to mark. A table with no `minWidth` grows no wrapper and renders exactly as it
+ * always has.
+ *
+ * `nowrap` is for a table that scrolls: a cell that wraps has not been saved from squeezing,
+ * it has been squeezed vertically instead, and one two-line placeholder makes its row twice
+ * the height of every other row.
+ *
  * Sorting is opt-in and is the caller's job. With `sort` and `onSort` a sortable column's
  * label becomes a full-width button and its <th> carries aria-sort; without them no header
  * is a button and no aria-sort is written, so every call site that predates this renders
@@ -43,6 +55,15 @@ export interface TableProps<Row> {
   empty: ReactNode;
   sort?: { key: string; dir: "asc" | "desc" };
   onSort?: (key: string) => void;
+  /** A CSS length written onto the table, so a table with more columns than the panel is
+   * wide scrolls inside its own box instead of squeezing every column. */
+  minWidth?: string;
+  /** How the headers read. Caps is the house style for a settings table of fields; a
+   * table of figures a person scans down reads in sentence case. */
+  headers?: "caps" | "sentence";
+  /** Keeps every cell on one line, so a long value widens the table and the box scrolls
+   * rather than the row growing a second line. Pairs with `minWidth`. */
+  nowrap?: boolean;
 }
 
 /** The one focus ring, restated on the control so it survives an ancestor that sets
@@ -50,7 +71,31 @@ export interface TableProps<Row> {
 const FOCUS_RING =
   "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent";
 
-export function Table<Row>({ columns, rows, rowKey, empty, sort, onSort }: TableProps<Row>) {
+/** The two header styles. Written out rather than composed, so the caps one is the same
+ * string it has always been and the six tables that predate this render byte for byte. */
+const HEADER: Record<"caps" | "sentence", string> = {
+  caps: "px-2 py-1.5 text-left text-[11px] font-medium uppercase tracking-wide text-muted",
+  sentence: "px-2 py-1.5 text-left text-[11px] font-medium text-muted",
+};
+
+/** The casing half of the same two styles. A sortable column's label lives in a button
+ * inside the th, and both halves of one header have to read the same way. */
+const HEADER_CASE: Record<"caps" | "sentence", string> = {
+  caps: "uppercase tracking-wide",
+  sentence: "",
+};
+
+export function Table<Row>({
+  columns,
+  rows,
+  rowKey,
+  empty,
+  sort,
+  onSort,
+  minWidth,
+  headers = "caps",
+  nowrap = false,
+}: TableProps<Row>) {
   const sorting = sort !== undefined && onSort !== undefined;
 
   const ariaSort = (column: Column<Row>): "ascending" | "descending" | "none" | undefined => {
@@ -59,9 +104,12 @@ export function Table<Row>({ columns, rows, rowKey, empty, sort, onSort }: Table
     return sort.dir === "asc" ? "ascending" : "descending";
   };
 
-  return (
+  const box = (
     <div className="relative overflow-x-auto">
-      <table className="w-full border-collapse text-[13px]">
+      <table
+        className="w-full border-collapse text-[13px]"
+        style={minWidth === undefined ? undefined : { minWidth }}
+      >
         <colgroup>
           {columns.map((column) => (
             <col
@@ -77,13 +125,13 @@ export function Table<Row>({ columns, rows, rowKey, empty, sort, onSort }: Table
                 key={column.key}
                 scope="col"
                 aria-sort={ariaSort(column)}
-                className="px-2 py-1.5 text-left text-[11px] font-medium uppercase tracking-wide text-muted"
+                className={HEADER[headers]}
               >
                 {sorting && column.sortable === true ? (
                   <button
                     type="button"
                     onClick={() => onSort(column.key)}
-                    className={`flex w-full items-center gap-1 text-left uppercase tracking-wide ${FOCUS_RING}`}
+                    className={`flex w-full items-center gap-1 text-left ${FOCUS_RING} ${HEADER_CASE[headers]}`}
                   >
                     {column.label === "" ? (
                       <span className="sr-only">{column.key}</span>
@@ -120,7 +168,7 @@ export function Table<Row>({ columns, rows, rowKey, empty, sort, onSort }: Table
                 {columns.map((column) => (
                   <td
                     key={column.key}
-                    className={`px-2 py-1.5 align-middle ${column.mono === true ? "font-mono tabular-nums" : ""}`}
+                    className={`px-2 py-1.5 align-middle ${column.mono === true ? "font-mono tabular-nums" : ""} ${nowrap ? "whitespace-nowrap" : ""}`}
                   >
                     {column.render === undefined ? null : column.render(row)}
                   </td>
@@ -130,6 +178,18 @@ export function Table<Row>({ columns, rows, rowKey, empty, sort, onSort }: Table
           )}
         </tbody>
       </table>
+    </div>
+  );
+
+  if (minWidth === undefined) return box;
+
+  return (
+    <div className="relative">
+      {box}
+      <span
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-y-0 right-0 w-6 bg-gradient-to-l from-panel to-transparent"
+      />
     </div>
   );
 }

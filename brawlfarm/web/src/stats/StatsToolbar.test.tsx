@@ -6,6 +6,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import { StatsToolbar } from "./StatsToolbar";
 import { statsCsvHref } from "../api/stats";
+import { buttonClass } from "../components/ui/Button";
 import { renderWithProviders } from "../test/renderWithProviders";
 
 function mount(overrides: Partial<Parameters<typeof StatsToolbar>[0]> = {}) {
@@ -72,10 +73,23 @@ describe("StatsToolbar", () => {
     expect(props.onInstances).toHaveBeenCalledWith(["Pie64", "Pie64_1"]);
   });
 
-  it("refuses to turn off the last enabled chip", async () => {
+  it("disables the last enabled chip and says why", async () => {
     const props = mount({ selected: ["Pie64"] });
-    await userEvent.click(screen.getByRole("button", { name: "Pie64" }));
+    const chip = screen.getByRole("button", { name: "Pie64" });
+    expect(chip).toHaveAttribute("aria-disabled", "true");
+    expect(chip).toHaveAttribute("title", "Keep at least one");
+    await userEvent.click(chip);
     expect(props.onInstances).not.toHaveBeenCalled();
+  });
+
+  it("renders one instance as a label, not a chip", () => {
+    mount({ instances: ["Pie64"], selected: ["Pie64"] });
+    const label = screen.getByTestId("instance-label");
+    expect(label).toHaveTextContent("Pie64");
+    // An instance name is a name, not a figure: t-name, never t-figure.
+    expect(label).toHaveClass("t-name");
+    expect(label).not.toHaveClass("t-figure");
+    expect(screen.queryByRole("button", { name: "Pie64" })).toBeNull();
   });
 
   it("exports the current query as a download link", () => {
@@ -83,5 +97,6 @@ describe("StatsToolbar", () => {
     const link = screen.getByRole("link", { name: "Export CSV" });
     expect(link).toHaveAttribute("href", "/api/stats/export.csv?range=30d&instances=Pie64");
     expect(link).toHaveAttribute("download");
+    expect(link).toHaveClass("ml-auto", buttonClass("secondary", "sm"));
   });
 });
