@@ -14,6 +14,7 @@
  */
 import type { Recorder } from "../api/calibration";
 import { Switch } from "../components/ui/Switch";
+import { RECORDING_CAP_NOTE } from "../lib/copy";
 
 export interface RecorderCardProps {
   instance: string;
@@ -91,6 +92,8 @@ export function RecorderCard({ instance, status, pending, onToggle }: RecorderCa
             : `Off. Last session ${status.last_session}, ${status.last_frames} frames.`}
         </p>
       )}
+
+      <p className="text-[12px] text-muted">{RECORDING_CAP_NOTE}</p>
 
       {status?.path !== undefined && status.path !== null && (
         <p className="font-mono text-[11px] text-muted">{status.path}</p>
