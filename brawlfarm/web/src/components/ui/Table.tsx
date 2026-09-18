@@ -43,6 +43,12 @@ export interface TableProps<Row> {
   empty: ReactNode;
   sort?: { key: string; dir: "asc" | "desc" };
   onSort?: (key: string) => void;
+  /** A CSS length written onto the table, so a table with more columns than the panel is
+   * wide scrolls inside its own box instead of squeezing every column. */
+  minWidth?: string;
+  /** How the headers read. Caps is the house style for a settings table of fields; a
+   * table of figures a person scans down reads in sentence case. */
+  headers?: "caps" | "sentence";
 }
 
 /** The one focus ring, restated on the control so it survives an ancestor that sets
@@ -50,7 +56,23 @@ export interface TableProps<Row> {
 const FOCUS_RING =
   "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent";
 
-export function Table<Row>({ columns, rows, rowKey, empty, sort, onSort }: TableProps<Row>) {
+/** The two header styles. Written out rather than composed, so the caps one is the same
+ * string it has always been and the six tables that predate this render byte for byte. */
+const HEADER: Record<"caps" | "sentence", string> = {
+  caps: "px-2 py-1.5 text-left text-[11px] font-medium uppercase tracking-wide text-muted",
+  sentence: "px-2 py-1.5 text-left text-[11px] font-medium text-muted",
+};
+
+export function Table<Row>({
+  columns,
+  rows,
+  rowKey,
+  empty,
+  sort,
+  onSort,
+  minWidth,
+  headers = "caps",
+}: TableProps<Row>) {
   const sorting = sort !== undefined && onSort !== undefined;
 
   const ariaSort = (column: Column<Row>): "ascending" | "descending" | "none" | undefined => {
@@ -61,7 +83,10 @@ export function Table<Row>({ columns, rows, rowKey, empty, sort, onSort }: Table
 
   return (
     <div className="relative overflow-x-auto">
-      <table className="w-full border-collapse text-[13px]">
+      <table
+        className="w-full border-collapse text-[13px]"
+        style={minWidth === undefined ? undefined : { minWidth }}
+      >
         <colgroup>
           {columns.map((column) => (
             <col
@@ -77,7 +102,7 @@ export function Table<Row>({ columns, rows, rowKey, empty, sort, onSort }: Table
                 key={column.key}
                 scope="col"
                 aria-sort={ariaSort(column)}
-                className="px-2 py-1.5 text-left text-[11px] font-medium uppercase tracking-wide text-muted"
+                className={HEADER[headers]}
               >
                 {sorting && column.sortable === true ? (
                   <button

@@ -29,6 +29,37 @@ const COLUMNS: readonly Column<Row>[] = [
 ];
 
 describe("Table", () => {
+  it("reads its headers in caps by default and in sentence case when asked", () => {
+    const { unmount } = render(
+      <Table
+        columns={COLUMNS}
+        rows={ROWS}
+        rowKey={(row) => row.name}
+        empty="nothing"
+        headers="sentence"
+      />,
+    );
+    expect(screen.getByRole("columnheader", { name: "Name" }).className).not.toContain(
+      "uppercase",
+    );
+    unmount();
+    render(<Table columns={COLUMNS} rows={ROWS} rowKey={(row) => row.name} empty="nothing" />);
+    expect(screen.getByRole("columnheader", { name: "Name" }).className).toContain("uppercase");
+  });
+
+  it("puts a minimum width on the table element itself", () => {
+    const { container } = render(
+      <Table
+        columns={COLUMNS}
+        rows={ROWS}
+        rowKey={(row) => row.name}
+        empty="nothing"
+        minWidth="720px"
+      />,
+    );
+    expect(container.querySelector("table")).toHaveStyle({ minWidth: "720px" });
+  });
+
   it("is a real table with one header per column", () => {
     render(<Table columns={COLUMNS} rows={ROWS} rowKey={(row) => row.name} empty="nothing" />);
     expect(screen.getAllByRole("columnheader").map((th) => th.textContent)).toEqual([

@@ -30,6 +30,19 @@ const SERIES: StatsSeries[] = [
 
 const INSTANCES = ["Pie64", "Pie64_1", "Pie64_3"];
 
+/** One instance, one game a day, `count` days running from Sep 1. */
+function daily(count: number): StatsSeries[] {
+  return [
+    {
+      instance: "Pie64",
+      points: Array.from({ length: count }, (_, i) => ({
+        t: `2026-09-${String(i + 1).padStart(2, "0")}T21:00:00`,
+        cum: i + 1,
+      })),
+    },
+  ];
+}
+
 /** The view is the page's to own, so every case says which one it is looking at and
  * reads onView to see what the chart asked for. */
 let onView = vi.fn();
@@ -269,12 +282,44 @@ describe("TrophyChart", () => {
     );
   });
 
-  it("carries the day on a range wider than today and drops it on today", () => {
-    const { unmount } = mount(SERIES, INSTANCES, "7d", "table");
-    expect(screen.getAllByRole("row")[1]).toHaveTextContent("Sep 12, 21:00");
-    unmount();
-    mount(SERIES, INSTANCES, "today", "table");
-    expect(screen.getAllByRole("row")[1]).toHaveTextContent("21:00");
-    expect(screen.getAllByRole("row")[1]).not.toHaveTextContent("Sep");
+  it("is one row a day, and names no instance in its headers", () => {
+    mount(SERIES, INSTANCES, "7d", "table");
+    const table = screen.getByRole("table");
+    const headers = within(table)
+      .getAllByRole("columnheader")
+      .map((n) => n.textContent);
+    expect(headers).toEqual(["Date", "Games", "Net trophies", "Cumulative"]);
+    for (const name of INSTANCES) expect(headers).not.toContain(name);
+    // Three moments over one day, so one row, and the day reads as the short date.
+    expect(within(table).getAllByRole("row")).toHaveLength(2);
+    expect(within(table).getAllByRole("row")[1]).toHaveTextContent("Sep 12");
+  });
+
+  it("caps the table at fourteen days and expands in place", async () => {
+    mount(daily(30), ["Pie64"], "30d", "table");
+    expect(within(screen.getByRole("table")).getAllByRole("row")).toHaveLength(15);
+    await userEvent.click(screen.getByRole("button", { name: "Show all 30 days" }));
+    expect(within(screen.getByRole("table")).getAllByRole("row")).toHaveLength(31);
+    await userEvent.click(screen.getByRole("button", { name: "Show 14 days" }));
+    expect(within(screen.getByRole("table")).getAllByRole("row")).toHaveLength(15);
+  });
+
+  it("shows no expander when the range fits under the cap", () => {
+    mount(daily(13), ["Pie64"], "30d", "table");
+    expect(within(screen.getByRole("table")).getAllByRole("row")).toHaveLength(14);
+    expect(screen.queryByRole("button", { name: /Show/ })).toBeNull();
+  });
+
+  it("carries the day on a range wider than today and drops it on today", async () => {
+    const wide = mount(SERIES, INSTANCES, "7d");
+    plot().focus();
+    await userEvent.keyboard("{Home}");
+    expect(screen.getByTestId("chart-readout")).toHaveTextContent("Sep 12, 21:00");
+    wide.unmount();
+    mount();
+    plot().focus();
+    await userEvent.keyboard("{Home}");
+    expect(screen.getByTestId("chart-readout")).toHaveTextContent("21:00");
+    expect(screen.getByTestId("chart-readout")).not.toHaveTextContent("Sep");
   });
 });

@@ -21,10 +21,12 @@
 import { type KeyboardEvent, type MouseEvent, useState } from "react";
 
 import type { StatsPoint, StatsRange, StatsSeries } from "../api/types";
+import { Button } from "../components/ui/Button";
 import { Segmented } from "../components/ui/Segmented";
 import { Table, type Column } from "../components/ui/Table";
 import { NOT_RECORDED } from "../lib/copy";
-import { num } from "../lib/format";
+import { monthDay, num, signed } from "../lib/format";
+import { type DayRow, rollUpDays } from "./days";
 import { formatMoment } from "./format";
 
 /** The chart or the same numbers as a table. The chart owns the vocabulary because it
@@ -102,9 +104,20 @@ const VALUE_PAD = 0.05; // the brief's 5 %
 const EMPTY = "No games in this range.";
 /** How many dated stamps the x axis prints at most, the two ends included. */
 const X_TICKS = 5;
+/** How many day rows the table shows before it asks. Two weeks is a screen of rows and
+ * the width of the range most of the panel is read at. */
+const DAY_CAP = 14;
 /** The line box at 11 px type, the gap the end labels are nudged by. Two y-axis labels
  * closer together than this would overprint each other. */
 const LABEL_H = 12;
+
+/** The same three tones the brawler table reads a net by, so a day and a brawler agree
+ * on what a gain looks like. */
+function netTone(net: number): string {
+  if (net > 0) return "text-accent";
+  if (net < 0) return "text-bad";
+  return "text-muted";
+}
 
 function colorFor(index: number): string {
   return SERIES_COLORS[index % SERIES_COLORS.length];
@@ -130,6 +143,9 @@ export function TrophyChart({ series, instances, range, view, onView }: TrophyCh
    * crosshair, the ends and the table all agree on what a stamp looks like. */
   const clock = (iso: string): string => formatMoment(iso, range);
   const [hover, setHover] = useState<number | null>(null);
+  // View-only and deliberately not in the URL: the range and the view are what a link
+  // carries, and how far one table is unrolled is not worth a history entry.
+  const [showAll, setShowAll] = useState(false);
   const [cursor, setCursor] = useState<number | null>(null);
   const active = hover ?? cursor;
 
@@ -243,26 +259,41 @@ export function TrophyChart({ series, instances, range, view, onView }: TrophyCh
     setHover(Math.round(ratio * (moments.length - 1)));
   };
 
-  const columns: Column<{ t: string; values: (number | null)[] }>[] = [
+  /** One row a day, not one a game: a 30-day range was hundreds of rows of a running
+   * total with no net and no count. The selection is named by the toolbar and the legend,
+   * so no column names an instance either. */
+  const dayRows = rollUpDays(ordered);
+  const shown = showAll ? dayRows : dayRows.slice(0, DAY_CAP);
+  const columns: Column<DayRow>[] = [
     {
-      key: "t",
-      label: "Time",
-      mono: true,
-      width: range === "today" ? "80px" : "120px",
-      render: (row) => clock(row.t),
+      key: "date",
+      label: "Date",
+      width: "120px",
+      // At local midnight, because a bare YYYY-MM-DD parses as UTC and would read as the
+      // day before on every machine west of it.
+      render: (row) => <span className="t-figure">{monthDay(`${row.date}T00:00:00`)}</span>,
     },
-    ...ordered.map((s, index) => ({
-      key: s.instance,
-      label: s.instance,
-      mono: true,
-      render: (row: { t: string; values: (number | null)[] }) =>
-        row.values[index] === null ? NOT_RECORDED : String(row.values[index]),
-    })),
+    {
+      key: "games",
+      label: "Games",
+      width: "80px",
+      render: (row) => <span className="t-figure">{num(row.games)}</span>,
+    },
+    {
+      key: "net",
+      label: "Net trophies",
+      width: "120px",
+      render: (row) => (
+        <span className={`t-figure ${netTone(row.net)}`}>{signed(row.net)}</span>
+      ),
+    },
+    {
+      key: "cum",
+      label: "Cumulative",
+      width: "120px",
+      render: (row) => <span className="t-figure">{num(row.cum)}</span>,
+    },
   ];
-  const rows = moments.map((ms) => ({
-    t: new Date(ms).toISOString(),
-    values: ordered.map((s) => valueAt(s.points, ms)),
-  }));
 
   return (
     <section className="flex flex-col gap-2 rounded-[10px] border border-line bg-panel p-3">
@@ -298,7 +329,22 @@ export function TrophyChart({ series, instances, range, view, onView }: TrophyCh
       </div>
 
       {view === "table" ? (
-        <Table columns={columns} rows={rows} rowKey={(row) => row.t} empty={EMPTY} />
+        <>
+          <Table
+            columns={columns}
+            rows={shown}
+            rowKey={(row) => row.date}
+            empty={EMPTY}
+            headers="sentence"
+          />
+          {dayRows.length > DAY_CAP ? (
+            <div>
+              <Button variant="quiet" size="sm" onClick={() => setShowAll((open) => !open)}>
+                {showAll ? `Show ${num(DAY_CAP)} days` : `Show all ${num(dayRows.length)} days`}
+              </Button>
+            </div>
+          ) : null}
+        </>
       ) : moments.length === 0 ? (
         <p data-testid="chart-empty" className="h-[180px] text-[13px] text-muted">
           {EMPTY}
