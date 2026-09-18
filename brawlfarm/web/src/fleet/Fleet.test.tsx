@@ -140,6 +140,25 @@ describe("Fleet", () => {
     ).toBeInTheDocument();
   });
 
+  it("leaves an alert the bot handled itself to the drawer", async () => {
+    stubFleet(FLEET, [makeAlert({ id: 9, instance: "Pie64", kind: "wrong_mode", title: "Wrong mode" })]);
+    renderWithProviders(<Fleet />);
+    expect(await screen.findByText("3 instances")).toBeInTheDocument();
+    expect(
+      screen.queryByText("Pie64 picked the wrong mode and switched back. Nothing to do."),
+    ).toBeNull();
+  });
+
+  it("gives the strip's link every unread alert, not just the actionable ones", async () => {
+    stubFleet(FLEET, [
+      makeAlert({ id: 9, instance: "Pie64", kind: "crash", title: "Bot crashed", detail: "err=adb did not answer" }),
+      makeAlert({ id: 8, instance: "Pie64", kind: "wrong_mode", title: "Wrong mode" }),
+      makeAlert({ id: 7, instance: "Pie64_1", kind: "recover", title: "Recovering" }),
+    ]);
+    renderWithProviders(<Fleet />);
+    expect(await screen.findByRole("button", { name: "All 3 alerts" })).toBeInTheDocument();
+  });
+
   it("tells a new user what to do when there are no instances", async () => {
     stubFleet([]);
     renderWithProviders(<Fleet />);

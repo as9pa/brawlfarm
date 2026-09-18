@@ -13,7 +13,7 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "react-router";
 
-import { AlertStrip } from "./AlertStrip";
+import { AlertStrip, stripAlert } from "./AlertStrip";
 import { InstanceCard } from "./InstanceCard";
 import { listAlerts } from "../api/alerts";
 import { startInstance, stopInstance } from "../api/instances";
@@ -42,7 +42,7 @@ export function Fleet() {
   });
 
   const fleet = instances ?? [];
-  const newest = alerts?.alerts[0];
+  const newest = stripAlert(alerts?.alerts ?? []);
   const farming = fleet.filter((inst) => inst.state === "farming").length;
   const games = fleet.reduce((total, inst) => total + inst.today.games, 0);
   const trophies = fleet.reduce((total, inst) => total + inst.today.trophies, 0);
@@ -127,7 +127,7 @@ export function Fleet() {
       </header>
 
       {newest !== undefined && (
-        <AlertStrip alert={newest} unread={alerts?.unread ?? 0} onOpen={openAlertsDrawer} />
+        <AlertStrip alert={newest} total={alerts?.unread ?? 0} onOpen={openAlertsDrawer} />
       )}
 
       <div className="grid gap-4" style={{ gridTemplateColumns: GRID_COLUMNS }}>

@@ -1,5 +1,5 @@
 /**
- * The newest unread alert, above the grid.
+ * The newest alert that needs a hand, above the grid.
  *
  * One line, one action. Every kind is rewritten into a sentence that says what happened
  * and the one thing to do about it, because "misses=3" means nothing to the person
@@ -15,14 +15,25 @@ import type { Alert } from "../api/types";
 import { Button } from "../components/ui/Button";
 import { Chip } from "../components/ui/Chip";
 import { REQUIRED_SIZE } from "../lib/copy";
+import { plural } from "../lib/format";
 import { alertKindLabel, alertKindTone } from "../lib/states";
 import { since } from "../lib/time";
 import { failureMessage, toast } from "../lib/toast";
 
 export interface AlertStripProps {
   alert: Alert;
-  unread: number;
+  total: number;
   onOpen: () => void;
+}
+
+/** The kinds that wait on the owner. Everything else is either already fixed by the bot
+ * or a note about what it did, and belongs in the drawer rather than above the grid. */
+const ACTION_KINDS = new Set(["offline", "crash", "bad_resolution", "recalibrate"]);
+
+/** The newest alert that needs a hand, or nothing at all. The API lists alerts newest
+ * first (`brawlfarm/api/alerts.py:88`), so the first match is the newest one. */
+export function stripAlert(alerts: Alert[]): Alert | undefined {
+  return alerts.find((alert) => ACTION_KINDS.has(alert.kind));
 }
 
 /**
@@ -50,7 +61,7 @@ export function alertSentence(alert: Alert, nowMs: number): string {
   return SENTENCES[alert.kind](alert.instance, since(Date.parse(alert.ts), nowMs));
 }
 
-export function AlertStrip({ alert, unread, onOpen }: AlertStripProps) {
+export function AlertStrip({ alert, total, onOpen }: AlertStripProps) {
   const client = useQueryClient();
   // Frozen at mount: the strip is replaced whenever the alert list changes, and a ticking
   // age here would rerender the whole Fleet page every second for no benefit.
@@ -93,9 +104,9 @@ export function AlertStrip({ alert, unread, onOpen }: AlertStripProps) {
       <Button variant="quiet" size="sm" onClick={onDismiss}>
         Dismiss
       </Button>
-      {unread > 1 && (
+      {total > 1 && (
         <Button variant="quiet" size="sm" onClick={onOpen}>
-          {`${unread - 1} more`}
+          {`All ${plural(total, "alert")}`}
         </Button>
       )}
     </div>
