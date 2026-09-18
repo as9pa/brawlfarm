@@ -4,7 +4,7 @@
  * The page is a read. There is no field on it that writes a coordinate or a threshold,
  * and the only two requests it sends are the recorder switch and the button that opens
  * the folder in Explorer, neither of which carries a value from the page. Editing
- * happens in calibration.toml and the templates folder, which is what the hint says.
+ * happens in calibration.toml and the templates folder, never on this page.
  *
  * Instance selection is local state rather than the URL: unlike Stats, nothing here is
  * worth linking to, and the preselected running instance is almost always the one the
@@ -15,6 +15,7 @@ import { type ReactNode, useState } from "react";
 
 import { AnchorTable } from "./AnchorTable";
 import { FrameOverlay, type OverlayShow } from "./FrameOverlay";
+import { SCREEN_OPTIONS, type ScreenFilter, screenStateLabel } from "./names";
 import { ObserveCard } from "./ObserveCard";
 import { OverridesTable } from "./OverridesTable";
 import { RecorderCard } from "./RecorderCard";
@@ -31,14 +32,13 @@ import { openCalibrationFolder } from "../api/calibration";
 import type { InstanceState } from "../api/types";
 import { useInstances } from "../api/useInstances";
 import { Button } from "../components/ui/Button";
+import { Chip } from "../components/ui/Chip";
 import { ErrorBlock } from "../components/ui/ErrorBlock";
 import { Segmented } from "../components/ui/Segmented";
 import { StateChip } from "../components/ui/StateChip";
+import { CALIBRATION_INTRO } from "../lib/copy";
 import { failureMessage, toast } from "../lib/toast";
 import { phaseLabel } from "../lib/states";
-
-export const HINT =
-  "What brawlfarm sees. The page reads; calibration.toml and the templates folder write.";
 
 /** An instance in one of these writes no new frame, so the page scores the last one once
  * and stops polling. Same three as the Instance page's Stop button. */
@@ -49,13 +49,13 @@ const NOT_RUNNING: ReadonlySet<InstanceState> = new Set<InstanceState>([
 ]);
 
 const SHOW_OPTIONS: readonly { value: OverlayShow; label: string }[] = [
-  { value: "taps", label: "Taps" },
-  { value: "anchors", label: "Anchors" },
+  { value: "taps", label: "Where it taps" },
+  { value: "anchors", label: "What it looks for" },
   { value: "both", label: "Both" },
 ];
 
 export function noFrameYet(name: string): string {
-  return `Start ${name} to see its frame. Scores appear after the first capture.`;
+  return `Start ${name} to see its screen. Matches appear once it sends the first picture.`;
 }
 
 function Skeleton() {
@@ -72,6 +72,10 @@ export function Calibration() {
   const instances = instancesQuery.data ?? [];
   const [picked, setPicked] = useState<string | null>(null);
   const [show, setShow] = useState<OverlayShow>("both");
+  // The filter starts on every screen and stays where the reader put it. It deliberately
+  // does not follow the detected screen: a filter that moved on its own would fight a
+  // reader who had just chosen one.
+  const [screen, setScreen] = useState<ScreenFilter>("all");
 
   // The first running instance is the one worth looking at; the first configured one is
   // the fallback so a wholly stopped fleet still has a frame to show.
@@ -114,7 +118,7 @@ export function Calibration() {
   const header = (
     <>
       <h1 className="text-[28px] font-semibold tracking-tight">Calibration</h1>
-      <p className="text-[13px] text-muted">{HINT}</p>
+      <p className="text-[13px] text-muted">{CALIBRATION_INTRO}</p>
     </>
   );
 
@@ -150,7 +154,8 @@ export function Calibration() {
         })}
       </div>
 
-      <Segmented label="Overlay" value={show} options={SHOW_OPTIONS} onChange={setShow} />
+      <Segmented label="Show" value={show} options={SHOW_OPTIONS} onChange={setShow} />
+      <Segmented label="Screen" value={screen} options={SCREEN_OPTIONS} onChange={setScreen} />
 
       {instance !== undefined && <StateChip state={instance.state} />}
 
@@ -171,6 +176,7 @@ export function Calibration() {
     }
     if (scores.isError) return <p className="text-[13px] text-muted">{noFrameYet(chosen)}</p>;
     return (
+      // Task 3 wires this into the overlay.
       <FrameOverlay
         instance={chosen}
         taps={(calibration.data?.constants ?? []).filter((c) => c.group === "tap")}
@@ -195,6 +201,16 @@ export function Calibration() {
           <div className="grid gap-3 min-[1100px]:grid-cols-[1fr_420px]">
             <div className="flex flex-col gap-3">
               {frame()}
+              {scores.data !== undefined && (
+                <div className="flex flex-wrap items-center gap-2">
+                  <Chip tone="idle">{`Screen: ${screenStateLabel(scores.data.state)}`}</Chip>
+                  {/* A phase the page has no words for prints nothing, so the chip is
+                      left out rather than shown with an empty half. */}
+                  {phaseLabel(scores.data.phase) !== "" && (
+                    <Chip tone="idle">{`Step: ${phaseLabel(scores.data.phase)}`}</Chip>
+                  )}
+                </div>
+              )}
               {chosen !== null && (
                 <RecorderCard
                   instance={chosen}
@@ -216,14 +232,7 @@ export function Calibration() {
             </div>
 
             <section className="flex flex-col gap-2 rounded-[10px] border border-line bg-panel p-3">
-              <div className="flex items-baseline justify-between gap-2">
-                <h2 className="text-[13px] font-semibold">Anchors</h2>
-                {scores.data !== undefined && (
-                  <span className="font-mono text-[11px] text-muted">
-                    {`${scores.data.state} / ${phaseLabel(scores.data.phase)}`}
-                  </span>
-                )}
-              </div>
+              <h2 className="text-[13px] font-semibold">What it looks for</h2>
               <AnchorTable
                 anchors={scores.data?.anchors ?? []}
                 at={scores.data?.at}

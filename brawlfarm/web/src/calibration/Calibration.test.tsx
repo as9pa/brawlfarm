@@ -8,6 +8,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { Calibration } from "./Calibration";
 import type { Calibration as CalibrationPayload, Recorder, Scores } from "../api/calibration";
 import { Toaster } from "../components/ui/Toast";
+import { CALIBRATION_INTRO } from "../lib/copy";
 import { resetToasts } from "../lib/toast";
 import { makeInstance } from "../test/fixtures";
 import { type FetchCall, jpegResponse, jsonResponse, stubFetch } from "../test/http";
@@ -40,7 +41,7 @@ const SCORES: Scores = {
   at: "2026-09-12T19:05:40+00:00",
   width: 1600,
   height: 900,
-  state: "at_menu",
+  state: "menu",
   phase: "at_menu",
   anchors: [
     {
@@ -151,11 +152,6 @@ describe("Calibration", () => {
     expect(screen.getAllByRole("heading", { level: 1 }).map((h) => h.textContent)).toEqual([
       "Calibration",
     ]);
-    expect(
-      await screen.findByText(
-        "What brawlfarm sees. The page reads; calibration.toml and the templates folder write.",
-      ),
-    ).toBeInTheDocument();
     // Pie64_1 is listed first and is stopped, so the running Pie64 is the one preselected.
     expect(await screen.findByRole("button", { name: "Pie64" })).toHaveAttribute(
       "aria-pressed",
@@ -165,6 +161,56 @@ describe("Calibration", () => {
       "aria-pressed",
       "false",
     );
+  });
+
+  it("says in plain words what the page is for", async () => {
+    server();
+    mount();
+    expect(await screen.findByText(CALIBRATION_INTRO)).toBeInTheDocument();
+    expect(CALIBRATION_INTRO).toBe(
+      "This is what brawlfarm looks for on the screen. Green means it found the thing " +
+        "where it expects it. Nothing here changes settings; it helps you see why a step " +
+        "failed.",
+    );
+  });
+
+  it("names the overlay control by outcome rather than by the drawing", async () => {
+    server();
+    mount();
+    const group = await screen.findByRole("radiogroup", { name: "Show" });
+    expect(within(group).getAllByRole("radio").map((radio) => radio.textContent)).toEqual([
+      "Where it taps",
+      "What it looks for",
+      "Both",
+    ]);
+    expect(screen.queryByText("Taps")).toBeNull();
+    expect(screen.queryByText("Anchors")).toBeNull();
+  });
+
+  it("offers the four screen filters and starts on all of them", async () => {
+    server();
+    mount();
+    const group = await screen.findByRole("radiogroup", { name: "Screen" });
+    expect(within(group).getAllByRole("radio").map((radio) => radio.textContent)).toEqual([
+      "Menu",
+      "Brawlers",
+      "Match",
+      "All",
+    ]);
+    expect(within(group).getByRole("radio", { name: "All" })).toHaveAttribute(
+      "aria-checked",
+      "true",
+    );
+  });
+
+  it("reads the frame back as two labelled chips under a heading in plain words", async () => {
+    server();
+    mount();
+    expect(await screen.findByText("Screen: Main menu")).toBeInTheDocument();
+    expect(screen.getByText("Step: At the menu")).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { level: 2, name: "What it looks for" }),
+    ).toBeInTheDocument();
   });
 
   it("scores every anchor and marks the one that drifted", async () => {
@@ -213,7 +259,7 @@ describe("Calibration", () => {
     await waitFor(() => {
       expect(
         screen.getAllByText(
-          "Start Pie64 to see its frame. Scores appear after the first capture.",
+          "Start Pie64 to see its screen. Matches appear once it sends the first picture.",
         ),
       ).toHaveLength(2);
     });
@@ -241,11 +287,11 @@ describe("Calibration", () => {
     });
     expect(overlay().querySelectorAll('[data-kind="tap"]')).toHaveLength(1);
 
-    await userEvent.click(screen.getByRole("radio", { name: "Taps" }));
+    await userEvent.click(screen.getByRole("radio", { name: "Where it taps" }));
     expect(overlay().querySelectorAll('[data-kind="anchor"]')).toHaveLength(0);
     expect(overlay().querySelectorAll('[data-kind="tap"]')).toHaveLength(1);
 
-    await userEvent.click(screen.getByRole("radio", { name: "Anchors" }));
+    await userEvent.click(screen.getByRole("radio", { name: "What it looks for" }));
     expect(overlay().querySelectorAll('[data-kind="tap"]')).toHaveLength(0);
     expect(overlay().querySelectorAll('[data-kind="anchor"]')).toHaveLength(2);
   });
