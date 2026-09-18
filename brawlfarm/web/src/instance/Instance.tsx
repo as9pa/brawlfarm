@@ -6,6 +6,7 @@
  * without this page holding any state of its own.
  */
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useState } from "react";
 import { Link, useParams } from "react-router";
 
 import { ApiError } from "../api/client";
@@ -22,6 +23,7 @@ import { getStatsToday } from "../api/stats";
 import type { InstancePayload, InstanceState } from "../api/types";
 import { useInstances } from "../api/useInstances";
 import { Button } from "../components/ui/Button";
+import { ConfirmDialog } from "../components/ui/ConfirmDialog";
 import { ErrorBlock } from "../components/ui/ErrorBlock";
 import { PanelSkeleton } from "../components/ui/PanelSkeleton";
 import { StateChip } from "../components/ui/StateChip";
@@ -42,6 +44,7 @@ const NOT_RUNNING: ReadonlySet<InstanceState> = new Set<InstanceState>([
 
 function Header({ inst, onDone }: { inst: InstancePayload; onDone: () => void }) {
   const client = useQueryClient();
+  const [confirmRestart, setConfirmRestart] = useState(false);
   const stoppable = !NOT_RUNNING.has(inst.state);
 
   /** Stopping, starting and restarting all write the schedule's override, and nothing on
@@ -67,71 +70,93 @@ function Header({ inst, onDone }: { inst: InstancePayload; onDone: () => void })
     done();
   };
   return (
-    <header className="flex flex-wrap items-center gap-x-3 gap-y-2">
-      <Link to="/" className="text-[12px] text-muted hover:text-text">
-        Fleet
-      </Link>
-      <h1 className="text-[28px] leading-none font-semibold">{inst.name}</h1>
-      <StateChip state={inst.state} />
-      <span className="font-mono text-[12px] tabular-nums text-muted">{inst.adb_port}</span>
-      {inst.player_tag === "" ? null : (
-        <span data-private className="font-mono text-[12px] text-muted">
-          {inst.player_tag}
-        </span>
-      )}
-      <span className="text-[12px] text-muted">{phaseLabel(inst.phase)}</span>
-      <div className="ml-auto flex items-center gap-2">
-        {/* The raw PNG, for a closer look or a copied URL; LiveScreen has its own
-            Refresh and Full size controls inside the frame. */}
-        <a
-          className="rounded-[6px] px-2 py-1 text-[12px] text-accent hover:underline"
-          href={screenshotUrl(inst.name)}
-          target="_blank"
-          rel="noreferrer"
-        >
-          Screenshot
-        </a>
-        <Button
-          variant="secondary"
-          size="sm"
-          disabled={!stoppable}
-          disabledReason="Already stopped"
-          onClick={() => {
-            void run(settled(stopInstance(inst.name)), () => {
-              toast(`Stopping ${inst.name} after this match`, {
-                undo: async () => {
-                  await settled(startInstance(inst.name));
-                  onDone();
-                },
-              });
-            });
-          }}
-        >
-          Stop
-        </Button>
-        <Button
-          variant="secondary"
-          size="sm"
-          onClick={() => {
-            void run(settled(restartInstance(inst.name)), () =>
-              toast(`Restarting ${inst.name}`),
-            );
-          }}
-        >
-          Restart
-        </Button>
-        {inst.state === "offline" ? (
+    <header className="flex flex-col gap-2">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+        <Link to="/" className="text-[12px] text-muted hover:text-text">
+          Fleet
+        </Link>
+        <h1 className="text-[28px] leading-none font-semibold">{inst.name}</h1>
+        <StateChip state={inst.state} />
+        <span className="text-[12px] text-muted">{phaseLabel(inst.phase)}</span>
+        <div className="ml-auto flex items-center gap-2">
           <Button
             variant="secondary"
             size="sm"
+            disabled={!stoppable}
+            disabledReason="Already stopped"
             onClick={() => {
-              void run(retryInstance(inst.name), () => toast(`Retrying ${inst.name} now`));
+              void run(settled(stopInstance(inst.name)), () => {
+                toast(`Stopping ${inst.name} after this match`, {
+                  undo: async () => {
+                    await settled(startInstance(inst.name));
+                    onDone();
+                  },
+                });
+              });
             }}
           >
-            Retry now
+            Stop
           </Button>
-        ) : null}
+          <Button variant="secondary" size="sm" onClick={() => setConfirmRestart(true)}>
+            Restart
+          </Button>
+          {/* The raw PNG, for a closer look or a copied URL; LiveScreen has its own
+              Refresh and Full size controls inside the frame. A button rather than a
+              link, so the header is one control shape all the way across. */}
+          <Button
+            variant="quiet"
+            size="sm"
+            onClick={() => {
+              window.open(screenshotUrl(inst.name), "_blank", "noopener");
+            }}
+          >
+            Screenshot
+          </Button>
+          {inst.state === "offline" ? (
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => {
+                void run(retryInstance(inst.name), () => toast(`Retrying ${inst.name} now`));
+              }}
+            >
+              Retry now
+            </Button>
+          ) : null}
+        </div>
       </div>
+      {/* Row two: the facts that identify the instance rather than describe its state.
+          Every one of them is a bare token on its own, so every one of them is labelled. */}
+      <div className="flex flex-wrap gap-x-4 gap-y-1 text-[12px] text-muted">
+        {inst.player_tag === "" ? null : (
+          <span>
+            Player tag{" "}
+            <span data-private className="font-mono">
+              {inst.player_tag}
+            </span>
+          </span>
+        )}
+        <span>
+          ADB port <span className="font-mono tabular-nums">{inst.adb_port}</span>
+        </span>
+        <span>
+          Data folder <span className="font-mono">instances/{inst.name}</span>
+        </span>
+      </div>
+      <ConfirmDialog
+        open={confirmRestart}
+        onClose={() => setConfirmRestart(false)}
+        title={`Restart ${inst.name}?`}
+        body="The current match is abandoned."
+        confirmLabel="Restart"
+        tone="bad"
+        onConfirm={() => {
+          void run(settled(restartInstance(inst.name)), () =>
+            toast(`Restarting ${inst.name}`, { tone: "info" }),
+          );
+          setConfirmRestart(false);
+        }}
+      />
     </header>
   );
 }

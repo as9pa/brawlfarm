@@ -1,6 +1,6 @@
 /** The /instances/:name frame: which row of the fleet it picks, what its header says
  * about that instance, and what each of its controls calls. */
-import { renderHook, screen, waitFor } from "@testing-library/react";
+import { renderHook, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { Route, Routes } from "react-router";
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
@@ -121,7 +121,7 @@ describe("Instance", () => {
     ).toBeInTheDocument();
   });
 
-  it("heads the page with the name, state, port, tag, phase and a screenshot link", async () => {
+  it("heads the page with the name, state and phase, and labels every token below", async () => {
     stubPage([
       makeInstance({
         name: "Pie64",
@@ -134,13 +134,36 @@ describe("Instance", () => {
     mountPage();
     expect(await screen.findByRole("heading", { level: 1, name: "Pie64" })).toBeInTheDocument();
     expect(screen.getByText("Farming")).toBeInTheDocument();
-    expect(screen.getByText("5555")).toBeInTheDocument();
     expect(screen.getByText("Playing")).toBeInTheDocument();
+    // Every value in the second row carries its own label, so no bare number is left to
+    // guess at.
+    expect(screen.getByText("Player tag")).toBeInTheDocument();
     expect(screen.getByText("#2P0YLQ9")).toHaveAttribute("data-private");
-    const shot = screen.getByRole("link", { name: "Screenshot" });
-    expect(shot).toHaveAttribute("href", "/api/instances/Pie64/screenshot.png");
-    expect(shot).toHaveAttribute("target", "_blank");
-    expect(shot).toHaveAttribute("rel", "noreferrer");
+    expect(screen.getByText("ADB port")).toBeInTheDocument();
+    expect(screen.getByText("5555")).toBeInTheDocument();
+    expect(screen.getByText("Data folder")).toBeInTheDocument();
+    expect(screen.getByText("instances/Pie64")).toBeInTheDocument();
+  });
+
+  it("leaves the whole player tag group out when there is no tag", async () => {
+    stubPage([makeInstance({ name: "Pie64", player_tag: "" })]);
+    mountPage();
+    await screen.findByRole("heading", { level: 1, name: "Pie64" });
+    expect(screen.queryByText("Player tag")).not.toBeInTheDocument();
+  });
+
+  it("opens the screenshot from a button rather than a link", async () => {
+    stubPage([makeInstance({ name: "Pie64", state: "farming" })]);
+    const open = vi.fn();
+    vi.stubGlobal("open", open);
+    mountPage();
+    expect(screen.queryByRole("link", { name: "Screenshot" })).not.toBeInTheDocument();
+    await userEvent.click(await screen.findByRole("button", { name: "Screenshot" }));
+    expect(open).toHaveBeenCalledWith(
+      "/api/instances/Pie64/screenshot.png",
+      "_blank",
+      "noopener",
+    );
   });
 
   it("stops after this match and offers an undo that starts again", async () => {
@@ -177,12 +200,28 @@ describe("Instance", () => {
     });
   });
 
-  it("restarts the instance and only then says so", async () => {
+  it("asks before it restarts, and sends nothing when the question is cancelled", async () => {
     const calls = stubPage([makeInstance({ name: "Pie64", state: "farming" })]);
     mountPage();
     await userEvent.click(await screen.findByRole("button", { name: "Restart" }));
+    const dialog = await screen.findByRole("dialog", { name: "Restart Pie64?" });
+    expect(dialog).toHaveTextContent("The current match is abandoned.");
+    expect(calls.map((call) => call.url)).not.toContain("/api/instances/Pie64/restart");
+
+    await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(calls.map((call) => call.url)).not.toContain("/api/instances/Pie64/restart");
+    expect(toasts()).toHaveLength(0);
+  });
+
+  it("restarts the instance once the question is confirmed, and only then says so", async () => {
+    const calls = stubPage([makeInstance({ name: "Pie64", state: "farming" })]);
+    mountPage();
+    await userEvent.click(await screen.findByRole("button", { name: "Restart" }));
+    const dialog = await screen.findByRole("dialog", { name: "Restart Pie64?" });
+    await userEvent.click(within(dialog).getByRole("button", { name: "Restart" }));
     await waitFor(() => {
-      expect(calls.map((call) => call.url)).toContain("/api/instances/Pie64/restart");
+      const restarts = calls.filter((call) => call.url === "/api/instances/Pie64/restart");
+      expect(restarts).toHaveLength(1);
     });
     await waitFor(() => {
       expect(toasts()[0]?.message).toBe("Restarting Pie64");
@@ -223,6 +262,8 @@ describe("Instance", () => {
     const calls = stubFailingPage("BlueStacks did not come back");
     mountPage();
     await userEvent.click(await screen.findByRole("button", { name: "Restart" }));
+    const dialog = await screen.findByRole("dialog", { name: "Restart Pie64?" });
+    await userEvent.click(within(dialog).getByRole("button", { name: "Restart" }));
     await waitFor(() => {
       expect(toasts()[0]?.message).toBe("BlueStacks did not come back");
     });
