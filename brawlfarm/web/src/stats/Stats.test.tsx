@@ -1,19 +1,25 @@
 /** The Stats page: the URL is the only place the range and the selection live, an unknown
  * instance in a stale link is dropped rather than 404ing, and the three states above the
  * data (skeleton, empty, error) are the ones the brief pins. */
-import { screen, waitFor } from "@testing-library/react";
+import { renderHook, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { Route, Routes, useSearchParams } from "react-router";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { Stats } from "./Stats";
+import { resetToasts, useToasts } from "../lib/toast";
 import { makeConnection, makeInstance, makeStats } from "../test/fixtures";
 import { type FetchCall, jsonResponse, stubFetch } from "../test/http";
 import { renderWithProviders } from "../test/renderWithProviders";
 
 afterEach(() => {
+  resetToasts();
   vi.unstubAllGlobals();
 });
+
+function toastMessages(): string[] {
+  return renderHook(() => useToasts()).result.current.map((item) => item.message);
+}
 
 /** Two configured instances, an aggregate, and an ok connection. `stats` overrides the
  * aggregate; `statsStatus` makes GET /api/stats fail, `instancesStatus` the list. */
@@ -114,10 +120,29 @@ describe("Stats", () => {
 
   it("drops a name that is not configured", async () => {
     const calls = server();
-    mount("/stats?instances=Pie64,Ghost");
+    mount("/stats?instances=Pie64,Pie32");
     await waitFor(() => {
       expect(statsUrls(calls)).toEqual(["/api/stats?range=7d&instances=Pie64"]);
     });
+    // Read outside waitFor: renderHook mounts into the body, and a retry loop watching the
+    // body for changes would keep waking itself up.
+    expect(toastMessages()).toEqual(["Pie32 is no longer configured"]);
+  });
+
+  it("says nothing when every asked name is configured", async () => {
+    const calls = server();
+    mount("/stats?instances=Pie64");
+    await waitFor(() => {
+      expect(statsUrls(calls)).toEqual(["/api/stats?range=7d&instances=Pie64"]);
+    });
+    expect(toastMessages()).toEqual([]);
+  });
+
+  it("lets the panels beside the ranks size to their own rows", async () => {
+    server();
+    mount();
+    const heading = await screen.findByRole("heading", { name: "Brawlers" });
+    expect(heading.closest("div.grid")).toHaveClass("items-start");
   });
 
   it("rewrites the URL and refetches when a chip is toggled", async () => {

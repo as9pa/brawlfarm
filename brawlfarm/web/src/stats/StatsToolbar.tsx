@@ -10,8 +10,12 @@
  *
  * Export CSV is an anchor with download, not a fetch: the browser's own download is the
  * feedback, so there is no toast and no pending state to draw.
+ *
+ * One configured instance is a label rather than a chip: a filter with one option is not a
+ * filter, and a control that cannot change anything should not look pressable.
  */
 import type { StatsRange } from "../api/types";
+import { buttonClass } from "../components/ui/Button";
 import { Segmented } from "../components/ui/Segmented";
 
 export interface StatsToolbarProps {
@@ -48,7 +52,9 @@ export function StatsToolbar({
 }: StatsToolbarProps) {
   const toggle = (name: string) => {
     const on = selected.includes(name);
-    if (on && selected.length === 1) return; // the last chip stays on
+    // The last chip on says why through its own aria-disabled and title, so the click is
+    // dropped here rather than explained nowhere.
+    if (on && selected.length === 1) return;
     const next = on ? selected.filter((n) => n !== name) : [...selected, name];
     onInstances(instances.filter((n) => next.includes(n)));
   };
@@ -58,29 +64,40 @@ export function StatsToolbar({
       <Segmented label="Range" value={range} options={RANGE_OPTIONS} onChange={onRange} />
 
       <div className="order-last flex w-full flex-wrap gap-1 min-[900px]:order-none min-[900px]:w-auto">
-        {instances.map((name) => {
-          const on = selected.includes(name);
-          return (
-            <button
-              key={name}
-              type="button"
-              aria-pressed={on}
-              onClick={() => toggle(name)}
-              className={`h-6 rounded-[6px] border border-line px-2 font-mono text-[12px] transition-colors duration-[120ms] ${
-                on ? "bg-panel-2 text-text" : "bg-panel text-muted hover:text-text"
-              }`}
-            >
-              {name}
-            </button>
-          );
-        })}
+        {instances.length === 1 ? (
+          <span
+            data-testid="instance-label"
+            className="t-figure inline-flex h-6 items-center px-2 text-[12px] text-muted"
+          >
+            {instances[0]}
+          </span>
+        ) : (
+          instances.map((name) => {
+            const on = selected.includes(name);
+            const last = on && selected.length === 1;
+            return (
+              <button
+                key={name}
+                type="button"
+                aria-pressed={on}
+                // aria-disabled, not disabled: the reason is only worth carrying if the
+                // chip can still be reached by keyboard and read out.
+                aria-disabled={last || undefined}
+                title={last ? "Keep at least one" : undefined}
+                onClick={() => toggle(name)}
+                className={`h-6 rounded-[6px] border border-line px-2 font-mono text-[12px] transition-colors duration-[120ms] aria-disabled:cursor-not-allowed aria-disabled:opacity-50 ${
+                  on ? "bg-panel-2 text-text" : "bg-panel text-muted hover:text-text"
+                }`}
+              >
+                {name}
+              </button>
+            );
+          })
+        )}
       </div>
 
-      <a
-        href={csvHref}
-        download
-        className="ml-auto inline-flex h-6 items-center rounded-[6px] border border-line px-2 text-[12px] text-muted transition-colors duration-[120ms] hover:text-text"
-      >
+      {/* Not a Button: it stays an anchor so the browser's own download is the feedback. */}
+      <a href={csvHref} download className={`ml-auto ${buttonClass("secondary", "sm")}`}>
         Export CSV
       </a>
     </div>

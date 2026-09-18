@@ -29,6 +29,15 @@ const SIZES: Record<NonNullable<ButtonProps["size"]>, string> = {
   md: "h-8 px-3 text-[13px]",
 };
 
+/** The classes a button carries, for the rare control that has to be an element the
+ * component cannot render, such as a download anchor. Same map, so the two never drift. */
+export function buttonClass(
+  variant: NonNullable<ButtonProps["variant"]>,
+  size: NonNullable<ButtonProps["size"]>,
+): string {
+  return `inline-flex items-center gap-1.5 rounded-[6px] font-medium transition-[background-color,border-color,color] duration-[120ms] disabled:cursor-not-allowed disabled:opacity-50 ${SIZES[size]} ${VARIANTS[variant]}`;
+}
+
 export function Button({
   variant = "secondary",
   size = "md",
@@ -50,7 +59,7 @@ export function Button({
       aria-expanded={ariaExpanded}
       aria-controls={ariaControls}
       onClick={onClick}
-      className={`inline-flex items-center gap-1.5 rounded-[6px] font-medium transition-[background-color,border-color,color] duration-[120ms] disabled:cursor-not-allowed disabled:opacity-50 ${SIZES[size]} ${VARIANTS[variant]}`}
+      className={buttonClass(variant, size)}
     >
       {children}
     </button>

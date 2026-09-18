@@ -3,7 +3,7 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
-import { Button } from "./Button";
+import { Button, buttonClass } from "./Button";
 import type { ButtonProps } from "./Button";
 
 /** Each variant with the one class that tells it apart from the other three. */
@@ -27,6 +27,17 @@ describe("Button", () => {
   it.each(LOOKS)("renders the %s variant with %s", (variant, className) => {
     render(<Button variant={variant}>Save</Button>);
     expect(screen.getByRole("button", { name: "Save" })).toHaveClass(className);
+  });
+
+  it("hands the same classes to a control that cannot be a button", () => {
+    render(
+      <Button variant="secondary" size="sm">
+        Export CSV
+      </Button>,
+    );
+    expect(screen.getByRole("button", { name: "Export CSV" })).toHaveClass(
+      buttonClass("secondary", "sm"),
+    );
   });
 
   it("falls back to secondary so an unstyled call is an outline, not an accent", () => {

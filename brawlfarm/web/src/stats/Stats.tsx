@@ -11,6 +11,7 @@
  * configured list, and firing once without it and again with it would double every load.
  */
 import { useQuery } from "@tanstack/react-query";
+import { useEffect, useRef } from "react";
 import { useSearchParams } from "react-router";
 
 import { BrawlerTable } from "./BrawlerTable";
@@ -26,6 +27,7 @@ import { getStats, statsCsvHref } from "../api/stats";
 import type { StatsRange } from "../api/types";
 import { useInstances } from "../api/useInstances";
 import { ErrorBlock } from "../components/ui/ErrorBlock";
+import { toast } from "../lib/toast";
 
 export const RANGES: readonly StatsRange[] = ["today", "7d", "30d", "all"];
 export const VIEWS: readonly StatsView[] = ["chart", "table"];
@@ -72,10 +74,27 @@ export function Stats() {
     .map((name) => name.trim())
     .filter((name) => name !== "");
   const narrowed = configured.filter((name) => asked.includes(name));
+  const dropped = asked.filter((name) => !configured.includes(name));
+  const droppedNames = dropped.join(", ");
+  const droppedMessage =
+    dropped.length === 1
+      ? `${droppedNames} is no longer configured`
+      : `${droppedNames} are no longer configured`;
   const selected = narrowed.length === 0 ? configured : narrowed;
   // Empty means "every configured instance", which is the API's own default, so a full
   // selection and no selection share one URL and one cache entry.
   const scope = selected.length === configured.length ? [] : selected;
+
+  // A stale link is narrowed quietly in the request, so the dropped names are said out
+  // loud once. Only after the list has arrived: a pending list drops every asked name.
+  // The ref keys the telling on the dropped names, so a re-render says nothing again.
+  const told = useRef("");
+  useEffect(() => {
+    if (!instancesQuery.isSuccess || droppedNames === "") return;
+    if (told.current === droppedNames) return;
+    told.current = droppedNames;
+    toast(droppedMessage, { tone: "info" });
+  }, [droppedMessage, droppedNames, instancesQuery.isSuccess]);
 
   const stats = useQuery({
     queryKey: queryKeys.stats(range, scope),
@@ -171,7 +190,7 @@ export function Stats() {
             view={view}
             onView={(next) => write({ view: next })}
           />
-          <div className="grid gap-3 min-[900px]:grid-cols-[1fr_320px]">
+          <div className="grid items-start gap-3 min-[900px]:grid-cols-[1fr_320px]">
             <section className="flex flex-col gap-2 rounded-[10px] border border-line bg-panel p-3">
               <h2 className="text-[13px] font-semibold">Brawlers</h2>
               <BrawlerTable rows={stats.data.brawlers} />
