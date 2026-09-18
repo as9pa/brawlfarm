@@ -89,7 +89,7 @@ async function confirmWith(word: string, confirmLabel: string) {
   const dialog = await screen.findByRole("dialog");
   const confirm = within(dialog).getByRole("button", { name: confirmLabel });
   expect(confirm).toBeDisabled();
-  await userEvent.type(within(dialog).getByLabelText("Type to confirm"), word);
+  await userEvent.type(within(dialog).getByLabelText(`Type ${word} to confirm`), word);
   expect(confirm).toBeEnabled();
   await userEvent.click(confirm);
 }

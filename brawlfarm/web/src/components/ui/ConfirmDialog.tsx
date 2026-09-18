@@ -86,12 +86,11 @@ export function ConfirmDialog({
         <div>{body}</div>
         {word !== undefined && (
           <Field
-            label="Type to confirm"
+            label={`Type ${word} to confirm`}
             id={boxId}
             value={typed}
             onChange={setTyped}
             width="full"
-            placeholder={word}
           />
         )}
       </div>

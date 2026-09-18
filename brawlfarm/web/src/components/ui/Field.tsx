@@ -8,6 +8,9 @@
  * and nothing more: the token is never logged, never stored outside the query cache and
  * the PUT body, and never rendered unmasked by default.
  *
+ * Enter in the box is the caller's: `onEnter` fires and the default is prevented, so a
+ * field can answer the key without a form around it.
+ *
  * At most one message line sits under the control: `error` wins over `help` and they never
  * both show. The component owns aria-describedby, which points at that line and nothing
  * else, so a caller cannot add a second description; a field that needs one should say it
@@ -23,6 +26,8 @@ export interface FieldProps {
   onChange: (v: string) => void;
   /** Called when focus leaves the box, for a check that should wait until then. */
   onBlur?: () => void;
+  /** Fired on Enter in the input. The caller decides what Enter means. */
+  onEnter?: () => void;
   type?: "text" | "number" | "password";
   /** "control" is the phase 4 width (w-24); "full" fills its row. */
   width?: "control" | "full";
@@ -55,6 +60,7 @@ export function Field({
   value,
   onChange,
   onBlur,
+  onEnter,
   type = "text",
   width = "control",
   suffix,
@@ -99,6 +105,14 @@ export function Field({
           data-private={masked ? "" : undefined}
           onChange={(event) => onChange(event.target.value)}
           onBlur={onBlur}
+          onKeyDown={(event) => {
+            // Enter belongs to the caller, so it never submits: it does what `onEnter` says
+            // and nothing when no caller asked for it.
+            if (event.key === "Enter") {
+              event.preventDefault();
+              onEnter?.();
+            }
+          }}
           className={`h-8 rounded-[6px] border ${error !== undefined ? "border-bad" : "border-line"} bg-panel-2 px-2 font-mono text-[13px] tabular-nums text-text disabled:cursor-not-allowed disabled:opacity-50 ${WIDTHS[width]}`}
         />
         {masked && (

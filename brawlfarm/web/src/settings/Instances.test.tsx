@@ -184,7 +184,7 @@ describe("Settings > Instances", () => {
     ).toBeInTheDocument();
     const confirm = within(dialog).getByRole("button", { name: "Remove" });
     expect(confirm).toBeDisabled();
-    await userEvent.type(within(dialog).getByLabelText("Type to confirm"), "Pie64_3");
+    await userEvent.type(within(dialog).getByLabelText("Type Pie64_3 to confirm"), "Pie64_3");
     await userEvent.click(confirm);
 
     await waitFor(() => {
@@ -200,7 +200,7 @@ describe("Settings > Instances", () => {
     const [, , pie64_3] = await rows();
     await userEvent.click(within(pie64_3).getByRole("button", { name: "Remove" }));
     const dialog = screen.getByRole("dialog", { name: "Remove Pie64_3?" });
-    await userEvent.type(within(dialog).getByLabelText("Type to confirm"), "Pie64_3");
+    await userEvent.type(within(dialog).getByLabelText("Type Pie64_3 to confirm"), "Pie64_3");
     await userEvent.click(within(dialog).getByRole("button", { name: "Remove" }));
 
     // The API's own sentence, in the row, not a toast that scrolls away.
