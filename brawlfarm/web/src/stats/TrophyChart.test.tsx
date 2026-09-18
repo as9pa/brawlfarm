@@ -5,7 +5,7 @@ import { fireEvent, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
 
-import { TrophyChart } from "./TrophyChart";
+import { niceTicks, TrophyChart } from "./TrophyChart";
 import type { StatsRange, StatsSeries } from "../api/types";
 import { renderWithProviders } from "../test/renderWithProviders";
 
@@ -168,9 +168,9 @@ describe("TrophyChart", () => {
     expect(screen.getByTestId("chart-empty")).toHaveTextContent("No games in this range.");
   });
 
-  it("drops a y-axis label that would overprint the zero one", () => {
-    // Every game lost trophies, so the top of the domain is the zero rule itself and the
-    // label for the maximum would sit exactly on the zero label.
+  it("never draws two ticks closer than the label height", () => {
+    // Every game lost trophies, so the domain runs from the worst total up to the zero
+    // rule itself, and the round ticks in between still have to be readable apart.
     mount(
       [
         {
@@ -184,7 +184,69 @@ describe("TrophyChart", () => {
       ["Pie64"],
     );
     const axis = screen.getByTestId("chart-axis");
-    expect(Array.from(axis.children).map((node) => node.textContent)).toEqual(["0", "-5"]);
+    const tops = Array.from(axis.querySelectorAll<HTMLElement>("[data-tick]")).map(
+      (node) => (Number.parseFloat(node.style.top) / 100) * 180,
+    );
+    expect(tops).toHaveLength(niceTicks(-5, 0).length);
+    for (let i = 1; i < tops.length; i += 1) {
+      expect(tops[i] - tops[i - 1]).toBeGreaterThanOrEqual(12);
+    }
+  });
+
+  it("picks round ticks that always include zero", () => {
+    expect(niceTicks(-3, 78)).toEqual([75, 50, 25, 0]);
+    for (const [lo, hi] of [
+      [-3, 78],
+      [0, 25],
+      [-40, 0],
+      [-5, 0],
+    ] as const) {
+      expect(niceTicks(lo, hi)).toContain(0);
+    }
+  });
+
+  it("names what it plots in the panel heading, per range", () => {
+    const wide = mount(SERIES, INSTANCES, "7d");
+    expect(
+      screen.getByRole("heading", { name: "Trophies, cumulative, last 7 days" }),
+    ).toBeInTheDocument();
+    wide.unmount();
+    mount();
+    expect(
+      screen.getByRole("heading", { name: "Trophies, cumulative, today" }),
+    ).toBeInTheDocument();
+  });
+
+  it("says the unit once, under the lowest y tick", () => {
+    mount();
+    expect(screen.getAllByText("trophies")).toHaveLength(1);
+    const axis = screen.getByTestId("chart-axis");
+    expect(within(axis).getByText("trophies")).toBeInTheDocument();
+  });
+
+  it("dates the x axis and never prints one label twice", () => {
+    mount(SERIES, INSTANCES, "7d");
+    const labels = Array.from(screen.getByTestId("chart-x-axis").children).map(
+      (node) => node.textContent,
+    );
+    expect(labels.length).toBeGreaterThanOrEqual(2);
+    expect(labels[0]).toContain("Sep");
+    expect(new Set(labels).size).toBe(labels.length);
+  });
+
+  it("draws one gridline per y tick", () => {
+    const { container } = mount();
+    expect(container.querySelectorAll("[data-gridline]")).toHaveLength(
+      niceTicks(-3, 25).length,
+    );
+  });
+
+  it("leaves the end label off a chart of one series", () => {
+    const one = mount([SERIES[0]], ["Pie64"]);
+    expect(one.container.querySelectorAll("[data-end-label]")).toHaveLength(0);
+    one.unmount();
+    const two = mount(SERIES.slice(0, 2), ["Pie64", "Pie64_1"]);
+    expect(two.container.querySelectorAll("[data-end-label]")).toHaveLength(2);
   });
 
   it("says whether the table view is the one showing", async () => {
