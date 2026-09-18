@@ -39,12 +39,14 @@ function server(options: { putStatus?: number; putDetail?: string } = {}) {
   return { calls, current: () => stored };
 }
 
-function mount() {
+/** `scope` is what a save comes back labelled with, so the frame can tell a save of the
+ * section on screen from one another section made. The frame passes the section id. */
+function mount(scope = "behavior") {
   const client = testQueryClient();
   const wrapper = ({ children }: { children: ReactNode }) => (
     <QueryClientProvider client={client}>{children}</QueryClientProvider>
   );
-  return { client, ...renderHook(() => useSettingsPatch(), { wrapper }) };
+  return { client, ...renderHook(() => useSettingsPatch(scope), { wrapper }) };
 }
 
 /** Every settings document this panel has sent, parsed. */
@@ -135,7 +137,10 @@ describe("useSettingsPatch", () => {
     expect(calls[putIndexes(calls)[0] - 1].init?.method).toBeUndefined();
     expect(current().behavior.gas_aware).toBe(false);
     expect(client.getQueryData(["settings"])).toEqual(current());
-    expect(result.current.savedAt).toMatch(/^\d\d:\d\d$/);
+    expect(result.current.saved).toEqual({
+      scope: "behavior",
+      at: expect.stringMatching(/^\d\d:\d\d$/),
+    });
     expect(result.current.fieldErrors).toEqual({});
     expect(result.current.pending).toBe(false);
   });
@@ -268,7 +273,7 @@ describe("useSettingsPatch", () => {
       (error: unknown) => failures.push(error),
     );
     await waitFor(() => {
-      expect(first.result.current.savedAt).toMatch(/^\d\d:\d\d$/);
+      expect(first.result.current.saved?.at).toMatch(/^\d\d:\d\d$/);
     });
     // The frame's caption says the save landed, so the helper says nothing on top of it.
     expect(toastMessages()).toEqual([]);

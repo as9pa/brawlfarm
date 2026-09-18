@@ -8,7 +8,9 @@
  * moves you somewhere else is how you end up changing the wrong setting.
  *
  * useSettingsPatch is called once here and handed down, so the caption, the field errors and
- * the write queue are the same ones the section on screen is using.
+ * the write queue are the same ones the section on screen is using. It is told which section
+ * that is, so the one saved time it keeps is captioned under the section that wrote it and
+ * nowhere else.
  */
 import type { ReactElement } from "react";
 import { useParams } from "react-router";
@@ -43,9 +45,15 @@ const UNKNOWN_SECTION = new Error("unknown settings section");
 
 export function Settings() {
   const { section } = useParams();
-  const settingsPatch = useSettingsPatch();
+  const settingsPatch = useSettingsPatch(section);
   const known = SETTINGS_SECTIONS.find((entry) => entry.id === section);
   const View = known === undefined ? undefined : SECTION_VIEWS[known.id];
+  /** Only the section that wrote gets the caption: the hook keeps one saved time for all six,
+   * and a save made in Connection read back under Behavior's name is a lie about what was
+   * written. A navigation does not clear it, so coming back to that section reads it again. */
+  const saved = settingsPatch.saved;
+  const savedHere =
+    saved !== null && known !== undefined && saved.scope === known.id ? saved.at : null;
 
   return (
     <section className="flex flex-col gap-4 min-[820px]:flex-row">
@@ -65,9 +73,7 @@ export function Settings() {
                * empty, so the first save after the section opens is announced rather than
                * missed as a region that only just appeared. */}
               <span aria-live="polite" className="text-[12px] text-muted">
-                {settingsPatch.savedAt === null
-                  ? null
-                  : `${known.label} saved ${settingsPatch.savedAt}`}
+                {savedHere === null ? null : `${known.label} saved ${savedHere}`}
               </span>
             </div>
             {settingsPatch.sectionErrors.map((line) => (

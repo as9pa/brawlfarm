@@ -1,7 +1,7 @@
 /** The settings frame: six sections in the nav, the one you are on marked, the title with
  * its one sentence, and a section id that is not one of the six saying so instead of
  * quietly moving you somewhere else. */
-import { screen, within } from "@testing-library/react";
+import { fireEvent, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { Route, Routes } from "react-router";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -79,6 +79,33 @@ describe("Settings", () => {
     const caption = await screen.findByText(/^Behavior saved \d\d:\d\d$/);
     expect(caption).toHaveClass("text-[12px]", "text-muted");
     expect(caption.closest("[aria-live]")).toHaveAttribute("aria-live", "polite");
+  });
+
+  it("shows the caption only on the section that saved", async () => {
+    stubApi();
+    mount("/settings/behavior");
+    await userEvent.click(await screen.findByRole("switch", { name: "Leave the gas early" }));
+    expect(await screen.findByText(/^Behavior saved \d\d:\d\d$/)).toBeInTheDocument();
+
+    // One hook serves all six sections, so Behavior's save must not be read back as the
+    // save of whichever section the reader walks into next.
+    await userEvent.click(screen.getByRole("link", { name: "Notifications" }));
+    expect(
+      await screen.findByRole("heading", { level: 1, name: "Notifications" }),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/saved \d\d:\d\d$/)).not.toBeInTheDocument();
+
+    // Coming back is not a new save, and the caption is still true, so it is still there.
+    await userEvent.click(screen.getByRole("link", { name: "Behavior" }));
+    expect(await screen.findByText(/^Behavior saved \d\d:\d\d$/)).toBeInTheDocument();
+
+    // A save in another section takes the caption over, under that section's name.
+    await userEvent.click(screen.getByRole("link", { name: "Notifications" }));
+    const topic = await screen.findByLabelText("ntfy topic");
+    fireEvent.change(topic, { target: { value: "brawlfarm-home" } });
+    fireEvent.blur(topic);
+    expect(await screen.findByText(/^Notifications saved \d\d:\d\d$/)).toBeInTheDocument();
+    expect(screen.queryByText(/^Behavior saved \d\d:\d\d$/)).not.toBeInTheDocument();
   });
 
   it("says so when the section in the URL is not one of the six", () => {
