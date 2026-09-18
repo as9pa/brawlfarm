@@ -89,7 +89,7 @@ describe("ThresholdsTable", () => {
     render(<ThresholdsTable constants={THRESHOLDS} templates={[]} file={FILE} />);
     expect(screen.getByRole("heading", { level: 2, name: "Thresholds" })).toBeInTheDocument();
     expect(screen.queryByText("Overrides")).toBeNull();
-    expect(screen.getByText("packaged values, no overrides")).toBeInTheDocument();
+    expect(screen.getByText("Packaged values, no overrides.")).toBeInTheDocument();
     const row = rowOf("Match confidence");
     expect(within(row).getByText("0.85")).toBeInTheDocument();
     expect(within(row).getByText("package")).toBeInTheDocument();
@@ -109,7 +109,7 @@ describe("ThresholdsTable", () => {
     expect(within(row).getByText("0.9")).toBeInTheDocument();
     expect(within(row).getByText("Packaged value 0.85")).toBeInTheDocument();
     expect(within(row).getByText("override")).toBeInTheDocument();
-    expect(screen.queryByText("packaged values, no overrides")).toBeNull();
+    expect(screen.queryByText("Packaged values, no overrides.")).toBeNull();
   });
 
   it("marks an overridden timing constant as an override", () => {
@@ -137,7 +137,7 @@ describe("ThresholdsTable", () => {
     render(<ThresholdsTable constants={THRESHOLDS} templates={[]} file={FILE} />);
     expect(
       screen.getByText(
-        "package means the value brawlfarm ships. override means you changed it in the calibration folder.",
+        "Package means the value brawlfarm ships. Override means you changed it in the calibration folder.",
       ),
     ).toBeInTheDocument();
   });

@@ -110,7 +110,7 @@ export function AnchorTable({ anchors, at, empty, highlight, onHighlight }: Anch
       empty={empty}
       headers="sentence"
       onRowHover={(row) => onHighlight(row === null ? null : row.name)}
-      rowTone={(row) => highlight === row.name}
+      rowActive={(row) => highlight === row.name}
     />
   );
 }

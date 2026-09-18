@@ -30,7 +30,7 @@ export const CHANGED_WARNING =
   "The calibration file changed. Instances started before that keep the old values until you restart them.";
 
 const LEGEND =
-  "package means the value brawlfarm ships. override means you changed it in the calibration folder.";
+  "Package means the value brawlfarm ships. Override means you changed it in the calibration folder.";
 
 /** Where a row's value came from. "file" is the calibration file and "templates" is the
  * folder of images beside it; both read as one word, override, because the distinction is
@@ -130,7 +130,7 @@ export function ThresholdsTable({ constants, templates, file }: ThresholdsTableP
   return (
     <section className="flex flex-col gap-2 rounded-[10px] border border-line bg-panel p-3">
       <h2 className="text-[13px] font-semibold">Thresholds</h2>
-      {untouched && <p className="text-[12px] text-muted">packaged values, no overrides</p>}
+      {untouched && <p className="text-[12px] text-muted">Packaged values, no overrides.</p>}
 
       {file.problems.map((problem) => (
         <p
