@@ -14,8 +14,10 @@
  *
  * A row can stack instead. The control column is 280 px wide, which is right for a switch or
  * a number but cuts a file path off mid-word, so `layout="stacked"` drops the column and puts
- * the control under the sentence at the full row width. None of the column's rules travel
- * with it: a stacked Field keeps its own visible label, because there is room for it there.
+ * the control under the sentence at the full row width. The column's width and its switch
+ * rules do not travel with it, but its label rule does: the row's title is already those
+ * words, so a second visible copy is noise. The label stays in the accessibility tree, which
+ * is where a control's name belongs.
  */
 import type { ReactNode } from "react";
 
@@ -52,7 +54,7 @@ export function SettingRow({
           </div>
         )}
       </div>
-      {stacked && <div className="mt-2 w-full">{children}</div>}
+      {stacked && <div className="mt-2 w-full [&_label]:sr-only">{children}</div>}
       {error !== undefined && <p className="mt-1 text-[12px] text-bad">{error}</p>}
     </div>
   );

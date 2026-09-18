@@ -10,7 +10,8 @@
  * Every irreversible act on the panel is here, in one Danger zone at the end: removing an
  * instance from the fleet, deleting one instance's data, and the reset. Each one is a
  * danger-variant Button behind a typed-name ConfirmDialog, and each refusal is shown on the
- * row it refused rather than in a toast that scrolls away.
+ * row it refused rather than in a toast that scrolls away. Each one that went through says so
+ * in two words, because three buttons that all look the same need to be told apart afterwards.
  *
  * The three are not the same act. Removing an instance leaves its folder on disk, deleting a
  * folder leaves the instance in the fleet, and a reset keeps every instance and every
@@ -86,6 +87,7 @@ export function Data({ settingsPatch }: { settingsPatch: SettingsPatch }) {
       () => {
         setDeleting(null);
         void client.invalidateQueries({ queryKey: queryKeys.instances() });
+        toast("Data deleted");
       },
       (error: unknown) => {
         setDeleting(null);
@@ -103,7 +105,7 @@ export function Data({ settingsPatch }: { settingsPatch: SettingsPatch }) {
     }).then(
       () => {
         setRemoving(null);
-        toast("Settings saved");
+        toast("Instance removed");
       },
       (error: unknown) => {
         // The dialog closes either way: a refusal belongs on the row, in front of the reader.

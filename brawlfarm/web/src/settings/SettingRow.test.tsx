@@ -36,9 +36,13 @@ describe("SettingRow", () => {
       </SettingRow>,
     );
     const box = screen.getByLabelText("ADB path");
-    // Not in the 280 px column, so nothing clips a long value and nothing hides the label.
+    // Not in the 280 px column, so nothing clips a long value.
     expect(box.closest('[class*="w-[280px]"]')).toBeNull();
-    expect(box.closest('[class*="mt-2"][class*="w-full"]')).not.toBeNull();
+    const slot = box.closest('[class*="mt-2"][class*="w-full"]');
+    expect(slot).not.toBeNull();
+    // The slot hides the label the way the column does, so the row's title is the only
+    // "ADB path" on screen, and the input keeps it as its accessible name.
+    expect(slot).toHaveClass("[&_label]:sr-only");
   });
 
   it("prints the field error under both", () => {

@@ -128,7 +128,7 @@ describe("Settings > Data", () => {
     await waitFor(() => {
       expect(writeText).toHaveBeenCalledWith("C:/data/brawlfarm");
     });
-    await waitFor(() => {
+    await vi.waitFor(() => {
       expect(toastMessages()).toEqual(["Path copied"]);
     });
     view.unmount();
@@ -142,7 +142,7 @@ describe("Settings > Data", () => {
     vi.stubGlobal("navigator", { clipboard: { writeText: refused } });
     mount();
     fireEvent.click(await screen.findByRole("button", { name: "Copy" }));
-    await waitFor(() => {
+    await vi.waitFor(() => {
       expect(toastMessages()).toEqual([
         "Could not copy the path. Select it and copy by hand.",
       ]);
@@ -173,7 +173,7 @@ describe("Settings > Data", () => {
     server({ openStatus: 501, openDetail: "Only on Windows" });
     mount();
     await userEvent.click(await screen.findByRole("button", { name: "Open data folder" }));
-    await waitFor(() => {
+    await vi.waitFor(() => {
       expect(toastMessages()).toEqual(["Only on Windows"]);
     });
   });
@@ -231,8 +231,8 @@ describe("Settings > Data", () => {
     });
     // The instance goes, and its folder is left where it is.
     expect(puts(calls)[0].instances.map((inst) => inst.name)).toEqual(["Pie64_3"]);
-    await waitFor(() => {
-      expect(toastMessages()).toEqual(["Settings saved"]);
+    await vi.waitFor(() => {
+      expect(toastMessages()).toEqual(["Instance removed"]);
     });
   });
 
@@ -276,6 +276,9 @@ describe("Settings > Data", () => {
     expect(hits(calls, DELETE_DATA)[0].init?.method).toBe("DELETE");
     // The instance is still in the fleet: only its folder went.
     expect(screen.getByText("Remove Pie64 from the fleet")).toBeInTheDocument();
+    await vi.waitFor(() => {
+      expect(toastMessages()).toEqual(["Data deleted"]);
+    });
     await waitFor(() => {
       expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     });
@@ -316,7 +319,7 @@ describe("Settings > Data", () => {
       expect(hits(calls, RESET)).toHaveLength(1);
     });
     expect(hits(calls, RESET)[0].init?.method).toBe("POST");
-    await waitFor(() => {
+    await vi.waitFor(() => {
       expect(toastMessages()).toEqual(["Settings reset"]);
     });
     // The answer went into the cache, so both instances still have their two rows: a reset

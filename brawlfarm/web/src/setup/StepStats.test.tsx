@@ -83,8 +83,9 @@ describe("Setup step 4: Stats", () => {
     const token = screen.getByLabelText("Brawl Stars API token");
     expect(token).toHaveAttribute("type", "password");
     expect(token).toHaveAttribute("data-private");
-    expect(screen.getByLabelText("Pie64")).toHaveAttribute("placeholder", "#TAG");
-    expect(screen.getByLabelText("Pie64_3")).toHaveAttribute("placeholder", "#TAG");
+    // The same example tag the settings table shows, not the word TAG.
+    expect(screen.getByLabelText("Pie64")).toHaveAttribute("placeholder", "#2P0YLQ9…");
+    expect(screen.getByLabelText("Pie64_3")).toHaveAttribute("placeholder", "#2P0YLQ9…");
 
     const line = screen.getByText(/Create a key at/);
     expect(line).toHaveTextContent(
