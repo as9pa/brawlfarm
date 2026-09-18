@@ -84,7 +84,11 @@ describe("StatsToolbar", () => {
 
   it("renders one instance as a label, not a chip", () => {
     mount({ instances: ["Pie64"], selected: ["Pie64"] });
-    expect(screen.getByTestId("instance-label")).toHaveTextContent("Pie64");
+    const label = screen.getByTestId("instance-label");
+    expect(label).toHaveTextContent("Pie64");
+    // An instance name is a name, not a figure: t-name, never t-figure.
+    expect(label).toHaveClass("t-name");
+    expect(label).not.toHaveClass("t-figure");
     expect(screen.queryByRole("button", { name: "Pie64" })).toBeNull();
   });
 
