@@ -23,6 +23,7 @@ import { useInstances } from "../api/useInstances";
 import { Button } from "../components/ui/Button";
 import { ErrorBlock } from "../components/ui/ErrorBlock";
 import { openAlertsDrawer } from "../lib/alertsDrawer";
+import { NO_INSTANCES_YET } from "../lib/copy";
 import { num, plural, signed } from "../lib/format";
 import { STOPPABLE_STATES } from "../lib/states";
 import { hoursText } from "../lib/time";
@@ -140,7 +141,7 @@ export function Fleet() {
   if (instances !== undefined && fleet.length === 0) {
     return (
       <section className="max-w-[560px]">
-        <h1 className="text-[28px] font-semibold tracking-tight">No instances yet.</h1>
+        <h1 className="text-[28px] font-semibold tracking-tight">{NO_INSTANCES_YET}</h1>
         <p className="mt-2 text-[13px] text-muted">
           Open setup to find your BlueStacks instances.
         </p>

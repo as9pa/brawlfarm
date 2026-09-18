@@ -11,6 +11,7 @@ export const ELLIPSIS = "…";
 export const APOSTROPHE = "’";
 
 export const NO_GAMES_YET = "No games yet";
+export const NO_INSTANCES_YET = "No instances yet.";
 export const QUEUE_EMPTY = "Queue is empty";
 export const NOT_SET = "Not set";
 export const NOT_YET = "Not yet";

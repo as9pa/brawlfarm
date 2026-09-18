@@ -1,6 +1,7 @@
 /** The rail: the wordmark, four sections, none of them tagged as unbuilt any more, and
  * every instance named in words beside the state it is in. */
-import { screen } from "@testing-library/react";
+import { screen, waitFor, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { Rail } from "./Rail";
@@ -37,7 +38,9 @@ describe("Rail", () => {
     );
     expect(screen.getByRole("link", { name: "Settings" })).toHaveAttribute("href", "/settings");
     expect(screen.queryByText("soon")).toBeNull();
-    expect(await screen.findByText("Instances")).toBeInTheDocument();
+    // The narrow-screen sheet button says "Instances" too, so the desktop list's own
+    // label is asked for by its element.
+    expect(await screen.findByText("Instances", { selector: "p" })).toBeInTheDocument();
   });
 
   it("names every instance and says its state in words", async () => {
@@ -87,5 +90,32 @@ describe("Rail", () => {
     expect((await screen.findByRole("link", { name: "Fleet" })).className).toContain(
       "focus-visible:outline-accent",
     );
+  });
+
+  it("offers an instances link that is hidden on wide screens", async () => {
+    stubInstances();
+    renderWithProviders(<Rail />);
+    const button = screen.getByRole("button", { name: "Instances" });
+    expect(button.closest("li")?.className).toContain("min-[820px]:hidden");
+    expect(button).toHaveAttribute("aria-expanded", "false");
+  });
+
+  it("opens the instance list in a sheet", async () => {
+    stubInstances();
+    renderWithProviders(<Rail />);
+    await userEvent.click(screen.getByRole("button", { name: "Instances" }));
+    const sheet = await screen.findByRole("dialog", { name: "Instances" });
+    expect(within(sheet).getByRole("link", { name: /Pie64_1/ })).toBeInTheDocument();
+  });
+
+  it("closes the sheet when an instance is chosen", async () => {
+    stubInstances();
+    renderWithProviders(<Rail />);
+    await userEvent.click(screen.getByRole("button", { name: "Instances" }));
+    const sheet = await screen.findByRole("dialog", { name: "Instances" });
+    await userEvent.click(within(sheet).getByRole("link", { name: /Pie64_1/ }));
+    await waitFor(() => {
+      expect(screen.queryByRole("dialog", { name: "Instances" })).toBeNull();
+    });
   });
 });
