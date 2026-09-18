@@ -24,7 +24,7 @@ Living board. Finished work moves to the top with its proof.
 
 ## In flight
 
-- Nothing. Every planned phase is shipped; further work starts on the owner's ask (recalibration from a recorder session, quest-aware brawler choice and opt-in auto-upgrade are on hold).
+- Nothing. Every planned phase is shipped; further work starts on the owner's ask (a recalibration from a recorder session, for example).
 
 ## Queue (v1)
 
@@ -34,9 +34,8 @@ Living board. Finished work moves to the top with its proof.
 
 8. Calibration page, then recalibration for the current game version; desktop window and tray icon; labeled frame recorder.
 
-## On hold (owner decision)
+## Declined (owner decision)
 
-- Quest-aware brawler choice.
-- Opt-in auto-upgrade.
+- Opt-in auto-upgrade. Declined on 2026-09-18 after the owner read what it does and what it costs: the never-tap set stays as written, the `CONTRIBUTING.md` exception never lands, and nothing taps UPGRADE. The phase 10b spec and plan stay in `docs/superpowers/` as a record only. Quest-aware brawler choice, once listed here with it, shipped as PR 21.
 
 Design: `docs/superpowers/specs/2026-09-10-brawlfarm-design.md`.
