@@ -11,6 +11,9 @@
  * clicks too many. Everything else goes through the inline form, and Add opens the same form
  * as a new last row.
  *
+ * Removing an instance is not here: it is irreversible, so it sits with the other two
+ * irreversible acts in the Danger zone of Settings, Data. This row edits and nothing else.
+ *
  * A refusal is shown where it happened: a 409 is the API's own sentence in the row it names,
  * until the next save succeeds, and a 422 is already under its field through the mapper in
  * useSettingsPatch. Anything else is the section's ErrorBlock.
@@ -23,7 +26,6 @@ import { scanSetup } from "../api/setup";
 import type { ScanInstance } from "../api/types";
 import { useInstances } from "../api/useInstances";
 import { Button } from "../components/ui/Button";
-import { ConfirmDialog } from "../components/ui/ConfirmDialog";
 import { ErrorBlock } from "../components/ui/ErrorBlock";
 import { Field } from "../components/ui/Field";
 import { StateChip } from "../components/ui/StateChip";
@@ -54,7 +56,6 @@ export function Instances({ settingsPatch }: { settingsPatch: SettingsPatch }) {
   const [editing, setEditing] = useState<string | null>(null);
   const [draft, setDraft] = useState<Draft>(BLANK);
   const [rowErrors, setRowErrors] = useState<Record<string, string>>({});
-  const [removing, setRemoving] = useState<string | null>(null);
   const [scanning, setScanning] = useState(false);
   const [failure, setFailure] = useState<unknown>(null);
   const [tagText, setTagText] = useState<Record<string, string>>({});
@@ -158,21 +159,6 @@ export function Instances({ settingsPatch }: { settingsPatch: SettingsPatch }) {
         cancelEdit();
       })
       .catch((error: unknown) => failed(original, error));
-  };
-
-  const removeRow = (name: string) => {
-    void patch((document) => {
-      document.instances = document.instances.filter((inst) => inst.name !== name);
-    })
-      .then(() => {
-        succeeded();
-        setRemoving(null);
-      })
-      .catch((error: unknown) => {
-        // The dialog closes either way: a refusal belongs in the row, in front of the reader.
-        setRemoving(null);
-        failed(name, error);
-      });
   };
 
   const scanAgain = () => {
@@ -352,14 +338,9 @@ export function Instances({ settingsPatch }: { settingsPatch: SettingsPatch }) {
             </Button>
           </div>
         ) : (
-          <div className="flex items-center gap-2">
-            <Button variant="quiet" size="sm" onClick={() => startEdit(row.name)}>
-              Edit
-            </Button>
-            <Button variant="quiet" size="sm" onClick={() => setRemoving(row.name)}>
-              Remove
-            </Button>
-          </div>
+          <Button variant="quiet" size="sm" onClick={() => startEdit(row.name)}>
+            Edit
+          </Button>
         ),
     },
   ];
@@ -388,19 +369,6 @@ export function Instances({ settingsPatch }: { settingsPatch: SettingsPatch }) {
         rows={rows}
         rowKey={(row) => row.name}
         empty="No instances yet. Add one or scan for BlueStacks."
-      />
-
-      <ConfirmDialog
-        open={removing !== null}
-        onClose={() => setRemoving(null)}
-        title={`Remove ${removing ?? ""}?`}
-        body="Its data folder stays on disk. Type the name to confirm."
-        word={removing ?? ""}
-        confirmLabel="Remove"
-        tone="bad"
-        onConfirm={() => {
-          if (removing !== null) removeRow(removing);
-        }}
       />
     </div>
   );

@@ -172,44 +172,14 @@ describe("Settings > Instances", () => {
     });
   });
 
-  it("removes an instance only once its name is typed", async () => {
-    const { calls } = server();
+  it("keeps Edit in the row and leaves removal to the Data section", async () => {
+    server();
     mount();
     const [, , pie64_3] = await rows();
-    await userEvent.click(within(pie64_3).getByRole("button", { name: "Remove" }));
-
-    const dialog = screen.getByRole("dialog", { name: "Remove Pie64_3?" });
-    expect(
-      within(dialog).getByText("Its data folder stays on disk. Type the name to confirm."),
-    ).toBeInTheDocument();
-    const confirm = within(dialog).getByRole("button", { name: "Remove" });
-    expect(confirm).toBeDisabled();
-    await userEvent.type(within(dialog).getByLabelText("Type Pie64_3 to confirm"), "Pie64_3");
-    await userEvent.click(confirm);
-
-    await waitFor(() => {
-      expect(puts(calls)).toHaveLength(1);
-    });
-    expect(puts(calls)[0].instances.map((inst) => inst.name)).toEqual(["Pie64", "Pie64_1"]);
-    expect(toastMessages()).toEqual(["Settings saved"]);
-  });
-
-  it("shows the API's refusal in the row it names", async () => {
-    server({ putStatus: 409, putDetail: "Stop Pie64_3 before removing it" });
-    mount();
-    const [, , pie64_3] = await rows();
-    await userEvent.click(within(pie64_3).getByRole("button", { name: "Remove" }));
-    const dialog = screen.getByRole("dialog", { name: "Remove Pie64_3?" });
-    await userEvent.type(within(dialog).getByLabelText("Type Pie64_3 to confirm"), "Pie64_3");
-    await userEvent.click(within(dialog).getByRole("button", { name: "Remove" }));
-
-    // The API's own sentence, in the row, not a toast that scrolls away.
-    expect(await screen.findByText("Stop Pie64_3 before removing it")).toBeInTheDocument();
-    expect(
-      within(screen.getAllByRole("row")[3]).getByText("Stop Pie64_3 before removing it"),
-    ).toBeInTheDocument();
-    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
-    expect(toastMessages()).toEqual([]);
+    expect(within(pie64_3).getByRole("button", { name: "Edit" })).toBeInTheDocument();
+    // Removing an instance is one of the three irreversible acts, and they all live in
+    // Settings, Data now, under Danger zone.
+    expect(within(pie64_3).queryByRole("button", { name: "Remove" })).toBeNull();
   });
 
   it("puts a bad tag's message under the tag field", async () => {

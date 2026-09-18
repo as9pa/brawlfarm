@@ -5,10 +5,14 @@
  * the title of the open-folder button. Not in a heading, not in a caption, not in an error.
  * A screenshot of this page is therefore safe to paste into an issue.
  *
- * Both destructive acts go through a typed-name ConfirmDialog: the instance's own name for
- * its folder, the word "reset" for the settings. Deleting a folder does not delete the
- * instance, and a reset keeps every instance and every folder: only the other sections go
- * back to their defaults.
+ * Every irreversible act on the panel is here, in one Danger zone at the end: removing an
+ * instance from the fleet, deleting one instance's data, and the reset. Each one is a
+ * danger-variant Button behind a typed-name ConfirmDialog, and each refusal is shown on the
+ * row it refused rather than in a toast that scrolls away.
+ *
+ * The three are not the same act. Removing an instance leaves its folder on disk, deleting a
+ * folder leaves the instance in the fleet, and a reset keeps every instance and every
+ * folder: only the other sections go back to their defaults.
  */
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
@@ -25,13 +29,24 @@ import { failureMessage, toast } from "../lib/toast";
 const RESET_SENTENCE =
   "Your instances and their data folders stay. Every other setting goes back to its default.";
 
+/** One line of the Danger zone: what it does, what survives it, and the button. */
+interface ZoneRow {
+  key: string;
+  title: string;
+  note: string;
+  action: string;
+  onClick: () => void;
+}
+
 export function Data({ settingsPatch }: { settingsPatch: SettingsPatch }) {
-  const { settings } = settingsPatch;
+  const { settings, patch } = settingsPatch;
   const client = useQueryClient();
   const { data: health } = useQuery({ queryKey: queryKeys.health(), queryFn: getHealth });
   const [deleting, setDeleting] = useState<string | null>(null);
+  const [removing, setRemoving] = useState<string | null>(null);
   const [resetting, setResetting] = useState(false);
-  /** Keyed by instance name: a refusal belongs beside the row it refused. */
+  /** Keyed by zone row, not by instance: one instance has two rows here, and a refused
+   * Remove must not print itself under Delete data. */
   const [rowErrors, setRowErrors] = useState<Record<string, string>>({});
 
   if (settings === undefined) return null;
@@ -42,10 +57,18 @@ export function Data({ settingsPatch }: { settingsPatch: SettingsPatch }) {
     });
   };
 
-  const deleteData = (name: string) => {
+  const removeKey = (name: string) => `remove:${name}`;
+  const dataKey = (name: string) => `data:${name}`;
+
+  const clearError = (key: string) => {
     setRowErrors((errors) =>
-      Object.fromEntries(Object.entries(errors).filter(([key]) => key !== name)),
+      Object.fromEntries(Object.entries(errors).filter(([at]) => at !== key)),
     );
+  };
+
+  const deleteData = (name: string) => {
+    const key = dataKey(name);
+    clearError(key);
     void deleteInstanceData(name).then(
       () => {
         setDeleting(null);
@@ -53,7 +76,26 @@ export function Data({ settingsPatch }: { settingsPatch: SettingsPatch }) {
       },
       (error: unknown) => {
         setDeleting(null);
-        setRowErrors((errors) => ({ ...errors, [name]: failureMessage(error) }));
+        setRowErrors((errors) => ({ ...errors, [key]: failureMessage(error) }));
+      },
+    );
+  };
+
+  /** The same save the Instances section uses, with this instance filtered out. */
+  const removeInstance = (name: string) => {
+    const key = removeKey(name);
+    clearError(key);
+    void patch((document) => {
+      document.instances = document.instances.filter((inst) => inst.name !== name);
+    }).then(
+      () => {
+        setRemoving(null);
+        toast("Settings saved");
+      },
+      (error: unknown) => {
+        // The dialog closes either way: a refusal belongs on the row, in front of the reader.
+        setRemoving(null);
+        setRowErrors((errors) => ({ ...errors, [key]: failureMessage(error) }));
       },
     );
   };
@@ -73,6 +115,32 @@ export function Data({ settingsPatch }: { settingsPatch: SettingsPatch }) {
     );
   };
 
+  const zoneRows: ZoneRow[] = [
+    ...settings.instances.flatMap((instance) => [
+      {
+        key: removeKey(instance.name),
+        title: `Remove ${instance.name} from the fleet`,
+        note: "Its data folder stays on disk.",
+        action: "Remove",
+        onClick: () => setRemoving(instance.name),
+      },
+      {
+        key: dataKey(instance.name),
+        title: `Delete the data for ${instance.name}`,
+        note: "Status, farm plan, schedule, games and past sessions. The instance stays.",
+        action: "Delete data",
+        onClick: () => setDeleting(instance.name),
+      },
+    ]),
+    {
+      key: "reset",
+      title: "Reset all settings",
+      note: "Instances and their data folders stay.",
+      action: "Reset",
+      onClick: () => setResetting(true),
+    },
+  ];
+
   return (
     <div className="space-y-5">
       <div>
@@ -85,37 +153,30 @@ export function Data({ settingsPatch }: { settingsPatch: SettingsPatch }) {
         </span>
       </div>
 
-      <div>
-        <h3 className="text-[13px] font-semibold">Delete one instance’s data</h3>
+      <div className="rounded-[10px] border border-bad p-3">
+        <h3 className="text-[13px] font-semibold">Danger zone</h3>
+        <p className="mt-0.5 text-[12px] text-muted">These cannot be undone.</p>
         <ul className="mt-2">
-          {settings.instances.map((instance) => (
+          {zoneRows.map((row) => (
             <li
-              key={instance.name}
+              key={row.key}
               className="flex flex-wrap items-center gap-3 border-b border-line py-2 last:border-b-0"
             >
-              <span className="font-mono text-[13px]">{instance.name}</span>
-              <span className="text-[12px] text-muted">{`instances/${instance.name}`}</span>
+              <div className="min-w-0">
+                <h4 className="text-[13px] font-medium">{row.title}</h4>
+                <p className="text-[12px] text-muted">{row.note}</p>
+              </div>
               <span className="ml-auto">
-                <Button variant="quiet" size="sm" onClick={() => setDeleting(instance.name)}>
-                  Delete data
+                <Button variant="danger" size="sm" onClick={row.onClick}>
+                  {row.action}
                 </Button>
               </span>
-              {rowErrors[instance.name] !== undefined && (
-                <p className="w-full text-[12px] text-bad">{rowErrors[instance.name]}</p>
+              {rowErrors[row.key] !== undefined && (
+                <p className="w-full text-[12px] text-bad">{rowErrors[row.key]}</p>
               )}
             </li>
           ))}
         </ul>
-      </div>
-
-      <div className="rounded-[10px] border border-bad bg-panel p-3">
-        <h3 className="text-[13px] font-semibold">Reset all settings</h3>
-        <p className="mt-0.5 text-[12px] text-muted">{RESET_SENTENCE}</p>
-        <div className="mt-2">
-          <Button variant="secondary" onClick={() => setResetting(true)}>
-            Reset
-          </Button>
-        </div>
       </div>
 
       <ConfirmDialog
@@ -128,6 +189,19 @@ export function Data({ settingsPatch }: { settingsPatch: SettingsPatch }) {
         tone="bad"
         onConfirm={() => {
           if (deleting !== null) deleteData(deleting);
+        }}
+      />
+
+      <ConfirmDialog
+        open={removing !== null}
+        onClose={() => setRemoving(null)}
+        title={`Remove ${removing ?? ""}?`}
+        body="Its data folder stays on disk. Type the name to confirm."
+        word={removing ?? ""}
+        confirmLabel="Remove"
+        tone="bad"
+        onConfirm={() => {
+          if (removing !== null) removeInstance(removing);
         }}
       />
 
