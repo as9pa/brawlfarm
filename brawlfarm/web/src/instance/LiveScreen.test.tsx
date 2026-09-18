@@ -4,6 +4,7 @@ import { act, fireEvent, screen } from "@testing-library/react";
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { LiveScreen } from "./LiveScreen";
+import { ELLIPSIS } from "../lib/copy";
 import { type FetchCall, jpegResponse, stubFetch } from "../test/http";
 import { renderWithProviders } from "../test/renderWithProviders";
 
@@ -92,7 +93,10 @@ describe("LiveScreen", () => {
       fireEvent.click(screen.getByRole("button", { name: "Refresh" }));
       await vi.advanceTimersByTimeAsync(0);
     });
-    expect(screen.getByRole("button", { name: "Refreshing…" })).toBeDisabled();
+    const refreshing = screen.getByRole("button", { name: `Refreshing${ELLIPSIS}` });
+    expect(refreshing).toBeDisabled();
+    // A dead control still says why it is dead.
+    expect(refreshing).toHaveAttribute("title", "Refreshing the screen");
     await act(async () => {
       land();
       await vi.advanceTimersByTimeAsync(0);

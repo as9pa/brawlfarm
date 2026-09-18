@@ -12,6 +12,7 @@ import { useState } from "react";
 import { screenshotUrl } from "../api/screens";
 import { Button } from "../components/ui/Button";
 import { Thumb } from "../components/ui/Thumb";
+import { ELLIPSIS } from "../lib/copy";
 import { useVisiblePolling } from "../live/useVisiblePolling";
 
 // The worker writes a frame a second, so this is as live as the page can be; a poll that
@@ -31,9 +32,10 @@ export function LiveScreen({ name }: { name: string }) {
             variant="quiet"
             size="sm"
             disabled={busy}
+            disabledReason="Refreshing the screen"
             onClick={() => setRefreshKey((k) => k + 1)}
           >
-            {busy ? "Refreshing…" : "Refresh"}
+            {busy ? `Refreshing${ELLIPSIS}` : "Refresh"}
           </Button>
           <a
             className="rounded-[6px] px-2 py-1 text-[12px] text-accent hover:underline focus-visible:outline-2"
