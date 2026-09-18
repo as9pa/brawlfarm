@@ -9,6 +9,7 @@
  */
 import type { Recorder } from "../api/calibration";
 import { Switch } from "../components/ui/Switch";
+import { RECORDING_CAP_NOTE } from "../lib/copy";
 
 export interface ObserveCardProps {
   instance: string;
@@ -62,6 +63,8 @@ export function ObserveCard({
           labelled for calibration.
         </p>
       )}
+
+      <p className="text-[12px] text-muted">{RECORDING_CAP_NOTE}</p>
     </section>
   );
 }

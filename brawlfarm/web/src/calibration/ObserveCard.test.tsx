@@ -6,6 +6,7 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
 import { OBSERVE_BLOCKED_MESSAGE, ObserveCard } from "./ObserveCard";
+import { RECORDING_CAP_NOTE } from "../lib/copy";
 import type { Recorder } from "../api/calibration";
 
 function makeRecorder(overrides: Partial<Recorder> = {}): Recorder {
@@ -76,5 +77,21 @@ describe("ObserveCard", () => {
       status: makeRecorder({ mode: "observe", on: true, frames: 37 }),
     });
     expect(screen.getByText(/37 frames so far/)).toBeInTheDocument();
+  });
+
+  it("says the cap while it is off, before the switch is flipped", () => {
+    mount();
+    const note = screen.getByText(RECORDING_CAP_NOTE);
+    expect(note).toBeInTheDocument();
+    expect(note).not.toHaveAttribute("data-tone");
+  });
+
+  it("keeps the cap note while it observes", () => {
+    mount({
+      running: true,
+      desired: "observe",
+      status: makeRecorder({ mode: "observe", on: true, frames: 37 }),
+    });
+    expect(screen.getByText(RECORDING_CAP_NOTE)).toBeInTheDocument();
   });
 });

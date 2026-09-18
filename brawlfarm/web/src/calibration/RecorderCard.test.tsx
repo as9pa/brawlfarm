@@ -5,6 +5,7 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
 import { FRAME_CAP_MESSAGE, RecorderCard, WRITE_ERROR_MESSAGE } from "./RecorderCard";
+import { RECORDING_CAP_NOTE } from "../lib/copy";
 import type { Recorder } from "../api/calibration";
 
 function makeRecorder(overrides: Partial<Recorder> = {}): Recorder {
@@ -101,6 +102,18 @@ describe("RecorderCard", () => {
     expect(
       screen.getByText("Observe mode owns the recorder. Use Record while I play."),
     ).toBeInTheDocument();
+  });
+
+  it("says the cap while it is off, before the switch is flipped", () => {
+    mount(makeRecorder());
+    const note = screen.getByText(RECORDING_CAP_NOTE);
+    expect(note).toBeInTheDocument();
+    expect(note).not.toHaveAttribute("data-tone");
+  });
+
+  it("keeps the cap note while it records", () => {
+    mount(makeRecorder({ on: true, flag: true, frames: 5, bytes: 1258291 }));
+    expect(screen.getByText(RECORDING_CAP_NOTE)).toBeInTheDocument();
   });
 
   it("disables the switch until the status has arrived", () => {

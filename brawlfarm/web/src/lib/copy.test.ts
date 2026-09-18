@@ -1,7 +1,15 @@
 /** The glossary: grouped counts, mode names, window sizes and the empty-state words. */
 import { describe, expect, it } from "vitest";
 
-import { ELLIPSIS, REQUIRED_SIZE, count, modeName, sentence, sizeWords } from "./copy";
+import {
+  ELLIPSIS,
+  RECORDING_CAP_NOTE,
+  REQUIRED_SIZE,
+  count,
+  modeName,
+  sentence,
+  sizeWords,
+} from "./copy";
 
 describe("count", () => {
   it("groups thousands", () => {
@@ -52,5 +60,13 @@ describe("sentence", () => {
 describe("ELLIPSIS", () => {
   it("is one character, not three dots", () => {
     expect(ELLIPSIS.length).toBe(1);
+  });
+});
+
+describe("RECORDING_CAP_NOTE", () => {
+  it("names both caps and where the frames land", () => {
+    expect(RECORDING_CAP_NOTE).toBe(
+      "Up to 2000 frames or 512 MB per session, in the calibration folder.",
+    );
   });
 });

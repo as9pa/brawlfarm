@@ -18,6 +18,11 @@ export const NOT_STARTED = "Not started";
 export const NOT_RECORDED = "Not recorded";
 export const NO_BRAWLER_YET = "No brawler selected yet";
 
+/** What a recording costs, said under both switches so the reader learns the
+ * cap before flipping rather than when the recorder stops. */
+export const RECORDING_CAP_NOTE =
+  "Up to 2000 frames or 512 MB per session, in the calibration folder.";
+
 export const REQUIRED_WIDTH = 1600;
 export const REQUIRED_HEIGHT = 900;
 
