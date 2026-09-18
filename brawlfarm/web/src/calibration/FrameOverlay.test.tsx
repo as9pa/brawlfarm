@@ -142,6 +142,32 @@ describe("FrameOverlay", () => {
     expect(frame.querySelectorAll("a")).toHaveLength(0);
   });
 
+  it("keeps the label 11 px and every stroke non-scaling at any width", () => {
+    render(
+      <FrameOverlay
+        instance="Pie64"
+        taps={[PLAY_BUTTON]}
+        anchors={[makeAnchor(), makeAnchor({ name: "matchmaking", found: false, score: 0.41 })]}
+        show="both"
+        screen="all"
+        highlight={null}
+        onHighlight={() => undefined}
+        refreshMs={false}
+      />,
+    );
+    // The label is real text outside the viewBox, so it does not scale with the frame.
+    expect(within(labels()).getByText("Play button").classList.contains("text-[11px]")).toBe(
+      true,
+    );
+    // The marks are inside it, so each stroke says not to scale: one circle and two lines
+    // for the tap, one rect per anchor.
+    const stroked = overlay().querySelectorAll("circle[stroke], line[stroke], rect[stroke]");
+    expect(stroked).toHaveLength(5);
+    for (const mark of stroked) {
+      expect(mark).toHaveAttribute("vector-effect", "non-scaling-stroke");
+    }
+  });
+
   it("leaves out a point that belongs to another screen", () => {
     const { rerender } = render(
       <FrameOverlay
