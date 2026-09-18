@@ -10,6 +10,15 @@ describe("PanelSkeleton", () => {
     render(<PanelSkeleton label="the feed" />);
     const panel = screen.getByRole("status", { name: "Loading the feed" });
     expect(panel).toHaveAttribute("aria-busy", "true");
+    expect(panel).toHaveClass("border");
+  });
+
+  it("drops the shell when it stands inside a panel that already drew one", () => {
+    render(<PanelSkeleton label="the feed" bare />);
+    const panel = screen.getByRole("status", { name: "Loading the feed" });
+    expect(panel).not.toHaveClass("border");
+    expect(panel).not.toHaveClass("p-3");
+    expect(panel.querySelectorAll("[data-block]")).toHaveLength(3);
   });
 
   it("draws one bar per row", () => {

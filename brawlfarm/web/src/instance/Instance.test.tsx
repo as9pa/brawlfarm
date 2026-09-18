@@ -131,7 +131,7 @@ describe("Instance", () => {
         player_tag: "#2P0YLQ9",
       }),
     ]);
-    mountPage();
+    const { container } = mountPage();
     expect(await screen.findByRole("heading", { level: 1, name: "Pie64" })).toBeInTheDocument();
     expect(screen.getByText("Farming")).toBeInTheDocument();
     expect(screen.getByText("Playing")).toBeInTheDocument();
@@ -143,6 +143,10 @@ describe("Instance", () => {
     expect(screen.getByText("5555")).toBeInTheDocument();
     expect(screen.getByText("Data folder")).toBeInTheDocument();
     expect(screen.getByText("instances/Pie64")).toBeInTheDocument();
+    // The shell's breadcrumb already reads Fleet / Pie64, so the header does not say it
+    // a second time.
+    const header = container.querySelector("header") as HTMLElement;
+    expect(within(header).queryByRole("link", { name: "Fleet" })).not.toBeInTheDocument();
   });
 
   it("leaves the whole player tag group out when there is no tag", async () => {

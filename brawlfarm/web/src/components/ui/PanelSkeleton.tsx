@@ -5,22 +5,29 @@
  * page says out loud, and it doubles as the region's accessible name so a screen reader
  * hears "Loading the feed" rather than an unnamed busy box. The pulse is motion-safe only:
  * a reduced-motion reader gets the same panel, still.
+ *
+ * `bare` is for a panel that keeps its own header up while its body loads, like the feed
+ * and its filter row: the shell is already drawn around it, and a second one is a box
+ * inside a box.
  */
 import { useId } from "react";
 
 export interface PanelSkeletonProps {
   label: string;
   rows?: number;
+  bare?: boolean;
 }
 
-export function PanelSkeleton({ label, rows = 3 }: PanelSkeletonProps) {
+const SHELL = "rounded-[10px] border border-line bg-panel p-3";
+
+export function PanelSkeleton({ label, rows = 3, bare = false }: PanelSkeletonProps) {
   const labelId = useId();
   return (
     <div
       role="status"
       aria-busy="true"
       aria-labelledby={labelId}
-      className="rounded-[10px] border border-line bg-panel p-3"
+      className={bare ? undefined : SHELL}
     >
       <span id={labelId} className="sr-only">
         Loading {label}

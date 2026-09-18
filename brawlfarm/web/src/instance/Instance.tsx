@@ -7,7 +7,7 @@
  */
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import { Link, useParams } from "react-router";
+import { useParams } from "react-router";
 
 import { ApiError } from "../api/client";
 import { getFeed } from "../api/feed";
@@ -81,9 +81,6 @@ function Header({ inst, onDone }: { inst: InstancePayload; onDone: () => void })
   return (
     <header className="flex flex-col gap-2">
       <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
-        <Link to="/" className="text-[12px] text-muted hover:text-text">
-          Fleet
-        </Link>
         <h1 className="text-[28px] leading-none font-semibold">{inst.name}</h1>
         <StateChip state={inst.state} />
         <span className="text-[12px] text-muted">{phaseLabel(inst.phase)}</span>

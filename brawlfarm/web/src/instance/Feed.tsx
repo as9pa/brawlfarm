@@ -133,7 +133,7 @@ export function Feed({ name, session }: { name: string; session: string | null }
       {query.isError ? (
         <ErrorBlock error={query.error} onRetry={() => void query.refetch()} />
       ) : query.isPending ? (
-        <PanelSkeleton label="the feed" rows={5} />
+        <PanelSkeleton label="the feed" rows={5} bare />
       ) : shown.length === 0 ? (
         <p className="p-2 text-[13px] text-muted">{EMPTY[kind]}</p>
       ) : (

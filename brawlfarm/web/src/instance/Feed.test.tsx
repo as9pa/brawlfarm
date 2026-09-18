@@ -76,6 +76,19 @@ describe("Feed", () => {
     expect([second.get("kind"), second.get("limit")]).toEqual(["errors", "200"]);
   });
 
+  it("says the feed is loading without drawing a second box around it", async () => {
+    stubFetch(() => new Promise<Response>(() => {}));
+    const { container } = renderWithProviders(<Feed name="Pie64" session={SESSION} />);
+    const panel = await screen.findByRole("status", { name: "Loading the feed" });
+    expect(panel).toHaveAttribute("aria-busy", "true");
+    // The filter row stays up while the first page loads, so the skeleton sits inside
+    // the panel rather than replacing it: the section is the only box on screen.
+    const boxes = [...container.querySelectorAll("*")].filter((el) =>
+      el.className.toString().includes("rounded-[10px]"),
+    );
+    expect(boxes).toHaveLength(1);
+  });
+
   it("shows the filter's own empty copy", async () => {
     stubFeed(() => []);
     renderWithProviders(<Feed name="Pie64" session={SESSION} />);
