@@ -70,4 +70,24 @@ describe("LiveScreen", () => {
     });
     expect(frames()).toBe(4);
   });
+  it("names the button for the capture in flight and refuses a second press", async () => {
+    vi.useFakeTimers();
+    let land = () => {};
+    stubFetch(
+      () =>
+        new Promise<Response>((resolve) => {
+          land = () => resolve(jpegResponse());
+        }),
+    );
+    renderWithProviders(<LiveScreen name="Pie64" />);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    expect(screen.getByRole("button", { name: "Refreshing…" })).toBeDisabled();
+    await act(async () => {
+      land();
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    expect(screen.getByRole("button", { name: "Refresh" })).toBeEnabled();
+  });
 });

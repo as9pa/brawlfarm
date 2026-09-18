@@ -5,6 +5,7 @@ import { act, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { Thumb } from "./Thumb";
+import { clock } from "../../lib/format";
 import { jpegResponse, jsonResponse, stubFetch } from "../../test/http";
 
 const created: string[] = [];
@@ -167,5 +168,56 @@ describe("Thumb", () => {
     await screen.findByRole("img", { name: "Pie64 screen" });
     unmount();
     expect(revoked).toEqual(["blob:fake/1"]);
+  });
+  it("says when a capture is in flight, and never says the same thing twice", async () => {
+    vi.useFakeTimers();
+    stubFetch(() => jpegResponse({ etag: '"one"' }));
+    const busy: boolean[] = [];
+    render(<Thumb name="Pie64" refreshMs={1000} onBusyChange={(next) => busy.push(next)} />);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    expect(busy).toEqual([true, false]);
+    // The second poll is a 304, and it opens and closes exactly like the first.
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1000);
+    });
+    expect(busy).toEqual([true, false, true, false]);
+  });
+
+  it("closes the in-flight signal when the capture fails", async () => {
+    vi.useFakeTimers();
+    stubFetch(() => jsonResponse({ detail: "boom" }, 503));
+    const busy: boolean[] = [];
+    render(<Thumb name="Pie64" refreshMs={false} onBusyChange={(next) => busy.push(next)} />);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    expect(busy).toEqual([true, false]);
+  });
+
+  it("stamps the frame with its age and the clock when the clock is asked for", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-09-10T12:00:05Z"));
+    stubFetch(() => jpegResponse({ "last-modified": "Thu, 10 Sep 2026 12:00:00 GMT" }));
+    render(<Thumb name="Pie64" refreshMs={false} showClock />);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    const at = clock("2026-09-10T12:00:00.000Z");
+    expect(screen.getByText(`5 s ago (${at})`)).toHaveAttribute("title", at);
+  });
+
+  it("leaves the caption alone without the clock, and titles it either way", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-09-10T12:00:05Z"));
+    stubFetch(() => jpegResponse({ "last-modified": "Thu, 10 Sep 2026 12:00:00 GMT" }));
+    render(<Thumb name="Pie64" refreshMs={false} caption="Break until 21:30" />);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    const caption = screen.getByText("Break until 21:30");
+    expect(caption.textContent).toBe("Break until 21:30");
+    expect(caption).toHaveAttribute("title", clock("2026-09-10T12:00:00.000Z"));
   });
 });
