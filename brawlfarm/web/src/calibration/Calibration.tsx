@@ -76,6 +76,9 @@ export function Calibration() {
   // does not follow the detected screen: a filter that moved on its own would fight a
   // reader who had just chosen one.
   const [screen, setScreen] = useState<ScreenFilter>("all");
+  // The one point named on the frame. The table beside it sets the same state, which
+  // is what makes pointing at a row light up its box and the other way round.
+  const [highlight, setHighlight] = useState<string | null>(null);
 
   // The first running instance is the one worth looking at; the first configured one is
   // the fallback so a wholly stopped fleet still has a frame to show.
@@ -176,12 +179,14 @@ export function Calibration() {
     }
     if (scores.isError) return <p className="text-[13px] text-muted">{noFrameYet(chosen)}</p>;
     return (
-      // Task 3 wires this into the overlay.
       <FrameOverlay
         instance={chosen}
         taps={(calibration.data?.constants ?? []).filter((c) => c.group === "tap")}
         anchors={scores.data?.anchors}
         show={show}
+        screen={screen}
+        highlight={highlight}
+        onHighlight={setHighlight}
         refreshMs={running ? LIVE_POLL_MS : false}
       />
     );
