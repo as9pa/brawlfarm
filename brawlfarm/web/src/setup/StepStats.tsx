@@ -55,8 +55,8 @@ function TagField({
         onChange={box.onChange}
         width="full"
         placeholder="#TAG"
+        error={message}
       />
-      {message !== undefined && <p className="mt-1 text-[12px] text-bad">{message}</p>}
     </div>
   );
 }
@@ -104,8 +104,8 @@ export function StepStats({ setup }: StepProps) {
             width="full"
             spellCheck={false}
             autoComplete="off"
+            error={tokenError}
           />
-          {tokenError !== undefined && <p className="mt-1 text-[12px] text-bad">{tokenError}</p>}
         </div>
 
         {instances.map((one) => (

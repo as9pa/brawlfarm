@@ -5,9 +5,9 @@
  * exits otherwise, so the wizard's job here is to let someone find out now, with the
  * sentence that says where to change it, rather than later from a worker that quit.
  *
- * The fix sentence is the API's `hint`, rendered verbatim. It comes from
- * brawlfarm/setup/checks.py's DISPLAY_HINT, which is the one place that sentence is
- * written: a second copy here would drift the first time BlueStacks renames a menu.
+ * The fix sentence is the panel's own, not the API's `hint`: the hint spells the size the
+ * way a machine says it, with a letter x. The numbers in it still come from one place, the
+ * constants in lib/copy that the rest of the panel reads the required size from.
  *
  * Each card checks itself and rechecks itself, and reports up only the one bit the step
  * needs, which is whether Continue may open.
@@ -20,6 +20,11 @@ import type { DisplayCheckResponse } from "../api/types";
 import { Button } from "../components/ui/Button";
 import { Chip } from "../components/ui/Chip";
 import { ErrorBlock } from "../components/ui/ErrorBlock";
+import { REQUIRED_HEIGHT, REQUIRED_WIDTH } from "../lib/copy";
+
+/** The size every instance has to be, with the multiplication sign and never a letter x. */
+const REQUIRED = `${REQUIRED_WIDTH} \u00d7 ${REQUIRED_HEIGHT}`;
+const FIX = `In BlueStacks: Settings, Display, Custom, ${REQUIRED}.`;
 
 function DisplayCard({
   name,
@@ -59,7 +64,7 @@ function DisplayCard({
   const measured =
     result === null || result.width === null || result.height === null || result.dpi === null
       ? (result?.detail ?? "")
-      : `${result.width} x ${result.height}, pixel density ${result.dpi}`;
+      : `${result.width} \u00d7 ${result.height}, pixel density ${result.dpi}`;
 
   return (
     <article className="rounded-[10px] border border-line bg-panel p-3">
@@ -69,7 +74,7 @@ function DisplayCard({
           <Chip tone="idle">Checking…</Chip>
         ) : (
           <Chip tone={result?.ok === true ? "ok" : "bad"}>
-            {result?.ok === true ? "Correct" : "Wrong size"}
+            {result?.ok === true ? "Correct" : `Wrong size, needs ${REQUIRED}`}
           </Chip>
         )}
       </div>
@@ -82,7 +87,7 @@ function DisplayCard({
         <p className="mt-1 font-mono text-[12px] tabular-nums text-muted">{measured}</p>
       )}
       {!checking && result !== null && !result.ok && (
-        <p className="mt-1 text-[12px] text-muted">{result.hint}</p>
+        <p className="mt-1 text-[12px] text-muted">{FIX}</p>
       )}
       <div className="mt-2">
         <Button variant="secondary" size="sm" disabled={checking} onClick={run}>
@@ -94,7 +99,7 @@ function DisplayCard({
 }
 
 export function StepDisplay({ setup }: StepProps) {
-  const { back, next, settingsPatch } = setup;
+  const { back, next, setDisplayPassed, settingsPatch } = setup;
   const instances = settingsPatch.settings?.instances ?? [];
   const [ok, setOk] = useState<Record<string, boolean>>({});
 
@@ -103,6 +108,11 @@ export function StepDisplay({ setup }: StepProps) {
   }, []);
 
   const allOk = instances.length > 0 && instances.every((one) => ok[one.name] === true);
+
+  // What the rail ticks for this step, which is this visit's answer and nothing older.
+  useEffect(() => {
+    setDisplayPassed(allOk);
+  }, [allOk, setDisplayPassed]);
 
   return (
     <div>

@@ -137,9 +137,9 @@ describe("Setup step 2: Instances", () => {
     expect(headers).toEqual(["select", "Name", "Display name", "ADB port", "Status", "test"]);
     expect(within(row("Pie64")).getByText("Nougat 64")).toBeInTheDocument();
     expect(within(row("Pie64")).getByText("5555")).toBeInTheDocument();
-    // The scan said this one answers, so it starts at Answers; the other was not probed
+    // The scan said this one answers, so it starts at Reachable; the other was not probed
     // by the scan and has not been tested here either.
-    expect(within(row("Pie64")).getByText("Answers")).toBeInTheDocument();
+    expect(within(row("Pie64")).getByText("Reachable")).toBeInTheDocument();
     expect(within(row("Pie64_3")).getByText("Not tested")).toBeInTheDocument();
     expect(
       screen.getByText("Enable ADB in BlueStacks: Settings, Advanced, Android Debug Bridge."),
@@ -162,7 +162,7 @@ describe("Setup step 2: Instances", () => {
       within(row("Pie64_3")).getByText("No answer on 5585. Is the instance running?"),
     ).toBeInTheDocument();
     // The other row is untouched by its neighbour's probe.
-    expect(within(row("Pie64")).getByText("Answers")).toBeInTheDocument();
+    expect(within(row("Pie64")).getByText("Reachable")).toBeInTheDocument();
   });
 
   it("adds a port by hand and lets it be picked", async () => {

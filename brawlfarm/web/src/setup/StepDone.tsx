@@ -5,6 +5,9 @@
  * and is never printed: "set" or "skipped" is the whole truth a reader needs, and a token on
  * a screen is a token in a screenshot.
  *
+ * A return visit to the wizard lands here, so this is also where the checks are started
+ * over from step 1, and where a fleet of nothing is told where to go and add one.
+ *
  * The one start is the only process this whole phase begins. It goes through the same
  * POST /api/instances/{name}/start every other Start in the panel uses, so the supervisor
  * still owns the one-worker-per-instance rule. A refused start is said out loud and does not
@@ -12,7 +15,7 @@
  * actually be looked at.
  */
 import { useState } from "react";
-import { useNavigate } from "react-router";
+import { Link, useNavigate } from "react-router";
 
 import { type StepProps } from "./useSetupState";
 import { startInstance } from "../api/instances";
@@ -21,7 +24,7 @@ import { Switch } from "../components/ui/Switch";
 import { failureMessage, toast } from "../lib/toast";
 
 export function StepDone({ setup }: StepProps) {
-  const { settingsPatch } = setup;
+  const { go, settingsPatch } = setup;
   const settings = settingsPatch.settings;
   const navigate = useNavigate();
   const [startFirst, setStartFirst] = useState(true);
@@ -72,17 +75,24 @@ export function StepDone({ setup }: StepProps) {
         </li>
       </ul>
 
-      {first !== "" && (
+      {first === "" ? (
+        <p className="mt-4 text-[13px]">
+          <Link to="/settings/instances" className="underline">
+            Add an instance to start farming.
+          </Link>
+        </p>
+      ) : (
         <div className="mt-4">
           <Switch checked={startFirst} onChange={setStartFirst} label={`Start ${first} now`} />
         </div>
       )}
 
-      <p className="mt-4 text-[12px] text-muted">
-        Each step already saved to config.toml, so you can close this and come back.
-      </p>
+      <p className="mt-4 text-[12px] text-muted">Everything is saved as you go.</p>
 
-      <div className="mt-5">
+      <div className="mt-5 flex items-center gap-2">
+        <Button variant="secondary" onClick={() => go("bluestacks")}>
+          Run the checks again
+        </Button>
         <Button variant="primary" onClick={open}>
           Open Fleet
         </Button>

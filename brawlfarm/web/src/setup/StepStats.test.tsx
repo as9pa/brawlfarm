@@ -53,13 +53,14 @@ function toastMessages(): string[] {
   return renderHook(() => useToasts()).result.current.map((item) => item.message);
 }
 
-/** The wizard lands on step 3 with a fleet already in config.toml; one Continue gets to 4. */
+/** A fleet already in config.toml lands the wizard on the last step; the rail is how a
+ * returning owner gets back to step 4. */
 async function walkToStats() {
-  const forward = await screen.findByRole("button", { name: "Continue" });
+  const rail = await screen.findByRole("button", { name: "Stats" });
   await waitFor(() => {
-    expect(forward).toBeEnabled();
+    expect(rail).toBeEnabled();
   });
-  await userEvent.click(forward);
+  await userEvent.click(rail);
   expect(await screen.findByText("Stats (optional)")).toBeInTheDocument();
 }
 
