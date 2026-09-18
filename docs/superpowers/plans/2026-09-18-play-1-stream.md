@@ -480,6 +480,7 @@ tears everything down once. The transport is faked with the synthetic clip; adb 
 
 from __future__ import annotations
 
+import io
 import socket
 import threading
 import time
@@ -528,7 +529,7 @@ class FakeSocket:
 class FakeProc:
     def __init__(self) -> None:
         self.killed = False
-        self.stdout = None
+        self.stdout = io.BytesIO(b"[server] INFO: Device: fake\n")
 
     def poll(self):
         return 1 if self.killed else None
@@ -629,8 +630,9 @@ def test_recording_writes_the_raw_bytes(fakes, tmp_path: Path) -> None:
 def test_a_server_that_never_sends_is_an_error_within_the_deadline(fakes, monkeypatch) -> None:
     monkeypatch.setattr(stream, "CONNECT_DEADLINE", 0.3)
     s = stream.Stream(connect=lambda port: FakeSocket(b""))
-    with pytest.raises(stream.StreamError):
+    with pytest.raises(stream.StreamError) as err:
         s.start()
+    assert "Device: fake" in str(err.value), "the server's output tail is in the error"
     s.stop()
 ```
 
@@ -654,6 +656,7 @@ import logging
 import socket
 import threading
 import time
+from collections import deque
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any
@@ -679,6 +682,7 @@ SERVER_ARGS = [
     "log_level=warn",
 ]
 _RECV_BYTES = 1 << 16
+_SERVER_LINES = 20  # the tail of the server's output kept for error messages
 
 
 class StreamError(RuntimeError):
@@ -716,6 +720,8 @@ class Stream:
         self._sock: Any = None
         self._proc: Any = None
         self._thread: threading.Thread | None = None
+        self._drain: threading.Thread | None = None
+        self._server_lines: deque[str] = deque(maxlen=_SERVER_LINES)
         self._record_fh = None
         self._stopping = False
         self._stopped = False
@@ -735,6 +741,9 @@ class Stream:
         self._proc = self._spawn(
             ["app_process", "/", "com.genymobile.scrcpy.Server", play.SERVER_VERSION, *SERVER_ARGS]
         )
+        # Drain the server's output so its pipe never fills and stalls it; keep the tail.
+        self._drain = threading.Thread(target=self._drain_output, name="play-stream-log", daemon=True)
+        self._drain.start()
         self._sock = self._wait_for_bytes()
         if self._record_path is not None:
             self._record_fh = self._record_path.open("wb")
@@ -768,16 +777,21 @@ class Stream:
         self._teardown()
         raise StreamError(f"no stream bytes within {CONNECT_DEADLINE:g} s" + (f": {tail}" if tail else ""))
 
-    def _server_output(self) -> str:
+    def _drain_output(self) -> None:
         proc = self._proc
-        if proc is None or getattr(proc, "stdout", None) is None:
-            return ""
+        out = getattr(proc, "stdout", None)
+        if out is None:
+            return
         try:
-            proc.kill()
-            data = proc.stdout.read() or b""
-        except Exception:
-            return ""
-        return data.decode("utf-8", errors="replace").strip()[-400:]
+            for raw in iter(out.readline, b""):
+                self._server_lines.append(raw.decode("utf-8", errors="replace").rstrip())
+        except (OSError, ValueError):  # the pipe closed under us at stop()
+            pass
+
+    def _server_output(self) -> str:
+        if self._drain is not None:
+            self._drain.join(timeout=0.5)
+        return " | ".join(line for line in self._server_lines if line)[-400:]
 
     def stop(self) -> None:
         """Tear down once: socket, server process, forward, recording. Safe to call twice."""
@@ -788,6 +802,8 @@ class Stream:
         self._teardown()
         if self._thread is not None:
             self._thread.join(timeout=2.0)
+        if self._drain is not None:
+            self._drain.join(timeout=1.0)
         if self._record_fh is not None:
             try:
                 self._record_fh.close()
