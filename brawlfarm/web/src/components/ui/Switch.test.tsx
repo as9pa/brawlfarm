@@ -15,6 +15,21 @@ describe("Switch", () => {
     expect(onChange).toHaveBeenCalledWith(true);
   });
 
+  it("survives a checked value the payload never sent", async () => {
+    const onChange = vi.fn();
+    render(
+      <Switch
+        checked={undefined as unknown as boolean}
+        onChange={onChange}
+        label="Follow"
+      />,
+    );
+    const control = screen.getByRole("switch", { name: "Follow" });
+    expect(control).toHaveAttribute("aria-checked", "false");
+    await userEvent.click(control);
+    expect(onChange).toHaveBeenCalledWith(true);
+  });
+
   it("does not toggle while disabled", async () => {
     const onChange = vi.fn();
     render(<Switch checked onChange={onChange} label="Schedule on" disabled />);

@@ -120,7 +120,7 @@ export function Schedule({ name }: { name: string }) {
         <div className="ml-auto">
           <Switch
             label="Schedule on"
-            checked={payload.enabled}
+            checked={payload.enabled ?? false}
             disabled={switching}
             onChange={(enabled) => void onSwitch(enabled)}
           />

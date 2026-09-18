@@ -31,16 +31,19 @@ export function Switch({
   disabled = false,
   describedBy,
 }: SwitchProps) {
-  const tone = TONES[`${checked}-${disabled}`];
+  // A server that predates the field sends nothing for it, and a key of `undefined-false`
+  // has no tone: read the prop once, off unless it is truly on.
+  const on = checked === true;
+  const tone = TONES[`${on}-${disabled}`];
 
   return (
     <button
       type="button"
       role="switch"
-      aria-checked={checked}
+      aria-checked={on}
       aria-describedby={describedBy}
       disabled={disabled}
-      onClick={() => onChange(!checked)}
+      onClick={() => onChange(!on)}
       className={`inline-flex items-center gap-2 rounded-[6px] text-[12px] text-muted disabled:cursor-not-allowed ${FOCUS_RING}`}
     >
       <span
@@ -48,7 +51,7 @@ export function Switch({
         className={`relative h-4 w-7 shrink-0 rounded-full border border-line transition-colors duration-[120ms] ${tone.track}`}
       >
         <span
-          className={`absolute top-0.5 h-2.5 w-2.5 rounded-full transition-[left] duration-[120ms] ${checked ? "left-3.5" : "left-0.5"} ${tone.thumb}`}
+          className={`absolute top-0.5 h-2.5 w-2.5 rounded-full transition-[left] duration-[120ms] ${on ? "left-3.5" : "left-0.5"} ${tone.thumb}`}
         />
       </span>
       {label}

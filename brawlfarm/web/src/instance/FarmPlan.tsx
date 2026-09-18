@@ -298,7 +298,7 @@ export function FarmPlan({ name }: { name: string }) {
         <>
           <Switch
             label="Pick quest brawlers"
-            checked={plan.quest_aware}
+            checked={plan.quest_aware ?? false}
             describedBy={questHelpId}
             onChange={(quest_aware) => save({ quest_aware })}
           />
