@@ -94,7 +94,7 @@ describe("App", () => {
     // name its stretched link carries.
     expect(
       await within(screen.getByRole("navigation", { name: "Sections" })).findByRole("link", {
-        name: "Pie64",
+        name: "Pie64 Farming",
       }),
     ).toBeInTheDocument();
     expect(await screen.findByRole("link", { name: "Open Pie64" })).toBeInTheDocument();

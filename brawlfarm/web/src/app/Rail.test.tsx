@@ -1,5 +1,5 @@
 /** The rail: the wordmark, four sections, none of them tagged as unbuilt any more, and
- * every instance with a dot in its state's colour. */
+ * every instance named in words beside the state it is in. */
 import { screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -40,18 +40,25 @@ describe("Rail", () => {
     expect(await screen.findByText("Instances")).toBeInTheDocument();
   });
 
-  it("gives every instance a dot in its state's tone", async () => {
+  it("names every instance and says its state in words", async () => {
     stubInstances();
     renderWithProviders(<Rail />);
-    const pie64 = await screen.findByRole("link", { name: /Pie64$/ });
+    const pie64 = await screen.findByRole("link", { name: "Pie64 Farming" });
     expect(pie64).toHaveAttribute("href", "/instances/Pie64");
     expect(pie64.querySelector("[data-tone]")).toHaveAttribute("data-tone", "ok");
     expect(
-      screen.getByRole("link", { name: /Pie64_1/ }).querySelector("[data-tone]"),
+      screen.getByRole("link", { name: "Pie64_1 Offline" }).querySelector("[data-tone]"),
     ).toHaveAttribute("data-tone", "bad");
     expect(
-      screen.getByRole("link", { name: /Pie64_3/ }).querySelector("[data-tone]"),
+      screen.getByRole("link", { name: "Pie64_3 Scheduled break" }).querySelector("[data-tone]"),
     ).toHaveAttribute("data-tone", "idle");
+  });
+
+  it("sets nothing in the rail in mono", async () => {
+    stubInstances();
+    const { container } = renderWithProviders(<Rail />);
+    await screen.findByRole("link", { name: "Pie64 Farming" });
+    expect(container.querySelector(".font-mono")).toBeNull();
   });
 
   it("marks the page you are on", async () => {
