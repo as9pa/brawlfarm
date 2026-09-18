@@ -4,14 +4,33 @@
  * clock, no DOM, no React.
  */
 import type { SchedulePayload } from "../api/types";
+import { count } from "./copy";
+import { plural } from "./format";
+import { hhmm } from "./time";
 
 export type BlockState = "past" | "active" | "future";
-export type Block = { leftPct: number; widthPct: number; state: BlockState };
+/** `label` is the block's wall-clock span, "14:00 to 15:30", so colour never has to
+ * carry it on its own. */
+export type Block = {
+  leftPct: number;
+  widthPct: number;
+  state: BlockState;
+  label: string;
+};
 export type Tick = { hour: number; leftPct: number };
-export type Timeline = { blocks: Block[]; nowPct: number; ticks: Tick[] };
+/** `description` is the whole bar in one sentence; the component prints it and never
+ * assembles it, so the wording is testable without React. */
+export type Timeline = {
+  blocks: Block[];
+  nowPct: number;
+  ticks: Tick[];
+  description: string;
+};
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const TICK_HOURS = [0, 6, 12, 18, 24];
+// The bar is always the whole calendar day, said in words rather than as 00:00 to 24:00.
+const DAY_SPAN = "Midnight to midnight.";
 
 /**
  * Midnight of the local calendar day `iso` falls in. The API writes its stamps with no
@@ -50,11 +69,16 @@ export function timeline(payload: SchedulePayload, nowIso: string): Timeline {
       leftPct: left,
       widthPct: right - left,
       state: now >= to ? "past" : now >= from ? "active" : "future",
+      // From the session's own stamps rather than the clipped percentages: a block cut
+      // off at midnight still states the end it really has.
+      label: `${hhmm(session.start)} to ${hhmm(session.end)}`,
     });
   }
+  const running = blocks.filter((block) => block.state === "active").length;
   return {
     blocks,
     nowPct: clamp(pct(now)),
     ticks: TICK_HOURS.map((hour) => ({ hour, leftPct: (hour / 24) * 100 })),
+    description: `${DAY_SPAN} ${plural(blocks.length, "session")} drawn, ${count(running)} running now.`,
   };
 }

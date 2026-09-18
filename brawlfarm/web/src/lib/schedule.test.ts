@@ -60,4 +60,39 @@ describe("timeline", () => {
     expect(t.blocks).toHaveLength(0);
     expect(timeline(makeSchedule({ sessions: [] }), NOW).blocks).toHaveLength(0);
   });
+
+  it("labels a block with the session's own wall-clock span", () => {
+    const t = timeline(
+      makeSchedule({
+        sessions: [{ start: "2026-09-11T14:00:00", end: "2026-09-11T15:30:00" }],
+      }),
+      NOW,
+    );
+    expect(t.blocks[0].label).toBe("14:00 to 15:30");
+  });
+
+  it("labels a clipped session with its real end, not with midnight", () => {
+    const t = timeline(
+      makeSchedule({
+        sessions: [{ start: "2026-09-11T22:00:00", end: "2026-09-12T01:00:00" }],
+      }),
+      NOW,
+    );
+    expect(t.blocks[0].widthPct).toBeCloseTo(8.333333, 5);
+    expect(t.blocks[0].label).toBe("22:00 to 01:00");
+  });
+
+  it("describes the span, the count and whether one is running", () => {
+    expect(timeline(makeSchedule(), NOW).description).toBe(
+      "Midnight to midnight. 3 sessions drawn, 1 running now.",
+    );
+    expect(
+      timeline(
+        makeSchedule({
+          sessions: [{ start: "2026-09-11T19:00:00", end: "2026-09-11T20:30:00" }],
+        }),
+        NOW,
+      ).description,
+    ).toBe("Midnight to midnight. 1 session drawn, 0 running now.");
+  });
 });

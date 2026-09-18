@@ -18,7 +18,7 @@ import { Field } from "../components/ui/Field";
 import { PanelSkeleton } from "../components/ui/PanelSkeleton";
 import { Switch } from "../components/ui/Switch";
 import { useVisiblePolling } from "../live/useVisiblePolling";
-import { timeline } from "../lib/schedule";
+import { type BlockState, timeline } from "../lib/schedule";
 import { hhmm } from "../lib/time";
 import { failureMessage, toast } from "../lib/toast";
 
@@ -30,11 +30,43 @@ const REDRAW_REFETCH_MS = [2000, 10_000];
 // writes an override on its own tick, and a stop from another window is invisible here.
 // The same cadence as the instances list (api/useInstances.ts), and it stops with the tab.
 const POLL_MS = 15000;
-const BLOCK_TONE: Record<string, string> = {
-  past: "bg-idle opacity-40",
-  active: "bg-ok",
-  future: "bg-idle",
+// Shape as well as tone: a hatched block, a solid one and an outline read apart with no
+// colour at all, which is the point of the legend under the bar.
+const BLOCK_TONE: Record<BlockState, string> = {
+  past: "bg-idle opacity-40 hatch",
+  active: "bg-accent",
+  future: "border border-line bg-transparent",
 };
+// The legend, the blocks and the narrow-window list read from one place, so a swatch and
+// the word beside it can never disagree.
+const STATE_WORD: Record<BlockState, string> = {
+  past: "Past",
+  active: "Running now",
+  future: "Later today",
+};
+const SWATCH = "inline-block h-2 w-4 shrink-0 rounded-[2px]";
+const LEGEND: { key: string; word: string; swatch: string }[] = [
+  { key: "past", word: STATE_WORD.past, swatch: `${SWATCH} ${BLOCK_TONE.past}` },
+  { key: "active", word: STATE_WORD.active, swatch: `${SWATCH} ${BLOCK_TONE.active}` },
+  { key: "future", word: STATE_WORD.future, swatch: `${SWATCH} ${BLOCK_TONE.future}` },
+  // The now line is a rule and not a block, so its swatch is one too.
+  { key: "now", word: "Now", swatch: "inline-block h-3 w-[2px] shrink-0 bg-accent" },
+];
+// Only the owner reads this panel, at this PC, so the offset would be noise: the one
+// thing worth saying is that nothing here is in UTC.
+const LOCAL = "Times are local.";
+const RUN_FOR_HELP = "Starts now and ignores the schedule for this long.";
+const RUN_FOR_ERROR = "Half an hour to 12 hours";
+const MIN_HOURS = 0.5;
+const MAX_HOURS = 12;
+
+/** The first hour sits on the left edge and the last on the right, so neither number is
+ * clipped by the bar it labels. */
+function tickShift(hour: number): string | undefined {
+  if (hour === 0) return undefined;
+  if (hour === 24) return "translateX(-100%)";
+  return "translateX(-50%)";
+}
 
 /** Today's sessions, the on/off switch, the manual override and the two manual controls. */
 export function Schedule({ name }: { name: string }) {
@@ -47,6 +79,7 @@ export function Schedule({ name }: { name: string }) {
   });
   const [hours, setHours] = useState("2");
   const [switching, setSwitching] = useState(false);
+  const [busy, setBusy] = useState<null | "start" | "redraw">(null);
   const timers = useRef<ReturnType<typeof setTimeout>[]>([]);
 
   useEffect(
@@ -77,6 +110,21 @@ export function Schedule({ name }: { name: string }) {
 
   const patch = (body: Parameters<typeof patchSchedule>[1], message: string | null) =>
     settle(patchSchedule(name, body), message);
+
+  /** One write in flight per button. A control is disabled by its own request only, so a
+   * start does not grey out the draw beside it and neither can be sent twice. */
+  const run = async (
+    key: "start" | "redraw",
+    call: Promise<unknown>,
+    message: string | null,
+  ) => {
+    setBusy(key);
+    try {
+      await settle(call, message);
+    } finally {
+      setBusy(null);
+    }
+  };
 
   /** The switch is the one control whose result is the switch itself, so it moves under
    * the finger and the cache is corrected when the write lands, the same shape as the
@@ -112,7 +160,8 @@ export function Schedule({ name }: { name: string }) {
   const parsed = Number(hours);
   // The same half hour the field asks for. Without it the button disagreed with its own
   // box: a typed 0.3 stayed in the input as invalid and still started a run.
-  const runnable = Number.isFinite(parsed) && parsed >= 0.5;
+  const runnable =
+    Number.isFinite(parsed) && parsed >= MIN_HOURS && parsed <= MAX_HOURS;
 
   return (
     <section className="flex flex-col gap-3 rounded-[10px] border border-line bg-panel p-3">
@@ -131,29 +180,79 @@ export function Schedule({ name }: { name: string }) {
       {payload.sessions.length === 0 ? (
         <p className="text-[13px] text-muted">{EMPTY}</p>
       ) : (
-        <div
-          className="relative h-6 w-full overflow-hidden rounded-[6px] bg-panel-2"
-          data-testid="schedule-bar"
-        >
-          {bar.ticks.map((tick) => (
-            <div
-              key={tick.hour}
-              className="absolute top-0 h-full w-px bg-line"
-              style={{ left: `${tick.leftPct}%` }}
-            />
-          ))}
-          {bar.blocks.map((block) => (
-            <div
-              key={`${block.leftPct}-${block.widthPct}`}
-              className={`absolute top-1 h-4 rounded-[3px] ${BLOCK_TONE[block.state]}`}
-              style={{ left: `${block.leftPct}%`, width: `${block.widthPct}%` }}
-            />
-          ))}
+        <div className="flex flex-col gap-1.5">
           <div
-            className="absolute top-0 h-full w-[2px] bg-accent"
-            style={{ left: `${bar.nowPct}%` }}
-            data-testid="schedule-now"
-          />
+            className="relative h-6 w-full overflow-hidden rounded-[6px] bg-panel-2"
+            role="img"
+            aria-label={bar.description}
+            data-testid="schedule-bar"
+          >
+            {bar.ticks.map((tick) => (
+              <div
+                key={tick.hour}
+                className="absolute top-0 h-full w-px bg-line"
+                style={{ left: `${tick.leftPct}%` }}
+              />
+            ))}
+            {bar.blocks.map((block) => (
+              <div
+                key={`${block.leftPct}-${block.widthPct}`}
+                title={block.label}
+                className={`absolute top-1 h-4 rounded-[3px] ${BLOCK_TONE[block.state]}`}
+                style={{ left: `${block.leftPct}%`, width: `${block.widthPct}%` }}
+              >
+                <span className="sr-only">{block.label}</span>
+              </div>
+            ))}
+            <div
+              className="absolute top-0 h-full w-[2px] bg-accent"
+              style={{ left: `${bar.nowPct}%` }}
+              data-testid="schedule-now"
+            />
+          </div>
+
+          {/* The span is already in the bar's accessible name, so the numbers under it
+              are decoration and stay out of the accessibility tree. */}
+          <div className="relative h-3 w-full" aria-hidden="true">
+            {bar.ticks.map((tick) => (
+              <span
+                key={tick.hour}
+                className="absolute top-0 text-[10px] tabular-nums text-muted"
+                style={{ left: `${tick.leftPct}%`, transform: tickShift(tick.hour) }}
+                data-testid={`schedule-hour-${tick.hour}`}
+              >
+                {tick.hour}
+              </span>
+            ))}
+          </div>
+
+          <ul
+            className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-muted"
+            data-testid="schedule-legend"
+          >
+            {LEGEND.map((item) => (
+              <li key={item.key} className="flex items-center gap-1.5">
+                <span className={item.swatch} aria-hidden="true" />
+                {item.word}
+              </li>
+            ))}
+          </ul>
+
+          <p className="text-[11px] text-muted">{LOCAL}</p>
+
+          {/* A bar is hard to read in a narrow column, so the same blocks say themselves
+              in words there instead. */}
+          <ul
+            className="flex flex-col gap-0.5 text-[12px] min-[1100px]:hidden"
+            data-testid="schedule-list"
+          >
+            {bar.blocks.map((block) => (
+              <li key={`${block.leftPct}-${block.widthPct}`} className="flex gap-2">
+                <span className="t-figure">{block.label}</span>
+                <span className="text-muted">{STATE_WORD[block.state]}</span>
+              </li>
+            ))}
+          </ul>
         </div>
       )}
 
@@ -183,19 +282,27 @@ export function Schedule({ name }: { name: string }) {
           label="Run for"
           id={`${name}-hours`}
           type="number"
-          min={0.5}
+          min={MIN_HOURS}
+          max={MAX_HOURS}
           step={0.5}
+          inputMode="decimal"
           suffix="hours"
+          help={RUN_FOR_HELP}
+          error={Number.isFinite(parsed) && !runnable ? RUN_FOR_ERROR : undefined}
           value={hours}
           onChange={setHours}
         />
         <Button
           variant="primary"
           size="sm"
-          disabled={!runnable}
-          disabledReason="Enter a number of hours"
+          disabled={!runnable || busy === "start"}
+          disabledReason={runnable ? undefined : "Enter a number of hours"}
           onClick={() => {
-            void settle(startInstance(name, parsed), `Running ${name} for ${parsed} h`);
+            void run(
+              "start",
+              startInstance(name, parsed),
+              `Running ${name} for ${parsed} h`,
+            );
           }}
         >
           Start
@@ -203,9 +310,11 @@ export function Schedule({ name }: { name: string }) {
         <Button
           variant="secondary"
           size="sm"
+          disabled={busy === "redraw"}
           onClick={() => {
-            void patch(
-              { redraw: true },
+            void run(
+              "redraw",
+              patchSchedule(name, { redraw: true }),
               "Redrawing today… new sessions appear within a minute.",
             );
             for (const delay of REDRAW_REFETCH_MS) {
@@ -213,7 +322,7 @@ export function Schedule({ name }: { name: string }) {
             }
           }}
         >
-          Redraw today
+          Draw new sessions
         </Button>
       </div>
     </section>

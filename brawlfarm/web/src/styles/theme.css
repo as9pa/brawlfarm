@@ -73,6 +73,16 @@
   font-variant-numeric: tabular-nums;
 }
 
+/* Diagonal hatching for a past schedule block, so the bar's three states differ in shape
+   and not only in tone. Paired with a background colour, never used on its own. */
+@utility hatch {
+  background-image: repeating-linear-gradient(
+    45deg,
+    transparent 0 3px,
+    var(--ground) 3px 5px
+  );
+}
+
 @layer base {
   html {
     color-scheme: dark light;
