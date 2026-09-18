@@ -64,6 +64,9 @@ describe("RankBars", () => {
     const rows = screen.getAllByTestId("rank-row");
     expect(rows).toHaveLength(5);
     expect(within(rows[4]).getByTestId("rank-label")).toHaveTextContent("5 to 10");
+    // The label column is wide enough for the tail label and forbids the wrap outright,
+    // so the bar beside it can never sit between two lines of text.
+    expect(within(rows[4]).getByTestId("rank-label")).toHaveClass("whitespace-nowrap");
     expect(within(rows[4]).getByTestId("rank-count")).toHaveTextContent("4 (100%)");
   });
 

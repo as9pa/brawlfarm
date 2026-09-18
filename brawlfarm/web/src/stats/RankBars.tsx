@@ -23,6 +23,12 @@ const HEAD_RANKS = [1, 2, 3, 4];
 const TAIL_FROM = 5;
 const TAIL_LABEL = "5 to 10";
 
+/** The label column holds the tail label on one line and never wraps: "5 to 10" is seven
+ * characters at the 12 px mono size, near 50 px, and a wrapped label would leave the bar
+ * beside it sitting between two lines of text. Every row shares the width, so the bars
+ * all start at the same place. */
+const LABEL_CLASS = "t-figure w-[54px] shrink-0 text-right text-[12px] whitespace-nowrap";
+
 interface RankRow {
   label: string;
   games: number;
@@ -63,7 +69,7 @@ export function RankBars({ rows }: RankBarsProps) {
             >
               <span
                 data-testid="rank-label"
-                className={`t-figure w-[46px] shrink-0 text-right text-[12px] ${tone}`}
+                className={`${LABEL_CLASS} ${tone}`}
               >
                 {row.label}
               </span>
