@@ -3,9 +3,9 @@
  * the same numbers, and no motion anywhere. */
 import { fireEvent, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { niceTicks, TrophyChart } from "./TrophyChart";
+import { niceTicks, type StatsView, TrophyChart } from "./TrophyChart";
 import type { StatsRange, StatsSeries } from "../api/types";
 import { renderWithProviders } from "../test/renderWithProviders";
 
@@ -30,9 +30,28 @@ const SERIES: StatsSeries[] = [
 
 const INSTANCES = ["Pie64", "Pie64_1", "Pie64_3"];
 
-function mount(series = SERIES, instances = INSTANCES, range: StatsRange = "today") {
+/** The view is the page's to own, so every case says which one it is looking at and
+ * reads onView to see what the chart asked for. */
+let onView = vi.fn();
+
+beforeEach(() => {
+  onView = vi.fn();
+});
+
+function mount(
+  series = SERIES,
+  instances = INSTANCES,
+  range: StatsRange = "today",
+  view: StatsView = "chart",
+) {
   return renderWithProviders(
-    <TrophyChart series={series} instances={instances} range={range} />,
+    <TrophyChart
+      series={series}
+      instances={instances}
+      range={range}
+      view={view}
+      onView={onView}
+    />,
   );
 }
 
@@ -121,31 +140,22 @@ describe("TrophyChart", () => {
     expect(screen.getByTestId("chart-readout")).toHaveTextContent("Not recorded");
   });
 
-  it("swaps to a table of the same points and back, with the toggle reading Table both ways", async () => {
+  it("calls onView with the other view when the segmented control is used", async () => {
     mount();
-    const toggle = screen.getByRole("button", { name: "Table" });
     expect(plot()).toBeInTheDocument();
-    await userEvent.click(toggle);
-    expect(screen.queryByRole("img", { name: "Cumulative trophy change" })).toBeNull();
-    const table = screen.getByRole("table");
-    expect(within(table).getAllByRole("columnheader").map((n) => n.textContent)).toEqual([
-      "Time",
-      "Pie64",
-      "Pie64_1",
-      "Pie64_3",
-    ]);
-    expect(within(table).getAllByRole("row")).toHaveLength(4); // header plus three moments
-    expect(screen.getByRole("button", { name: "Table" })).toBeInTheDocument();
-    await userEvent.click(screen.getByRole("button", { name: "Table" }));
+    await userEvent.click(screen.getByRole("radio", { name: "Table" }));
+    expect(onView).toHaveBeenCalledWith("table");
+    // Controlled: the chart asks and the page answers, so nothing swapped on its own.
     expect(plot()).toBeInTheDocument();
   });
 
-  it("has no transition and no animation on any element", () => {
+  it("has no transition and no animation on anything it draws", () => {
     const { container } = mount();
-    expect(container.querySelectorAll('[class*="transition"]')).toHaveLength(0);
-    expect(container.querySelectorAll('[class*="animate"]')).toHaveLength(0);
-    expect(container.querySelectorAll('[class*="duration-"]')).toHaveLength(0);
+    // The View control is the kit's Segmented and keeps the kit's 120 ms colour fade.
+    // Everything the chart draws itself still stands perfectly still.
     for (const node of container.querySelectorAll<HTMLElement>("*")) {
+      if (node.closest('[role="radiogroup"]') !== null) continue;
+      expect(node.getAttribute("class") ?? "").not.toMatch(/transition|animate|duration-/);
       expect(node.style.transition).toBe("");
       expect(node.style.animation).toBe("");
     }
@@ -249,25 +259,21 @@ describe("TrophyChart", () => {
     expect(two.container.querySelectorAll("[data-end-label]")).toHaveLength(2);
   });
 
-  it("says whether the table view is the one showing", async () => {
-    const user = userEvent.setup();
-    mount();
-    const toggle = screen.getByRole("button", { name: "Table" });
-    expect(toggle).toHaveAttribute("aria-pressed", "false");
-    await user.click(toggle);
-    expect(toggle).toHaveAttribute("aria-pressed", "true");
-    await user.click(toggle);
-    expect(toggle).toHaveAttribute("aria-pressed", "false");
+  it("renders the table when view is table", () => {
+    mount(SERIES, INSTANCES, "today", "table");
+    expect(screen.queryByRole("img", { name: "Cumulative trophy change" })).toBeNull();
+    expect(screen.getByRole("table")).toBeInTheDocument();
+    expect(screen.getByRole("radio", { name: "Table" })).toHaveAttribute(
+      "aria-checked",
+      "true",
+    );
   });
 
-  it("carries the day on a range wider than today and drops it on today", async () => {
-    const user = userEvent.setup();
-    const { unmount } = mount(SERIES, INSTANCES, "7d");
-    await user.click(screen.getByRole("button", { name: "Table" }));
+  it("carries the day on a range wider than today and drops it on today", () => {
+    const { unmount } = mount(SERIES, INSTANCES, "7d", "table");
     expect(screen.getAllByRole("row")[1]).toHaveTextContent("Sep 12, 21:00");
     unmount();
-    mount();
-    await user.click(screen.getByRole("button", { name: "Table" }));
+    mount(SERIES, INSTANCES, "today", "table");
     expect(screen.getAllByRole("row")[1]).toHaveTextContent("21:00");
     expect(screen.getAllByRole("row")[1]).not.toHaveTextContent("Sep");
   });

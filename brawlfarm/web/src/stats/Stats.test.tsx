@@ -3,7 +3,7 @@
  * data (skeleton, empty, error) are the ones the brief pins. */
 import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { Route, Routes } from "react-router";
+import { Route, Routes, useSearchParams } from "react-router";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { Stats } from "./Stats";
@@ -47,10 +47,25 @@ function server(
   }).calls;
 }
 
+/** The query string the page last wrote, so a change with no request behind it, such as
+ * the view, is still checkable. */
+function Search() {
+  const [params] = useSearchParams();
+  return <span data-testid="search">{params.toString()}</span>;
+}
+
 function mount(route = "/stats") {
   return renderWithProviders(
     <Routes>
-      <Route path="/stats" element={<Stats />} />
+      <Route
+        path="/stats"
+        element={
+          <>
+            <Stats />
+            <Search />
+          </>
+        }
+      />
     </Routes>,
     { route },
   );
@@ -208,6 +223,47 @@ describe("Stats", () => {
       "Pie64",
       "Pie64_1",
     ]);
+  });
+
+  it("opens in the table view when the URL says so", async () => {
+    server();
+    mount("/stats?view=table");
+    expect(await screen.findByRole("radio", { name: "Table" })).toHaveAttribute(
+      "aria-checked",
+      "true",
+    );
+    expect(screen.queryByRole("img", { name: "Cumulative trophy change" })).toBeNull();
+  });
+
+  it("falls back to the chart for an unparsable view", async () => {
+    server();
+    mount("/stats?view=pie");
+    expect(
+      await screen.findByRole("img", { name: "Cumulative trophy change" }),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("radio", { name: "Chart" })).toHaveAttribute(
+      "aria-checked",
+      "true",
+    );
+  });
+
+  it("writes the table view into the URL and leaves the range and the selection alone", async () => {
+    server();
+    mount("/stats?range=30d&instances=Pie64");
+    await screen.findByRole("radio", { name: "Table" });
+    await userEvent.click(screen.getByRole("radio", { name: "Table" }));
+    expect(screen.getByTestId("search")).toHaveTextContent(
+      "range=30d&instances=Pie64&view=table",
+    );
+  });
+
+  it("drops the view param again when the chart comes back", async () => {
+    server();
+    mount("/stats?range=30d&instances=Pie64&view=table");
+    await screen.findByRole("radio", { name: "Chart" });
+    await userEvent.click(screen.getByRole("radio", { name: "Chart" }));
+    expect(screen.getByTestId("search")).toHaveTextContent("range=30d&instances=Pie64");
+    expect(screen.getByTestId("search").textContent).not.toContain("view");
   });
 
   it("shows the brawler table, the rank bars and the recent games", async () => {

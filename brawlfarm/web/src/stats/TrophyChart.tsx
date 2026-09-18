@@ -21,10 +21,15 @@
 import { type KeyboardEvent, type MouseEvent, useState } from "react";
 
 import type { StatsPoint, StatsRange, StatsSeries } from "../api/types";
+import { Segmented } from "../components/ui/Segmented";
 import { Table, type Column } from "../components/ui/Table";
 import { NOT_RECORDED } from "../lib/copy";
 import { num } from "../lib/format";
 import { formatMoment } from "./format";
+
+/** The chart or the same numbers as a table. The chart owns the vocabulary because it
+ * owns both views; the page owns which one is showing, so a reload and a link keep it. */
+export type StatsView = "chart" | "table";
 
 export interface TrophyChartProps {
   series: StatsSeries[];
@@ -34,6 +39,9 @@ export interface TrophyChartProps {
   /** Which range is showing. Only the clock reads it: a range wider than today needs the
    * day on every stamp or the axis and the table lose which one they mean. */
   range: StatsRange;
+  /** Which of the two views is showing. Controlled, because it lives in the URL. */
+  view: StatsView;
+  onView: (next: StatsView) => void;
 }
 
 export const CHART_LABEL = "Cumulative trophy change";
@@ -117,11 +125,10 @@ function valueAt(points: StatsPoint[], moment: number): number | null {
   return found;
 }
 
-export function TrophyChart({ series, instances, range }: TrophyChartProps) {
+export function TrophyChart({ series, instances, range, view, onView }: TrophyChartProps) {
   /** The panel's one clock format: the recent games table reads the same way, so the
    * crosshair, the ends and the table all agree on what a stamp looks like. */
   const clock = (iso: string): string => formatMoment(iso, range);
-  const [showTable, setShowTable] = useState(false);
   const [hover, setHover] = useState<number | null>(null);
   const [cursor, setCursor] = useState<number | null>(null);
   const active = hover ?? cursor;
@@ -277,17 +284,20 @@ export function TrophyChart({ series, instances, range }: TrophyChartProps) {
             </span>
           ))}
         </div>
-        <button
-          type="button"
-          aria-pressed={showTable}
-          onClick={() => setShowTable((open) => !open)}
-          className="ml-auto text-[12px] text-muted hover:text-text"
-        >
-          Table
-        </button>
+        <div className="ml-auto">
+          <Segmented
+            label="View"
+            value={view}
+            options={[
+              { value: "chart", label: "Chart" },
+              { value: "table", label: "Table" },
+            ]}
+            onChange={onView}
+          />
+        </div>
       </div>
 
-      {showTable ? (
+      {view === "table" ? (
         <Table columns={columns} rows={rows} rowKey={(row) => row.t} empty={EMPTY} />
       ) : moments.length === 0 ? (
         <p data-testid="chart-empty" className="h-[180px] text-[13px] text-muted">

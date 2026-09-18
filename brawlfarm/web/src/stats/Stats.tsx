@@ -19,7 +19,7 @@ import { MetricsRow } from "./MetricsRow";
 import { RankBars } from "./RankBars";
 import { RecentGames } from "./RecentGames";
 import { StatsToolbar } from "./StatsToolbar";
-import { TrophyChart } from "./TrophyChart";
+import { type StatsView, TrophyChart } from "./TrophyChart";
 import { getConnection } from "../api/connection";
 import { queryKeys } from "../api/queries";
 import { getStats, statsCsvHref } from "../api/stats";
@@ -28,7 +28,9 @@ import { useInstances } from "../api/useInstances";
 import { ErrorBlock } from "../components/ui/ErrorBlock";
 
 export const RANGES: readonly StatsRange[] = ["today", "7d", "30d", "all"];
+export const VIEWS: readonly StatsView[] = ["chart", "table"];
 const DEFAULT_RANGE: StatsRange = "7d";
+const DEFAULT_VIEW: StatsView = "chart";
 /** The server caches its answer for five minutes, so asking again inside that window only
  * costs a round trip to be told the same thing. */
 const CONNECTION_STALE_MS = 300_000;
@@ -37,6 +39,12 @@ const CONNECTION_STALE_MS = 300_000;
  * match, and an empty page is a worse first impression than a slightly wider one. */
 export function parseRange(raw: string | null): StatsRange {
   return RANGES.includes((raw ?? "") as StatsRange) ? (raw as StatsRange) : DEFAULT_RANGE;
+}
+
+/** An absent or unparsable view is the chart: it is what the page is for, and the table
+ * is the second look at the same numbers. */
+export function parseView(raw: string | null): StatsView {
+  return VIEWS.includes((raw ?? "") as StatsView) ? (raw as StatsView) : DEFAULT_VIEW;
 }
 
 function Skeleton() {
@@ -58,6 +66,7 @@ export function Stats() {
   const configured = (instancesQuery.data ?? []).map((inst) => inst.name);
 
   const range = parseRange(params.get("range"));
+  const view = parseView(params.get("view"));
   const asked = (params.get("instances") ?? "")
     .split(",")
     .map((name) => name.trim())
@@ -80,14 +89,16 @@ export function Stats() {
     refetchOnWindowFocus: false,
   });
 
-  const write = (next: { range?: StatsRange; instances?: string[] }) => {
+  const write = (next: { range?: StatsRange; instances?: string[]; view?: StatsView }) => {
     const params2 = new URLSearchParams();
     const wantRange = next.range ?? range;
     const wantInstances = next.instances ?? selected;
+    const wantView = next.view ?? view;
     if (wantRange !== DEFAULT_RANGE) params2.set("range", wantRange);
     if (wantInstances.length !== configured.length) {
       params2.set("instances", wantInstances.join(","));
     }
+    if (wantView !== DEFAULT_VIEW) params2.set("view", wantView);
     setParams(params2, { replace: true });
   };
 
@@ -153,7 +164,13 @@ export function Stats() {
           <div data-testid="metrics-row">
             <MetricsRow summary={stats.data.summary} />
           </div>
-          <TrophyChart series={stats.data.series} instances={selected} range={range} />
+          <TrophyChart
+            series={stats.data.series}
+            instances={selected}
+            range={range}
+            view={view}
+            onView={(next) => write({ view: next })}
+          />
           <div className="grid gap-3 min-[900px]:grid-cols-[1fr_320px]">
             <section className="flex flex-col gap-2 rounded-[10px] border border-line bg-panel p-3">
               <h2 className="text-[13px] font-semibold">Brawlers</h2>
