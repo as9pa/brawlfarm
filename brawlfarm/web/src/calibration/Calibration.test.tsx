@@ -227,15 +227,15 @@ describe("Calibration", () => {
     expect(within(drifted as HTMLElement).getByText("never")).toBeInTheDocument();
   });
 
-  it("lists the overridden constant with its default, its value and its source", async () => {
+  it("lists the overridden constant with its value, the packaged one and its source", async () => {
     server();
     mount();
-    const row = (await screen.findByText("PLAY_BUTTON")).closest("tr") as HTMLElement;
-    expect(within(row).getByText("1434, 830")).toBeInTheDocument();
-    expect(within(row).getByText("1434, 826")).toBeInTheDocument();
-    expect(within(row).getByText("calibration.toml")).toBeInTheDocument();
+    const row = (await screen.findByText("1434, 826")).closest("tr") as HTMLElement;
+    expect(within(row).getByText("Play button")).toBeInTheDocument();
+    expect(within(row).getByText("Packaged value 1434, 830")).toBeInTheDocument();
+    expect(within(row).getByText("override")).toBeInTheDocument();
     // A threshold is listed whether or not anyone has overridden it.
-    expect(screen.getByText("MATCH_THRESHOLD")).toBeInTheDocument();
+    expect(screen.getByText("Match confidence")).toBeInTheDocument();
   });
 
   it("prints every problem the file has", async () => {
@@ -249,7 +249,7 @@ describe("Calibration", () => {
     mount();
     expect(
       await screen.findByText(
-        "calibration.toml changed. Instances started before that run the old values until restarted.",
+        "The calibration file changed. Instances started before that keep the old values until you restart them.",
       ),
     ).toBeInTheDocument();
   });

@@ -17,8 +17,8 @@ import { AnchorTable } from "./AnchorTable";
 import { FrameOverlay, type OverlayShow } from "./FrameOverlay";
 import { SCREEN_OPTIONS, type ScreenFilter, screenStateLabel } from "./names";
 import { ObserveCard } from "./ObserveCard";
-import { OverridesTable } from "./OverridesTable";
 import { RecorderCard } from "./RecorderCard";
+import { ThresholdsTable } from "./ThresholdsTable";
 import {
   LIVE_POLL_MS,
   isNoFrameYet,
@@ -248,7 +248,7 @@ export function Calibration() {
             </section>
           </div>
 
-          <OverridesTable
+          <ThresholdsTable
             constants={calibration.data.constants}
             templates={calibration.data.templates}
             file={calibration.data.file}
