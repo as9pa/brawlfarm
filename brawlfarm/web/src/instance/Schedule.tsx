@@ -160,8 +160,10 @@ export function Schedule({ name }: { name: string }) {
   const parsed = Number(hours);
   // The same half hour the field asks for. Without it the button disagreed with its own
   // box: a typed 0.3 stayed in the input as invalid and still started a run.
-  const runnable =
-    Number.isFinite(parsed) && parsed >= MIN_HOURS && parsed <= MAX_HOURS;
+  // An empty box is not a wrong number: it says nothing, so it is told nothing. Start
+  // still explains itself through its own disabled reason.
+  const typed = hours.trim() !== "" && Number.isFinite(parsed);
+  const runnable = typed && parsed >= MIN_HOURS && parsed <= MAX_HOURS;
 
   return (
     <section className="flex flex-col gap-3 rounded-[10px] border border-line bg-panel p-3">
@@ -180,11 +182,16 @@ export function Schedule({ name }: { name: string }) {
       {payload.sessions.length === 0 ? (
         <p className="text-[13px] text-muted">{EMPTY}</p>
       ) : (
-        <div className="flex flex-col gap-1.5">
+        // A group and not an image: role="img" would prune the blocks inside, and each
+        // block's own span is what a reader needs once the summary has been read.
+        <div
+          className="flex flex-col gap-1.5"
+          role="group"
+          aria-label={bar.description}
+          data-testid="schedule-figure"
+        >
           <div
             className="relative h-6 w-full overflow-hidden rounded-[6px] bg-panel-2"
-            role="img"
-            aria-label={bar.description}
             data-testid="schedule-bar"
           >
             {bar.ticks.map((tick) => (
@@ -288,7 +295,7 @@ export function Schedule({ name }: { name: string }) {
           inputMode="decimal"
           suffix="hours"
           help={RUN_FOR_HELP}
-          error={Number.isFinite(parsed) && !runnable ? RUN_FOR_ERROR : undefined}
+          error={typed && !runnable ? RUN_FOR_ERROR : undefined}
           value={hours}
           onChange={setHours}
         />
