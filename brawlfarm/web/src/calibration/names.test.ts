@@ -44,7 +44,7 @@ const TAPS: [string, ScreenKey][] = [
   ["SUPER_BUTTON", "match"],
   ["MOVE_ORIGIN", "match"],
   ["INGAME_MODAL_OK_BUTTON", "match"],
-  ["BUSH_SELF_POS", "menu"],
+  ["BUSH_SELF_POS", "match"],
   ["CHOOSE_BRAWLER_CENTER_CARD", "menu"],
   ["CHOOSE_BRAWLER_CONFIRM", "menu"],
   ["CLOSE_X_BUTTON", "menu"],

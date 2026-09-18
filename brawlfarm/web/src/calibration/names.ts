@@ -48,7 +48,12 @@ const TEMPLATES: Record<string, { label: string; screen: ScreenKey }> = {
  * an edit here. The array order is the precedence, first match wins. */
 const TAP_PREFIXES: readonly [RegExp, ScreenKey][] = [
   [/^BRAWLERS?_/, "brawlers"],
-  [/^(?:ATTACK_POINT|SUPER_BUTTON|MOVE_ORIGIN|INGAME_MODAL_OK_BUTTON)$/, "match"],
+  // Named in full rather than by prefix: the taps the bot makes during a match, plus
+  // BUSH_SELF_POS, which is where its own brawler sits when it checks for a bush.
+  [
+    /^(?:ATTACK_POINT|SUPER_BUTTON|MOVE_ORIGIN|INGAME_MODAL_OK_BUTTON|BUSH_SELF_POS)$/,
+    "match",
+  ],
   [/^DROP_/, "match"],
 ];
 
@@ -57,7 +62,6 @@ const TAP_PREFIXES: readonly [RegExp, ScreenKey][] = [
  * taught the page, and screenOf owes its caller that difference. Read off the names
  * config.py exposes as taps, so a new one is unknown until it is added here. */
 const MENU_TAPS: ReadonlySet<string> = new Set([
-  "BUSH_SELF_POS",
   "CHOOSE_BRAWLER_CENTER_CARD",
   "CHOOSE_BRAWLER_CONFIRM",
   "CLOSE_X_BUTTON",
