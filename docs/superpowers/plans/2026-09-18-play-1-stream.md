@@ -38,10 +38,9 @@ Spec: docs/superpowers/specs/2026-09-18-play-mode.md, sections 2, 7, 9 (first li
 - Work happens in the worktree `.claude/worktrees/play-1-stream` on branch `play/stream`. Commit
   after every task with the trailer `Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>`.
 - Source files to copy from: the jar and license from
-  `C:\Users\alexa\AppData\Local\Microsoft\WinGet\Packages\Genymobile.scrcpy_Microsoft.Winget.Source_8wekyb3d8bbwe\scrcpy-win64-v4.1\`
-  (`scrcpy-server`, `LICENSE.txt`); the synthetic test clip from
-  `C:\Users\alexa\AppData\Local\Temp\claude\C--Users-alexa-projects-brawlfarm\3f952734-bcb9-46f9-8a22-b318731e476c\scratchpad\stream-2s.h264`
-  (testsrc2 pattern, 1600 x 900, 30 fps, 2 s, 60 frames, 125422 bytes, no account content).
+  `%LOCALAPPDATA%\Microsoft\WinGet\Packages\Genymobile.scrcpy_Microsoft.Winget.Source_8wekyb3d8bbwe\scrcpy-win64-v4.1\`
+  (`scrcpy-server`, `LICENSE.txt`); the synthetic test clip is already in the
+  repository at `tests/fixtures/play/stream-2s.h264`, so no task copies it (testsrc2 pattern, 1600 x 900, 30 fps, 2 s, 60 frames, 125422 bytes, no account content).
 
 ## File structure
 
@@ -116,7 +115,7 @@ def test_importing_the_package_does_not_import_pyav() -> None:
 - [ ] Step 3: copy the jar and the license into the package:
 
 ```powershell
-$src = "C:\Users\alexa\AppData\Local\Microsoft\WinGet\Packages\Genymobile.scrcpy_Microsoft.Winget.Source_8wekyb3d8bbwe\scrcpy-win64-v4.1"
+$src = "$env:LOCALAPPDATA\Microsoft\WinGet\Packages\Genymobile.scrcpy_Microsoft.Winget.Source_8wekyb3d8bbwe\scrcpy-win64-v4.1"
 New-Item -ItemType Directory -Force brawlfarm\play | Out-Null
 Copy-Item "$src\scrcpy-server" brawlfarm\play\scrcpy-server
 Copy-Item "$src\LICENSE.txt" brawlfarm\play\LICENSE.scrcpy
@@ -336,13 +335,8 @@ Interfaces:
   `flush() -> list[np.ndarray]`, counters `packets: int`, `frames: int`. Frames are BGR uint8
   arrays of shape (height, width, 3).
 
-- [ ] Step 1: copy the fixture:
-
-```powershell
-New-Item -ItemType Directory -Force tests\fixtures\play | Out-Null
-Copy-Item "C:\Users\alexa\AppData\Local\Temp\claude\C--Users-alexa-projects-brawlfarm\3f952734-bcb9-46f9-8a22-b318731e476c\scratchpad\stream-2s.h264" tests\fixtures\play\stream-2s.h264
-(Get-Item tests\fixtures\play\stream-2s.h264).Length   # 125422
-```
+- [ ] Step 1: confirm the fixture is present: `tests/fixtures/play/stream-2s.h264` is 125422 bytes
+      (already committed; nothing to copy).
 
 - [ ] Step 2: write the failing tests in `tests/test_play_h264.py`:
 
