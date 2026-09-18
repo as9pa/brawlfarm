@@ -65,7 +65,7 @@ export function Rail() {
                 to={`/instances/${inst.name}`}
                 className={({ isActive }) => linkClass(isActive)}
               >
-                <span className="t-name truncate text-[13px]">{inst.name}</span>
+                <span className="t-name min-w-0 truncate text-[13px]">{inst.name}</span>
                 <StateChip state={inst.state} />
               </NavLink>
             </li>

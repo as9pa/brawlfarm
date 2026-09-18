@@ -54,6 +54,16 @@ describe("Rail", () => {
     ).toHaveAttribute("data-tone", "idle");
   });
 
+  it("lets a long instance name shrink rather than push the chip out", async () => {
+    // jsdom lays nothing out, so the class is the only evidence there is: without
+    // min-w-0 a flex item will not shrink below its content and truncate never fires.
+    stubInstances();
+    renderWithProviders(<Rail />);
+    const name = await screen.findByText("Pie64");
+    expect(name.className).toContain("min-w-0");
+    expect(name.className).toContain("truncate");
+  });
+
   it("sets nothing in the rail in mono", async () => {
     stubInstances();
     const { container } = renderWithProviders(<Rail />);
