@@ -6,6 +6,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { Settings } from "./Settings";
 import type { AppSettings } from "../api/types";
+import { ELLIPSIS } from "../lib/copy";
 import { resetToasts, useToasts } from "../lib/toast";
 import { makeSettings } from "../test/fixtures";
 import { type FetchCall, jsonResponse, stubFetch } from "../test/http";
@@ -111,12 +112,12 @@ describe("Settings > Notifications", () => {
     const boxes = screen.getAllByRole("checkbox");
     expect(boxes.map((box) => box.getAttribute("aria-label") ?? "")).toEqual([
       "Crash",
-      "Recovery",
       "Instance offline",
-      "Wrong mode",
-      "Recalibration needed",
-      "Stopped",
       "Wrong resolution",
+      "Recalibration needed",
+      "Wrong mode",
+      "Stopped",
+      "Recovery",
     ]);
     // The fixture's default five are on; Stopped and Wrong resolution are not.
     expect(screen.getByRole("checkbox", { name: "Crash" })).toBeChecked();
@@ -198,9 +199,70 @@ describe("Settings > Notifications", () => {
     });
     expect(calls.find((call) => call.url === TEST_ROUTE)?.init?.method).toBe("POST");
     await waitFor(() => {
-      expect(toastMessages()).toEqual(["Test sent to ntfy", "Test failed for webhook"]);
+      expect(toastMessages()).toHaveLength(2);
     });
+    expect(toastMessages()).toEqual(["Test sent to ntfy topic.", "Test failed for Webhook URL"]);
     // Nothing was saved: a test send writes no settings.
     expect(puts(calls)).toHaveLength(0);
+  });
+
+  it("puts the topic first and shows an example of what each box takes", async () => {
+    server();
+    mount();
+    await screen.findByLabelText("ntfy topic");
+    const boxes = screen
+      .getAllByRole("textbox")
+      .filter((box) => box.id.startsWith("notifications-"));
+    expect(boxes.map((box) => box.id)).toEqual([
+      "notifications-ntfy_topic",
+      "notifications-webhook_url",
+      "notifications-healthchecks_url",
+      "notifications-ntfy_server",
+    ]);
+    expect(screen.getByLabelText("ntfy topic")).toHaveAttribute(
+      "placeholder",
+      `brawlfarm-alerts${ELLIPSIS}`,
+    );
+    expect(screen.getByLabelText("Webhook URL")).toHaveAttribute(
+      "placeholder",
+      `https://hooks.slack.com/services/${ELLIPSIS}`,
+    );
+    expect(screen.getByLabelText("Healthchecks URL")).toHaveAttribute(
+      "placeholder",
+      `https://hc-ping.com/${ELLIPSIS}`,
+    );
+  });
+
+  it("names two channels with an and, whatever order the answer arrives in", async () => {
+    const withChannels = makeSettings();
+    withChannels.notifications.ntfy_topic = "example-topic";
+    withChannels.notifications.webhook_url = "https://example.test/hook";
+    server({ settings: withChannels, sent: ["webhook", "ntfy"] });
+    mount();
+    await userEvent.click(await screen.findByRole("button", { name: "Send a test" }));
+    await waitFor(() => {
+      expect(toastMessages()).toHaveLength(1);
+    });
+    expect(toastMessages()).toEqual(["Test sent to ntfy topic and Webhook URL."]);
+  });
+
+  it("names three channels with commas and a final and, never a payload key", async () => {
+    const withChannels = makeSettings();
+    withChannels.notifications.ntfy_topic = "example-topic";
+    withChannels.notifications.webhook_url = "https://example.test/hook";
+    withChannels.notifications.healthchecks_url = "https://example.test/ping";
+    server({ settings: withChannels, sent: ["healthchecks", "webhook", "ntfy"] });
+    mount();
+    await userEvent.click(await screen.findByRole("button", { name: "Send a test" }));
+    await waitFor(() => {
+      expect(toastMessages()).toHaveLength(1);
+    });
+    expect(toastMessages()).toEqual([
+      "Test sent to ntfy topic, Webhook URL and Healthchecks URL.",
+    ]);
+    // The words a person reads are the labels above the boxes, not what the endpoint calls
+    // them: neither "webhook" nor "healthchecks" reaches the screen.
+    expect(toastMessages()[0]).not.toContain("webhook");
+    expect(toastMessages()[0]).not.toContain("healthchecks");
   });
 });
