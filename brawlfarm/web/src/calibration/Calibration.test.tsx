@@ -216,12 +216,14 @@ describe("Calibration", () => {
   it("scores every anchor and marks the one that drifted", async () => {
     server();
     mount();
-    const play = (await screen.findByText("play")).closest("tr");
-    expect(within(play as HTMLElement).getByText("Found")).toBeInTheDocument();
-    expect(within(play as HTMLElement).getByText("0.93")).toBeInTheDocument();
-    expect(within(play as HTMLElement).getByText("now")).toBeInTheDocument();
-    const drifted = screen.getByText("matchmaking").closest("tr");
-    expect(within(drifted as HTMLElement).getByText("Drift")).toBeInTheDocument();
+    // Found by its status word: "Play button" is also the tap constant's label on the
+    // overlay, and the overlay is on screen before the scores arrive.
+    const play = (await screen.findByText("Found")).closest("tr");
+    expect(within(play as HTMLElement).getByText("Play button")).toBeInTheDocument();
+    expect(within(play as HTMLElement).getByText("93%")).toBeInTheDocument();
+    expect(within(play as HTMLElement).getByText("just now")).toBeInTheDocument();
+    const drifted = screen.getByText("Players found").closest("tr");
+    expect(within(drifted as HTMLElement).getByText("Missing")).toBeInTheDocument();
     expect(within(drifted as HTMLElement).getByText("never")).toBeInTheDocument();
   });
 

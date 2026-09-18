@@ -242,6 +242,8 @@ export function Calibration() {
                 anchors={scores.data?.anchors ?? []}
                 at={scores.data?.at}
                 empty={chosen === null ? "No instances configured yet." : noFrameYet(chosen)}
+                highlight={highlight}
+                onHighlight={setHighlight}
               />
             </section>
           </div>

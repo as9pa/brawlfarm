@@ -66,6 +66,13 @@ export interface TableProps<Row> {
   /** Keeps every cell on one line, so a long value widens the table and the box scrolls
    * rather than the row growing a second line. Pairs with `minWidth`. */
   nowrap?: boolean;
+  /** Called with the row the pointer has entered and with null as it leaves, for a table
+   * whose rows point at something drawn outside it. */
+  onRowHover?: (row: Row | null) => void;
+  /** Whether a row is lit, asked of every row on every paint. A row lit from outside the
+   * table keeps the background the pointer would have given it, so the row a reader is
+   * pointing at somewhere else still reads as the chosen one here. */
+  rowTone?: (row: Row) => boolean;
 }
 
 /** The one focus ring, restated on the control so it survives an ancestor that sets
@@ -97,6 +104,8 @@ export function Table<Row>({
   minWidth,
   headers = "caps",
   nowrap = false,
+  onRowHover,
+  rowTone,
 }: TableProps<Row>) {
   const sorting = sort !== undefined && onSort !== undefined;
 
@@ -167,7 +176,12 @@ export function Table<Row>({
             </tr>
           ) : (
             rows.map((row) => (
-              <tr key={rowKey(row)} className="border-b border-line last:border-b-0 hover:bg-panel-2">
+              <tr
+                key={rowKey(row)}
+                onMouseEnter={onRowHover === undefined ? undefined : () => onRowHover(row)}
+                onMouseLeave={onRowHover === undefined ? undefined : () => onRowHover(null)}
+                className={`border-b border-line last:border-b-0 ${rowTone?.(row) === true ? "bg-panel-2" : "hover:bg-panel-2"}`}
+              >
                 {columns.map((column) => (
                   <td
                     key={column.key}
