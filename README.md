@@ -94,6 +94,8 @@ uv run brawlfarm --window        # a desktop window and a tray icon instead of t
 
 The play extras add a 30 fps video feed of the instance for the in-match play mode that is being built (spec in docs/superpowers/specs/2026-09-18-play-mode.md). In observe mode, with the recorder on, each match is also saved as `match-N.h264` in the session folder. `uv sync --group play` installs it in a checkout.
 
+Turning recordings and video into a labelled training set for the play mode detector is its own kit under `tools/play/`; see `docs/play-training.md`.
+
 Settings live in `%LOCALAPPDATA%\brawlfarm\config.toml` (override the folder with `BRAWLFARM_HOME`). Add one `[[instances]]` table per BlueStacks instance with its `name` and `adb_port`; each instance's files live under `instances/<name>/`. Stopping the process leaves workers running; the next start reattaches to them through their status files.
 
 ## The panel and its API
