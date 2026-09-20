@@ -92,6 +92,33 @@ def test_an_exception_still_clears_the_flag(data: Path, monkeypatch) -> None:
     assert not (data / "record.flag").exists()
 
 
+def test_a_match_frame_opens_a_match_recording_in_the_session(
+    data: Path, tmp_path: Path, monkeypatch
+) -> None:
+    from brawlfarm.core import states
+    from brawlfarm.core.states import State
+    from brawlfarm.play import matchrec
+
+    opened: list[Path] = []
+
+    class FakeStream:
+        def __init__(self, path: Path) -> None:
+            opened.append(path)
+
+        def start(self) -> None:
+            pass
+
+        def stop(self) -> None:
+            pass
+
+    monkeypatch.setattr(matchrec.play, "available", lambda: True)
+    monkeypatch.setattr(matchrec, "_default_factory", FakeStream)
+    monkeypatch.setattr(states, "classify", lambda screen, phase=None: State.IN_MATCH)
+    observer.Observer(max_minutes=0.0).run()
+    session = sorted((tmp_path / "calibration" / "recordings" / "alpha").iterdir())[0]
+    assert opened == [session / "match-1.h264"]
+
+
 # --- the rails ------------------------------------------------------------------------
 #
 # Observe mode's whole safety argument is that no tap function is reachable from it. Both

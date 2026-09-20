@@ -24,6 +24,7 @@ import time
 
 from brawlfarm.core import adb, config, preview, states, status
 from brawlfarm.core.recorder import Recorder
+from brawlfarm.play.matchrec import MatchRecorder
 
 log = logging.getLogger("brawlfarm.core.observer")
 
@@ -51,6 +52,7 @@ class Observer:
             config.DATA_DIR / RECORD_FLAG,
             full_size=True,
         )
+        self.matches = MatchRecorder()
 
     # --- the flag the owner never has to touch ------------------------------------
 
@@ -136,6 +138,7 @@ class Observer:
                 # No farm phase to hint with, and PHASE_ORDER only reorders anchors: it
                 # never changes the label a frame gets.
                 state = states.classify(screen, phase=None)
+                self.matches.observe(state, self.recorder.session_dir)
                 if self.recorder.observe(screen, state, "observe"):
                     self.frames += 1
                 i += 1
@@ -147,6 +150,7 @@ class Observer:
                 time.sleep(POLL_INTERVAL_S)
         finally:
             self._clear_record_flag()
+            self.matches.close()
             self.recorder.close()
             self._write_status(running=False)
             log.info("observe session ended after %d frames", self.frames)

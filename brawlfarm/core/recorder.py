@@ -192,6 +192,11 @@ class Recorder:
             "last_frames": self._last_frames,
         }
 
+    @property
+    def session_dir(self) -> Path | None:
+        """The open session's folder, or None between sessions."""
+        return self._session
+
     def _write_status(self) -> None:
         try:
             jsonio.atomic_write_json(self._status_path, self.status())
