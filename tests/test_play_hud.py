@@ -16,6 +16,7 @@ from tests.hud_draw import draw_hud
 from tools.play import hud
 
 BOX = (140, 80, 1316, 736)
+BASE_AT = (0.12, 0.677)  # where draw_hud puts the joystick centre, ring and dot, by default
 
 
 def _at(box: tuple[int, int, int, int], at: tuple[float, float]) -> tuple[float, float]:
@@ -108,85 +109,91 @@ def test_menu_like_frame_is_not_visible():
     assert not hud.visible(found)
 
 
-def test_base_free_and_fixed():
+def test_origin_reads_the_dot():
     frame = draw_hud()
     knob = hud.find(frame, BOX)["knob"]
-    bx, by = _at(BOX, (0.10, 0.78))
-    free = hud.base(frame, BOX, knob)
-    assert free is not None
-    assert abs(free.x - bx) <= 6.0
-    assert abs(free.y - by) <= 6.0
-    fixed = hud.base(frame, BOX, knob, radius=hud_draw.BASE_R * BOX[3])
-    assert fixed is not None
-    assert (fixed.cls, fixed.state) == ("base", "ring")
-    assert abs(fixed.x - bx) <= 6.0
-    assert abs(fixed.y - by) <= 6.0
+    got = hud.origin(frame, BOX, knob)
+    assert got is not None
+    assert (got.cls, got.state) == ("origin", "dot")
+    bx, by = _at(BOX, BASE_AT)
+    assert abs(got.x - bx) <= 3.0
+    assert abs(got.y - by) <= 3.0
 
 
-def test_base_free_ignores_the_knob_rim():
-    """The free band starts at 1.7 knob radii, above the knob's own rim.
+@pytest.mark.parametrize("push", [(1, 0), (-1, 0), (0, 1), (0, -1)])
+def test_origin_at_full_push(push):
+    """The stick is clamped to its ring, so a full push puts the knob one ring radius out."""
+    base = (0.16, 0.76)
+    bx, by = _at(BOX, base)
+    ring = hud.RING_RATIO * hud_draw.DISC_R["knob"] * BOX[3]
+    at = ((bx + push[0] * ring - BOX[0]) / BOX[2], (by + push[1] * ring - BOX[1]) / BOX[3])
+    frame = draw_hud(knob=at, base=base)
+    knob = hud.find(frame, BOX)["knob"]
+    got = hud.origin(frame, BOX, knob)
+    assert got is not None
+    assert abs(got.x - bx) <= 3.0
+    assert abs(got.y - by) <= 3.0
 
-    Hough finds a centre first and only then fits a radius inside the band, so the knob is
-    always a candidate centre and a band that reached down to the rim called it a base.
-    """
+
+def test_origin_hidden_under_the_knob():
+    """A stick near its centre covers its own dot, and a covered dot is no move label at all."""
+    at = (0.12, 0.78)
+    frame = draw_hud(knob=at, base=at)
+    knob = hud.find(frame, BOX)["knob"]
+    assert hud.origin(frame, BOX, knob) is None
+
+
+def test_origin_needs_a_dot():
     for at in ((0.12, 0.80), (0.22, 0.62), (0.08, 0.90)):
         frame = draw_hud(knob=at, base=None)
         knob = hud.find(frame, BOX)["knob"]
-        assert hud.base(frame, BOX, knob) is None
+        assert hud.origin(frame, BOX, knob) is None
 
 
-def test_base_finds_a_ring_far_off_centre():
-    """The knob rides out to the rim of its base, so a window one radius wide cuts the ring."""
-    ring = hud_draw.BASE_R * BOX[3]
-    bx, by = _at(BOX, (0.10, 0.78))
-    frame = draw_hud(knob=((bx + 0.9 * ring - BOX[0]) / BOX[2], 0.78))
+def test_origin_ignores_a_bright_disc():
+    """The real dot is translucent and always darker than the floor it sits on."""
+    frame = draw_hud(base=None)
     knob = hud.find(frame, BOX)["knob"]
-    for radius in (None, ring):
-        got = hud.base(frame, BOX, knob, radius=radius)
-        assert got is not None
-        assert abs(got.x - bx) <= 6.0
-        assert abs(got.y - by) <= 6.0
+    bx, by = _at(BOX, BASE_AT)
+    radius = int(round(hud_draw.DOT_R * knob.r))
+    cv2.circle(frame, (int(bx), int(by)), radius, (200,) * 3, -1, cv2.LINE_AA)
+    assert hud.origin(frame, BOX, knob) is None
 
 
-def test_base_window_clips_at_the_frame_edge():
-    """A knob in the corner of an unpadded frame puts most of the window off it, not off a cliff."""
-    box = (0, 0, 1600, 900)
-    frame = draw_hud(box=box, knob=None, base=None)
-    corner = hud.Found("knob", 24.0, 876.0, 46.0, "blue")
-    for radius in (None, hud_draw.BASE_R * box[3]):
-        got = hud.base(frame, box, corner, radius=radius)
-        assert got is None or got.cls == "base"
+def test_origin_ignores_a_dot_out_of_reach():
+    """The knob never gets further from its dot than the ring, so a blob past it is somebody
+    else's: a shadow, a bush, another player's HUD in a spectator clip."""
+    frame = draw_hud(base=None)
+    knob = hud.find(frame, BOX)["knob"]
+    far = int(round(knob.x + 1.6 * hud.RING_RATIO * knob.r)), int(round(knob.y))
+    hud_draw.origin_dot(frame, far, int(round(hud_draw.DOT_R * knob.r)))
+    assert hud.origin(frame, BOX, knob) is None
 
 
-def test_base_window_stays_inside_the_content_box():
-    """A pillarboxed frame keeps its black bars out of the crop, ring and all.
+def test_origin_window_clips():
+    """A knob at the edge of a pillarboxed frame keeps the black bar, and its decoys, out.
 
-    A bar edge is a hard line Hough reads as an arc of its own, and a ring drawn out there
-    could sit close enough to a knob near the box edge for the guard to wave it through.
+    The window stops at the content box and at the frame, so a dot drawn in the bar is never a
+    candidate and a knob in the corner is a small window, not an exception.
     """
     box = (172, 96, 1252, 704)
     frame = draw_hud(box=box, knob=None, base=None)
-    ring = int(round(hud_draw.BASE_R * box[3]))
     knob = hud.Found("knob", float(box[0] + 30), box[1] + 0.8 * box[3], 0.065 * box[3], "blue")
     decoy = (box[0] - 60, int(round(knob.y)))
-    cv2.circle(frame, decoy, ring, (hud_draw.BASE_GRAY,) * 3, hud_draw.RIM, cv2.LINE_AA)
-    assert hud.base(frame, box, knob) is None
-    assert hud.base(frame, box, knob, radius=float(ring)) is None
+    hud_draw.origin_dot(frame, decoy, int(round(hud_draw.DOT_R * knob.r)))
+    assert hud.origin(frame, box, knob) is None
+
+    full = (0, 0, 1600, 900)
+    corner = hud.Found("knob", 24.0, 876.0, 46.0, "blue")
+    got = hud.origin(draw_hud(box=full, knob=None, base=None), full, corner)
+    assert got is None or got.cls == "origin"
 
 
-def test_base_rejects_a_circle_that_does_not_hold_the_knob():
-    # No knob disc is drawn, and the knob is handed in instead: a real knob rim is a circle
-    # centred on the knob, which the guard has no reason to reject, and it would hide the two
-    # decoys this test is about.
-    frame = draw_hud(knob=None, base=None)
-    knob = hud.Found("knob", *_at(BOX, (0.12, 0.80)), 0.065 * BOX[3], "blue")
-    ring = int(round(hud_draw.BASE_R * BOX[3]))
-    far = (int(round(knob.x)) + 2 * ring, int(round(knob.y)))
-    cv2.circle(frame, far, ring, (hud_draw.BASE_GRAY,) * 3, hud_draw.RIM, cv2.LINE_AA)
-    assert hud.base(frame, BOX, knob) is None
-    # Both decoys sit inside the two-radii window, so the guard is what turns them away: the
-    # far one by a whole radius, the small one because it is too small to hold the knob.
-    small = int(round(hud.BASE_FREE[0] * knob.r)) + 4
-    near = (int(round(knob.x)) - int(1.5 * small), int(round(knob.y)))
-    cv2.circle(frame, near, small, (hud_draw.BASE_GRAY,) * 3, hud_draw.RIM, cv2.LINE_AA)
-    assert hud.base(frame, BOX, knob) is None
+def test_origin_does_not_depend_on_the_floor_colour():
+    frame = draw_hud(floor_tint=(170, 120))
+    knob = hud.find(frame, BOX)["knob"]
+    got = hud.origin(frame, BOX, knob)
+    assert got is not None
+    bx, by = _at(BOX, BASE_AT)
+    assert abs(got.x - bx) <= 3.0
+    assert abs(got.y - by) <= 3.0

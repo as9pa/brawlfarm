@@ -16,13 +16,15 @@ import cv2
 import numpy as np
 import pytest
 
+from tests import hud_draw
 from tests.hud_draw import draw_hud
-from tools.play import actions, dataset, frames
+from tools.play import actions, dataset, frames, hud
 
 BOX = (140, 80, 1316, 736)
 HOME = (0.93, 0.62)  # where the attack disc rests, as (u, v) of the content box
 DRAGGED = [(0.88, 0.55), (0.86, 0.70), (0.90, 0.52)]  # and where an aiming finger takes it
-BASE_RADIUS = 0.149 * BOX[3]  # what hud_draw draws the joystick ring at
+KNOB_RADIUS = hud_draw.DISC_R["knob"] * BOX[3]  # what hud_draw draws the joystick at
+RING_RADIUS = hud.RING_RATIO * KNOB_RADIUS  # and the ring the stick is clamped to
 
 
 def _at(at: tuple[float, float]) -> tuple[float, float]:
@@ -46,8 +48,14 @@ def _scene(frame: np.ndarray, n: int) -> np.ndarray:
     return frame
 
 
-def _clip_frames(n: int = 12, *, knob: bool = True, scene: int = 0) -> list[np.ndarray]:
-    """A source of n frames: the attack disc home in three of four, the joystick wandering."""
+def _clip_frames(
+    n: int = 12, *, knob: bool = True, base: bool = True, scene: int = 0
+) -> list[np.ndarray]:
+    """A source of n frames: the attack disc home in three of four, the joystick wandering.
+
+    The stick is pushed a whole ring radius up and left of its origin in every frame, which is
+    where a clamped stick spends its time and what leaves the dot clear of the knob.
+    """
     out = []
     for i in range(n):
         u, v = 0.13 + 0.011 * i, 0.70 + 0.012 * i
@@ -56,7 +64,7 @@ def _clip_frames(n: int = 12, *, knob: bool = True, scene: int = 0) -> list[np.n
                 draw_hud(
                     attack=HOME if i % 4 else DRAGGED[i // 4],
                     knob=(u, v) if knob else None,
-                    base=(u - 0.02, v - 0.02) if knob else None,
+                    base=(u - 0.05, v - 0.086) if knob and base else None,
                     seed=i,
                 ),
                 scene + i,
@@ -92,7 +100,7 @@ def _clip(**changes) -> actions.Clip:
         "box": BOX,
         "hud_frames": 12,
         "home": _at(HOME),
-        "base_radius": BASE_RADIUS,
+        "ring_radius": RING_RADIUS,
         "channels": {"move": "ok", "aim": "ok"},
     }
     return actions.Clip(**{**fields, **changes})
@@ -112,7 +120,7 @@ def test_learn_finds_the_home_and_the_radius(tmp_path):
     assert clip.hud_frames == 12
     assert clip.home is not None
     assert math.dist(clip.home, _at(HOME)) <= 4.0
-    assert clip.base_radius == pytest.approx(BASE_RADIUS, rel=0.05)
+    assert clip.ring_radius == pytest.approx(RING_RADIUS, rel=0.05)
 
 
 def test_covered_joystick_rejects_move_only(tmp_path):
@@ -120,7 +128,16 @@ def test_covered_joystick_rejects_move_only(tmp_path):
     clip = actions.learn(kept, dataset.content_box(kept), min_frames=5)
 
     assert clip.channels == {"move": "joystick knob in 0.00 of HUD frames", "aim": "ok"}
-    assert clip.base_radius is None
+    assert clip.ring_radius is None
+    assert clip.home is not None
+
+
+def test_a_joystick_with_no_origin_rejects_move_only(tmp_path):
+    kept = _build(tmp_path, "yt-nodot", _clip_frames(base=False))
+    clip = actions.learn(kept, dataset.content_box(kept), min_frames=5)
+
+    assert clip.channels == {"move": "joystick origin in 0.00 of knob frames", "aim": "ok"}
+    assert clip.ring_radius is None
     assert clip.home is not None
 
 
@@ -134,25 +151,29 @@ def test_too_few_hud_frames_rejects_everything(tmp_path):
         "aim": "too few HUD frames (3)",
     }
     assert clip.home is None
-    assert clip.base_radius is None
+    assert clip.ring_radius is None
 
 
 def test_read_move_vector():
-    # The plan listed a knob at -0.78 and +0.77 base radii, which is 1.10 radii from the ring
-    # centre: hud.base only accepts a ring that holds the knob, so it finds none there and the
-    # move reads None. -0.70 and +0.70 is 0.99 radii, the furthest a diagonal drag can be read.
-    base = (0.12, 0.70)
+    base = (0.16, 0.70)
     bx, by = _at(base)
     knob = (
-        (bx - 0.70 * BASE_RADIUS - BOX[0]) / BOX[2],
-        (by + 0.70 * BASE_RADIUS - BOX[1]) / BOX[3],
+        (bx - 0.70 * RING_RADIUS - BOX[0]) / BOX[2],
+        (by + 0.65 * RING_RADIUS - BOX[1]) / BOX[3],
     )
     row = actions.read(draw_hud(knob=knob, base=base), _clip())
     assert row["move"][0] == pytest.approx(-0.70, abs=0.08)
-    assert row["move"][1] == pytest.approx(0.70, abs=0.08)
+    assert row["move"][1] == pytest.approx(0.65, abs=0.08)
 
-    centred = actions.read(draw_hud(knob=base, base=base), _clip())
-    assert math.hypot(*centred["move"]) < 0.08
+
+def test_read_move_is_none_when_the_knob_hides_the_dot():
+    """A stick at rest covers its own origin, and there is nothing to measure a push from."""
+    at = (0.12, 0.78)
+    row = actions.read(draw_hud(knob=at, base=at), _clip())
+
+    assert row["hud"] is True
+    assert row["move"] is None
+    assert row["aim"] is not None
 
 
 def test_read_aim():
@@ -189,7 +210,7 @@ def test_read_without_hud_is_all_none():
 
 def test_read_respects_a_rejected_channel():
     clip = _clip(
-        base_radius=None,
+        ring_radius=None,
         channels={"move": "joystick knob in 0.00 of HUD frames", "aim": "ok"},
     )
     row = actions.read(draw_hud(), clip)

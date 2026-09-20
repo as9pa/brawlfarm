@@ -1,11 +1,13 @@
 """Per-frame action labels for one dataset source: where the stick is pushed and where the shot
 points, plus the button states, as `frames/<source>/actions.jsonl`.
 
-A source is learned before it is read. The joystick floats, so there is no rest position and its
-base ring is found per frame; a free radius search finds one in most knob frames but spreads wide
-enough to turn a move vector the wrong way, so the radius is learned once over the whole source
-and the per frame search then only looks for the centre. The attack disc has no rest position on
-paper either, so its home is the fullest bin of where it actually sat.
+A source is learned before it is read. The joystick floats, so there is no rest position: a push
+is the knob measured from the small dark dot at the centre of its ring, found per frame, over the
+ring radius, which is learned once over the whole source from the knob the source draws. A HUD
+frame with no move vector is usually a stick sitting still, its own knob covering the dot; that
+is what the label not being there means, and it is not the same as no joystick at all. The attack
+disc has no rest position on paper either, so its home is the fullest bin of where it actually
+sat.
 
 What cannot be read honestly is rejected per channel rather than guessed at: footage whose
 joystick a creator's webcam covers keeps its aim labels and loses its move labels, and the reason
@@ -37,7 +39,8 @@ HOME_BIN = 6  # px, the attack home is the fullest bin of this size
 HOME_SHARE = 0.30  # the fullest bin must hold this share of the attack discs
 ATTACK_RATE = 0.60  # attack discs per HUD frame, below this the aim channel is rejected
 KNOB_RATE = 0.80  # knobs per HUD frame, below this the move channel is rejected
-BASE_RATE = 0.70  # bases per knob frame, likewise
+ORIGIN_RATE = 0.30  # origins per knob frame; a clean source measures about 0.8, and the knob
+# hides the dot whenever the stick is near its centre
 AIM_RADIUS = 0.198  # share of the box height; the p95 drag distance measured in the spike
 AIMING_MIN = 0.2  # share of AIM_RADIUS past which the disc counts as dragged
 BOX_SAMPLE = 24  # frames measured for the content box, spread evenly over the source
@@ -50,7 +53,7 @@ class Clip:
     box: tuple[int, int, int, int]
     hud_frames: int
     home: tuple[float, float] | None  # attack home, frame pixels
-    base_radius: float | None  # frame pixels
+    ring_radius: float | None  # the ring the stick is clamped to, frame pixels
     channels: dict[str, str]  # "move" and "aim": "ok" or the reason it was rejected
 
 
@@ -89,13 +92,13 @@ def learn(
 ) -> Clip:
     """Read a sample of one source and decide what may be labelled on it.
 
-    One pass, because the frames arrive one at a time: the base ring of a knob frame is searched
+    One pass, because the frames arrive one at a time: the origin dot of a knob frame is looked
     for while that frame is still in hand, not on a second walk over frames nobody kept.
     """
     hud_frames = 0
     discs: list[tuple[float, float]] = []
-    knobs = 0
-    radii: list[float] = []
+    knobs: list[float] = []
+    origins = 0
     for frame in frames:
         if frame is None:  # a frame the index outlived teaches the source nothing
             continue
@@ -106,10 +109,9 @@ def learn(
         if "attack" in found:
             discs.append((found["attack"].x, found["attack"].y))
         if "knob" in found:
-            knobs += 1
-            ring = hud.base(frame, box, found["knob"])
-            if ring is not None:
-                radii.append(ring.r)
+            knobs.append(found["knob"].r)
+            if hud.origin(frame, box, found["knob"]) is not None:
+                origins += 1
 
     if hud_frames < min_frames:
         reason = f"too few HUD frames ({hud_frames})"
@@ -123,19 +125,20 @@ def learn(
         home = _home(discs)
         aim = "ok" if home is not None else "no stable attack home"
 
-    base_radius = None
-    knob_rate = knobs / hud_frames
+    ring_radius = None
+    knob_rate = len(knobs) / hud_frames
     if knob_rate < KNOB_RATE:
         # the covered joystick: a creator's webcam or overlay sits where the stick is
         move = f"joystick knob in {knob_rate:.2f} of HUD frames"
     else:
-        base_rate = len(radii) / knobs
-        if base_rate < BASE_RATE:
-            move = f"joystick base in {base_rate:.2f} of knob frames"
+        origin_rate = origins / len(knobs)
+        if origin_rate < ORIGIN_RATE:
+            move = f"joystick origin in {origin_rate:.2f} of knob frames"
         else:
-            base_radius = statistics.median(radii)
+            # The HUD scales as one piece, so the ring follows the knob the source draws.
+            ring_radius = hud.RING_RATIO * statistics.median(knobs)
             move = "ok"
-    return Clip(box, hud_frames, home, base_radius, {"move": move, "aim": aim})
+    return Clip(box, hud_frames, home, ring_radius, {"move": move, "aim": aim})
 
 
 def _row(seen: bool) -> dict:
@@ -174,11 +177,11 @@ def read(frame: np.ndarray, clip: Clip) -> dict:
         disc = found["attack"]
         row["aim"] = _vector(disc.x - clip.home[0], disc.y - clip.home[1], AIM_RADIUS * clip.box[3])
         row["aiming"] = math.hypot(*row["aim"]) >= AIMING_MIN
-    if clip.channels.get("move") == "ok" and clip.base_radius is not None and "knob" in found:
+    if clip.channels.get("move") == "ok" and clip.ring_radius is not None and "knob" in found:
         knob = found["knob"]
-        ring = hud.base(frame, clip.box, knob, clip.base_radius)
-        if ring is not None:
-            row["move"] = _vector(knob.x - ring.x, knob.y - ring.y, clip.base_radius)
+        dot = hud.origin(frame, clip.box, knob)
+        if dot is not None:
+            row["move"] = _vector(knob.x - dot.x, knob.y - dot.y, clip.ring_radius)
     return row
 
 
@@ -253,7 +256,7 @@ def run(root: Path, source: str, *, min_frames: int = MIN_HUD_FRAMES) -> dict:
         "box": list(box),
         "hud_frames": clip.hud_frames,
         "home": None if clip.home is None else [round(value, 3) for value in clip.home],
-        "base_radius": None if clip.base_radius is None else round(clip.base_radius, 3),
+        "ring_radius": None if clip.ring_radius is None else round(clip.ring_radius, 3),
         "channels": clip.channels,
         "learn_sample": LEARN_SAMPLE,
         "min_hud_frames": min_frames,
@@ -261,7 +264,7 @@ def run(root: Path, source: str, *, min_frames: int = MIN_HUD_FRAMES) -> dict:
         "home_share": HOME_SHARE,
         "attack_rate": ATTACK_RATE,
         "knob_rate": KNOB_RATE,
-        "base_rate": BASE_RATE,
+        "origin_rate": ORIGIN_RATE,
         "aim_radius": AIM_RADIUS,
         "aiming_min": AIMING_MIN,
         "counts": counts,

@@ -13,7 +13,7 @@ from __future__ import annotations
 import cv2
 import numpy as np
 
-from tools.play import dataset
+from tools.play import dataset, hud
 
 # The pinned buttons sit at fixed (u, v) shares of the content box, well inside their search
 # boxes. The two spike sources agreed on these anchors to 0.023 in u and 0.016 in v.
@@ -23,10 +23,13 @@ GADGET_AT = (0.86, 0.89)
 # for a whole disc; near the bottom of the band for the super, the gadget and the hyper, whose
 # boxes are barely 0.09 of the box high and would otherwise cut the circle in half.
 DISC_R = {"attack": 0.065, "super": 0.041, "gadget": 0.041, "hyper": 0.041, "knob": 0.065}
-BASE_R = 0.149  # the median joystick base radius measured in the spike
 RIM = 3  # thickness of the dark rim around a disc, and of the base ring
 RIM_GRAY = 20
 BASE_GRAY = 170
+DOT_R = 0.48  # the origin dot's radius, in knob radii
+DOT_VALUE = 0.45  # the dot is the floor darkened to this share of its value, never a colour
+DOT_RIM_VALUE = 0.30  # and its rim darkened to this
+DOT_RIM = 2  # thickness of the dot's rim
 FLOOR_LO, FLOOR_HI = 60, 110  # the arena floor is a mid gray, never black and never blown out
 FLOOR_BLUR = 9
 # HSV in the middle of each state's test in hud.state_of, converted to BGR when drawn.
@@ -76,13 +79,37 @@ def _disc(
     cv2.circle(frame, centre, radius, (RIM_GRAY,) * 3, RIM, cv2.LINE_AA)
 
 
+def origin_dot(frame: np.ndarray, centre: tuple[int, int], radius: int) -> None:
+    """The joystick's origin dot: the floor darkened, never a colour of its own.
+
+    The real dot is translucent and takes whatever it sits on, which is why the detector reads
+    it as darker than the floor around it; a flat gray dot would pass a test that real footage
+    fails. Only the dot's own patch is touched, so the floor elsewhere keeps its noise.
+    """
+    pad = radius + DOT_RIM
+    x0, y0 = max(0, centre[0] - pad), max(0, centre[1] - pad)
+    x1 = min(frame.shape[1], centre[0] + pad + 1)
+    y1 = min(frame.shape[0], centre[1] + pad + 1)
+    if x1 <= x0 or y1 <= y0:
+        return
+    scale = np.full((y1 - y0, x1 - x0), 255, np.uint8)
+    local = (centre[0] - x0, centre[1] - y0)
+    cv2.circle(scale, local, radius, round(255 * DOT_VALUE), -1, cv2.LINE_AA)
+    cv2.circle(scale, local, radius, round(255 * DOT_RIM_VALUE), DOT_RIM, cv2.LINE_AA)
+    patch = frame[y0:y1, x0:x1] * (scale[:, :, None] / 255.0)
+    frame[y0:y1, x0:x1] = np.rint(patch).astype(np.uint8)
+
+
 def draw_hud(
     box: tuple[int, int, int, int] = (140, 80, 1316, 736),
     *,
     attack: tuple[float, float] | None = (0.92, 0.62),
     super_state: str | None = "blue",
     knob: tuple[float, float] | None = (0.12, 0.80),
-    base: tuple[float, float] | None = (0.10, 0.78),
+    # One ring radius above the knob: the stick is clamped to its ring, so a default that put
+    # the knob a third of a radius out drew a picture the game never shows, with the knob
+    # covering the dot that a push is measured from.
+    base: tuple[float, float] | None = (0.12, 0.677),
     gadget: bool = True,
     seed: int = 0,
     floor_tint: tuple[int, int] | None = None,
@@ -96,8 +123,13 @@ def draw_hud(
     frame = np.zeros((dataset.FRAME_H, dataset.FRAME_W, 3), np.uint8)
     frame[y : y + h, x : x + w] = _floor(w, h, seed, floor_tint)
     if base is not None:
-        centre, ring = _point(box, base), int(round(BASE_R * h))
-        cv2.circle(frame, centre, ring, (BASE_GRAY,) * 3, RIM, cv2.LINE_AA)
+        # The whole joystick scales with the knob: a faint ring, and the dot the stick is
+        # measured from at its centre. The knob is drawn last, over both, as the game does.
+        centre, knob_r = _point(box, base), DISC_R["knob"] * h
+        cv2.circle(
+            frame, centre, int(round(hud.RING_RATIO * knob_r)), (BASE_GRAY,) * 3, RIM, cv2.LINE_AA
+        )
+        origin_dot(frame, centre, int(round(DOT_R * knob_r)))
     if attack is not None:
         _disc(frame, box, attack, "attack", "red")
     if super_state is not None:

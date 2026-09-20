@@ -37,12 +37,17 @@ HOUGH_MIN_DIST = 0.05  # share of the box height
 HOUGH_EDGE = 110  # param1
 HOUGH_VOTES = 38  # param2
 INNER = 0.62  # the colour is read inside this share of the radius
-# The band starts above the knob's own rim, which Hough otherwise clamps up into it and calls
-# a base. The measured base is about 2.3 knob radii.
-BASE_FREE = (1.7, 2.8, 26)  # knob radii from, to, and param2, when the base radius is unknown
-BASE_FIXED = (0.95, 1.05, 22)  # shares of the known radius, and param2
-# Two radii, not one: a ring that holds the knob still reaches its own radius past it again.
-BASE_MARGIN = 8  # px of slack on each side of the base search window
+RING_RATIO = 1.9  # the base ring's radius in knob radii; the HUD scales as one piece
+ORIGIN_BAND = (0.40, 0.58)  # the centre dot's radius, in knob radii
+ORIGIN_VOTES = 24  # param2; the dot is small and translucent
+ORIGIN_MIN_DIST = 20  # px between Hough centres
+ORIGIN_REACH = 1.25  # ring radii from the knob; the knob is clamped to the ring, the rest is noise
+ORIGIN_CLEAR = 0.5  # knob radii; a circle this close to the knob's centre is its own glyph
+ORIGIN_DARKER = 12  # V levels the dot must be darker than the floor around it
+ORIGIN_SURROUND = (1.35, 1.9)  # the annulus, in dot radii, that stands for the floor
+KNOB_GUARD = 1.1  # knob radii around the knob left out of the surround
+ORIGIN_FLOOR = 50  # px of surround needed before it may speak for the floor
+ORIGIN_WINDOW = 40  # px; a window smaller than this on a side has no room for a joystick
 
 
 @dataclass(frozen=True)
@@ -190,38 +195,58 @@ def visible(found: Mapping[str, Found]) -> bool:
     return "super" in found and ("attack" in found or "knob" in found)
 
 
-def base(
-    frame: np.ndarray,
-    box: tuple[int, int, int, int],
-    knob: Found,
-    radius: float | None = None,
-) -> Found | None:
-    """The joystick base ring around `knob`, or None when there is no ring holding it.
+def origin(frame: np.ndarray, box: tuple[int, int, int, int], knob: Found) -> Found | None:
+    """The dot at the centre of the joystick, which is what a push is measured from.
 
-    The stick floats, so there is no rest position and the ring is found per frame. A free
-    search finds one in most knob frames but its radius spreads from 0.094 to 0.193 of the box
-    height, which is enough to turn a move vector the wrong way; so a caller that has learned
-    the radius over a whole source passes it in and only the centre is searched for.
+    The ring itself was tried first and does not survive real footage: a fixed radius search
+    found it in 3 percent of knob frames and a free one followed whatever band it was given,
+    with a centre wrong on two frames of three read by eye. The small dark dot at the middle of
+    the ring is a circle Hough does see, on 0.77 to 0.83 of the knob frames of a clean source.
 
-    Either way the crop reaches BASE_MARGIN past twice the top of the radius band, so a ring
-    the guard would accept is always whole inside it, and stops at the content box, because a
-    black bar inside the crop is a hard edge that Hough reads as an arc of its own.
+    The dot is translucent and takes the colour of the floor under it, so it is recognised as
+    darker than the floor around it and never by an absolute colour. A stick near its centre
+    covers its own dot: that frame has no origin, and a caller that wanted a move vector gets
+    nothing rather than a guess.
     """
-    if radius is None:
-        r_lo, r_hi, votes = BASE_FREE[0] * knob.r, BASE_FREE[1] * knob.r, BASE_FREE[2]
-    else:
-        r_lo, r_hi, votes = BASE_FIXED[0] * radius, BASE_FIXED[1] * radius, BASE_FIXED[2]
-    reach = 2.0 * r_hi + BASE_MARGIN
+    ring = RING_RATIO * knob.r
+    reach = ORIGIN_REACH * ring + ORIGIN_SURROUND[1] * ORIGIN_BAND[1] * knob.r
     bx, by, bw, bh = box
-    window = (
-        max(bx, int(knob.x - reach)),
-        max(by, int(knob.y - reach)),
-        min(bx + bw, int(knob.x + reach) + 1),
-        min(by + bh, int(knob.y + reach) + 1),
+    x0, y0 = max(bx, 0, int(knob.x - reach)), max(by, 0, int(knob.y - reach))
+    x1 = min(bx + bw, frame.shape[1], int(knob.x + reach))
+    y1 = min(by + bh, frame.shape[0], int(knob.y + reach))
+    if x1 - x0 < ORIGIN_WINDOW or y1 - y0 < ORIGIN_WINDOW:
+        return None
+
+    crop = frame[y0:y1, x0:x1]
+    circles = cv2.HoughCircles(
+        cv2.medianBlur(cv2.cvtColor(crop, cv2.COLOR_BGR2GRAY), BLUR),
+        cv2.HOUGH_GRADIENT,
+        dp=HOUGH_DP,
+        minDist=ORIGIN_MIN_DIST,
+        param1=HOUGH_EDGE,
+        param2=ORIGIN_VOTES,
+        minRadius=int(ORIGIN_BAND[0] * knob.r),
+        maxRadius=int(ORIGIN_BAND[1] * knob.r) + 1,
     )
-    min_dist = max(1, int(HOUGH_MIN_DIST * bh))
-    for x, y, r in _circles(frame, window, int(r_lo), int(r_hi), votes, min_dist):
-        # the knob is always inside its own base, whatever else the window picked up
-        if math.hypot(x - knob.x, y - knob.y) <= r:
-            return Found("base", x, y, r, "ring")
+    if circles is None:
+        return None
+    # The surround is measured inside the window, never on a whole frame mask: this runs on
+    # every frame of a source, and the floor a dot sits on is the floor right around it.
+    value = cv2.cvtColor(crop, cv2.COLOR_BGR2HSV)[:, :, 2]
+    ys, xs = np.mgrid[y0:y1, x0:x1]
+    clear = (xs - knob.x) ** 2 + (ys - knob.y) ** 2 > (KNOB_GUARD * knob.r) ** 2
+    for cx, cy, r in circles[0]:
+        x, y = float(cx) + x0, float(cy) + y0
+        away = math.hypot(x - knob.x, y - knob.y)
+        if away > ORIGIN_REACH * ring or away < ORIGIN_CLEAR * knob.r:
+            continue
+        span = (xs - x) ** 2 + (ys - y) ** 2
+        surround = (
+            clear & (span > (ORIGIN_SURROUND[0] * r) ** 2) & (span < (ORIGIN_SURROUND[1] * r) ** 2)
+        )
+        if int(surround.sum()) < ORIGIN_FLOOR:
+            continue
+        inside = inner_hsv(frame, x, y, float(r))[2]
+        if float(np.median(value[surround])) - inside >= ORIGIN_DARKER:
+            return Found("origin", x, y, float(r), "dot")
     return None
