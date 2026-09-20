@@ -74,6 +74,9 @@ def main(argv: list[str] | None = None) -> int:
                                 float(vision.score(frame, name)),
                             )
                         )
+                # The screencap and the scoring stall this loop for most of a second; start
+                # the gap clock again so the stall does not read as a stream gap.
+                last, last_t = s.frames, time.monotonic()
     finally:
         busy = hp.cpu_percent(None) if hp else float("nan")
         host = psutil.cpu_percent(None)
