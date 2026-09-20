@@ -41,23 +41,41 @@ def split_of(source: str) -> str:
     return SPLITS[-1][0]
 
 
-def assign_splits(sources: list[str]) -> dict[str, str]:
-    """Map each source to its split, then repair a split the hashing left empty.
+def _largest_split(assigned: dict[str, str], *, at_least: int = 1) -> str | None:
+    """The split holding the most sources, ties going to the one earlier in SPLITS."""
+    counts = Counter(assigned.values())
+    names = [name for name, _ratio in SPLITS]
+    candidates = [name for name in names if counts[name] >= at_least]
+    if not candidates:
+        return None
+    return max(candidates, key=lambda name: (counts[name], -names.index(name)))
 
-    With a handful of sources the hash can easily put none of them in valid or test, which
-    would silently train without a score. The repair moves whole sources out of train, one per
-    empty split, and never the last one: a set has to keep something to train on.
+
+def assign_splits(sources: list[str]) -> dict[str, str]:
+    """Map each source to its split, then repair any split the hashing left empty.
+
+    With a handful of sources the hash can easily put none of them in a split, and an empty
+    train set trains on nothing while an empty valid set scores on nothing. Every empty split
+    is filled from the split that currently holds the most sources, train first, and then the
+    labels are swapped if need be so train is never the smaller side: the whole point of the
+    ratios is that most of the data trains. A source never spans splits, and the repair reads
+    only counts and sorted names, so the same sources give the same answer in any order.
     """
-    assigned = {source: split_of(source) for source in sources}
+    assigned = {source: split_of(source) for source in sorted(sources)}
     if len(assigned) < SMOKE_MIN:
         return {source: "train" for source in assigned}
     for name, _ratio in SPLITS:
-        if name == "train" or any(split == name for split in assigned.values()):
+        if any(split == name for split in assigned.values()):
             continue
-        in_train = sorted(source for source, split in assigned.items() if split == "train")
-        if len(in_train) < 2:
+        donor = _largest_split(assigned, at_least=2)
+        if donor is None:
             continue
-        assigned[in_train[-1]] = name
+        moved = sorted(source for source, split in assigned.items() if split == donor)[-1]
+        assigned[moved] = name
+    biggest = _largest_split(assigned)
+    if biggest is not None and biggest != "train":
+        swap = {"train": biggest, biggest: "train"}
+        assigned = {source: swap.get(split, split) for source, split in assigned.items()}
     return assigned
 
 
@@ -159,6 +177,11 @@ def build(root: Path, labels: dict[str, list[dict]]) -> dict:
         names = [name for name, _ratio in SPLITS] if smoke else [assigned[source]]
         for name in names:
             per_split[name].append((rel, path))
+
+    if not per_split[SPLITS[0][0]]:
+        # Last guard: an empty train folder is a training run that scores zero for no visible
+        # reason, so refuse before deleting the previous build.
+        raise ValueError("no training frames")
 
     coco = _clear_coco(root)
     categories = [

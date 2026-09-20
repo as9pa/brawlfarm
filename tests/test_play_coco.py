@@ -74,6 +74,35 @@ def test_assign_splits_of_ten_sources_leaves_no_split_empty():
     assert set(assigned.values()) == {"train", "valid", "test"}
 
 
+def test_assign_splits_repairs_a_train_the_hash_left_empty():
+    # These three hash to valid, valid, test, which used to train on nothing at all.
+    assigned = coco.assign_splits(["src3", "src8", "src11"])
+
+    assert sorted(assigned.values()) == ["test", "train", "valid"]
+
+
+@pytest.mark.parametrize("count", range(3, 13))
+def test_assign_splits_fills_every_split_and_keeps_train_the_largest(count):
+    sources = [f"s{n}" for n in range(count)]
+
+    assigned = coco.assign_splits(sources)
+
+    sizes = {
+        name: sum(1 for split in assigned.values() if split == name) for name, _ in coco.SPLITS
+    }
+    assert min(sizes.values()) >= 1
+    assert sizes["train"] >= max(sizes["valid"], sizes["test"])
+
+
+def test_assign_splits_does_not_depend_on_the_order_of_its_input():
+    sources = [f"s{n}" for n in range(7)]
+
+    assigned = coco.assign_splits(sources)
+
+    assert assigned == coco.assign_splits(sources)
+    assert assigned == coco.assign_splits(list(reversed(sources)))
+
+
 def test_assign_splits_of_two_sources_keeps_them_all_in_train():
     assigned = coco.assign_splits(["alpha", "beta"])
 
@@ -221,3 +250,11 @@ def test_main_builds_from_an_export_file(tmp_path, capsys):
     assert code == 0
     assert (root / "coco" / "split.json").exists()
     assert "6 frames" in capsys.readouterr().out
+
+
+def test_build_refuses_to_write_an_empty_training_set(tmp_path):
+    root = tmp_path / "play"
+    _write_frames(root, ["alpha"])
+
+    with pytest.raises(ValueError, match="no training frames"):
+        coco.build(root, {})
