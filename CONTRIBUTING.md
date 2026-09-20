@@ -24,6 +24,7 @@ The calibration block of `brawlfarm/core/config.py`, and the tap coordinates and
 
 - No `discord` import anywhere, in any module, test or tool.
 - Never commit `.env`, the data directory, captures, logs, or screenshots of an account.
+- Training data, videos, frames and model files never enter the repository; `play.onnx` and `play.json` arrive only through a calibration pull request.
 - `uv run python tools/scrub_check.py` must print `0 hit(s)`. It is a gate, and it fails the build.
 
 ## Running the checks
