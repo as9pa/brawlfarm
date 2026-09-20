@@ -148,6 +148,26 @@ class Deduper:
         return True
 
 
+def index_rows(root: Path) -> list[dict]:
+    """The rows of `index.jsonl`. A line that does not parse (an interrupted run can leave a
+    half-written last line) is reported and skipped, never fatal."""
+    path = Path(root) / "index.jsonl"
+    if not path.exists():
+        return []
+    rows = []
+    for number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
+        if not line.strip():
+            continue
+        try:
+            row = json.loads(line)
+            int(row["hash"], 16), row["source"], row["file"]
+        except (ValueError, KeyError, TypeError):
+            print(f"index.jsonl line {number} is not a complete row; skipped")
+            continue
+        rows.append(row)
+    return rows
+
+
 class Index:
     """`index.jsonl` at the dataset root: one line per kept frame, appended as they are saved."""
 
@@ -156,13 +176,9 @@ class Index:
         self.path = self.root / "index.jsonl"
         self._hashes: list[int] = []
         self._sources: set[str] = set()
-        if self.path.exists():
-            for line in self.path.read_text(encoding="utf-8").splitlines():
-                if not line.strip():
-                    continue
-                row = json.loads(line)
-                self._hashes.append(int(row["hash"], 16))
-                self._sources.add(row["source"])
+        for row in index_rows(self.root):
+            self._hashes.append(int(row["hash"], 16))
+            self._sources.add(row["source"])
 
     def hashes(self) -> list[int]:
         return list(self._hashes)

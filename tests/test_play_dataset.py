@@ -229,3 +229,22 @@ def test_content_box_of_frames_that_differ_in_size_is_the_whole_frame():
 def test_content_box_needs_a_frame():
     with pytest.raises(ValueError):
         dataset.content_box([])
+
+
+def test_a_half_written_last_line_is_skipped_not_fatal(tmp_path, capsys):
+    index = dataset.Index(tmp_path)
+    index.add(
+        file="frames/clip/clip-000000.jpg",
+        source="clip",
+        kind="video",
+        t=0.0,
+        hash_=7,
+        teams_left=0.5,
+        pad=(0, 0, 0, 0),
+    )
+    with (tmp_path / "index.jsonl").open("a", encoding="utf-8") as fh:
+        fh.write('{"file": "frames/clip/clip-0000')  # the run was interrupted here
+    again = dataset.Index(tmp_path)
+    assert again.hashes() == [7]
+    assert [row["file"] for row in dataset.index_rows(tmp_path)] == ["frames/clip/clip-000000.jpg"]
+    assert "line 2" in capsys.readouterr().out

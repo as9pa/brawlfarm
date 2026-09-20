@@ -133,10 +133,7 @@ def main(argv: list[str] | None = None) -> int:
     missing = 0
     with_boxes = 0
     per_class: Counter[str] = Counter()
-    for line in index.read_text(encoding="utf-8").splitlines():
-        if not line.strip():
-            continue
-        row = json.loads(line)
+    for row in dataset.index_rows(root):
         if wanted is not None and row["source"] not in wanted:
             continue
         frame = _read_frame(root / row["file"])
