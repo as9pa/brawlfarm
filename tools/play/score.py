@@ -101,11 +101,13 @@ def template_truth(frame: np.ndarray, *, find=vision.find_with_score) -> dict[st
 
 
 def compare(detections: list[dict], truth: dict[str, dict | None], iou_min: float = 0.5) -> dict:
-    """One verdict per template class for one frame: tp, fn, fp or tn.
+    """One verdict per template class for one frame: tp, tp+extra, fn, fp or tn.
 
     A detection of the right class in the wrong place is an fn and not also an fp: the template
     box proves there is something of that class on the frame, so the model is wrong about where
-    it is, not about whether it is there, and only the empty-frame case is the never-tap failure.
+    it is, not about whether it is there. Finding the control and also pointing somewhere else
+    is tp+extra, which counts as both: the extra box is a tappable pixel the templates do not
+    see, which is the never-tap failure however right the other box was.
     """
     verdicts = {}
     for cls, real in truth.items():
@@ -114,10 +116,14 @@ def compare(detections: list[dict], truth: dict[str, dict | None], iou_min: floa
             verdicts[cls] = "fp" if here else "tn"
             continue
         box = (real["x"], real["y"], real["w"], real["h"])
-        hit = any(
+        hits = [
             thresholds.iou(box, (det["x"], det["y"], det["w"], det["h"])) >= iou_min for det in here
-        )
-        verdicts[cls] = "tp" if hit else "fn"
+        ]
+        if not any(hits):
+            verdicts[cls] = "fn"
+        else:
+            # Two detections on the one template box are one control seen twice, not an extra.
+            verdicts[cls] = "tp" if all(hits) else "tp+extra"
     return verdicts
 
 
@@ -126,6 +132,8 @@ def report(rows: list[dict]) -> dict:
 
     A precision or a recall with nothing under it is 0.0, the way export.py reports one: a class
     the model never detected has not shown anything, and printing 1.0 there would read as perfect.
+    A tp+extra is one of each: the control was found, and a second box was invented beside it.
+    No frame at all is not a pass: an empty report proves nothing, so it fails.
     """
     totals: dict[str, Counter[str]] = {}
     for row in rows:
@@ -134,7 +142,8 @@ def report(rows: list[dict]) -> dict:
 
     per_class = {}
     for cls, count in totals.items():
-        tp, fp, fn, tn = count["tp"], count["fp"], count["fn"], count["tn"]
+        extra = count["tp+extra"]
+        tp, fp, fn, tn = count["tp"] + extra, count["fp"] + extra, count["fn"], count["tn"]
         per_class[cls] = {
             "tp": tp,
             "fp": fp,
@@ -143,8 +152,16 @@ def report(rows: list[dict]) -> dict:
             "precision": round(tp / (tp + fp), 4) if tp + fp else 0.0,
             "recall": round(tp / (tp + fn), 4) if tp + fn else 0.0,
         }
-    bad = sum(count["fp"] for cls, count in totals.items() if cls in classes.TAP_ANCHORS)
-    return {"classes": per_class, "tap_anchor_false_positives": bad, "pass": bad == 0}
+    bad = sum(
+        count["fp"] + count["tp+extra"]
+        for cls, count in totals.items()
+        if cls in classes.TAP_ANCHORS
+    )
+    return {
+        "classes": per_class,
+        "tap_anchor_false_positives": bad,
+        "pass": bool(rows) and bad == 0,
+    }
 
 
 def _read_frame(path: Path) -> np.ndarray | None:
@@ -210,7 +227,7 @@ def main(argv: list[str] | None = None, *, find=vision.find_with_score) -> int:
             failures.extend(
                 {"file": name, "class": cls}
                 for cls, verdict in sorted(verdicts.items())
-                if verdict == "fp" and cls in classes.TAP_ANCHORS
+                if verdict in ("fp", "tp+extra") and cls in classes.TAP_ANCHORS
             )
             unverified.extend(
                 {"file": name, "class": box["class"]}
@@ -231,6 +248,11 @@ def main(argv: list[str] | None = None, *, find=vision.find_with_score) -> int:
     (models / "score.json").write_text(json.dumps(summary, indent=1), encoding="utf-8")
 
     print(f"{scored} frames scored, {skipped} skipped (unreadable or not 1600 x 900)")
+    if not scored:
+        # An empty report would otherwise pass every bar it has, having tested nothing.
+        print("no 1600 x 900 frames were scored; nothing is proven")
+        print(f"wrote {models / 'score.json'}")
+        return 1
     print(f"  {'class':<18} {'tp':>5} {'fp':>5} {'fn':>5} {'tn':>5} {'prec':>6} {'rec':>6}")
     for cls, count in summary["classes"].items():
         anchor = " tap anchor" if cls in classes.TAP_ANCHORS else ""
@@ -239,7 +261,7 @@ def main(argv: list[str] | None = None, *, find=vision.find_with_score) -> int:
             f"{count['precision']:>6.3f} {count['recall']:>6.3f}{anchor}"
         )
     for bad in failures:
-        print(f"  never-tap failure: {bad['class']} on {bad['file']}, no template there")
+        print(f"  never-tap failure: {bad['class']} on {bad['file']}, the templates see none there")
     if unverified:
         print(
             f"{len(unverified)} detections of {', '.join(sorted(UNVERIFIABLE))}: these tap anchors "

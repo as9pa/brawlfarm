@@ -272,3 +272,95 @@ def test_main_reports_a_tap_anchor_with_no_template_as_unverified(tmp_path, monk
     ]
     assert written["tap_anchor_false_positives"] == 0
     assert written["pass"] is True
+
+
+def test_compare_keeps_an_extra_detection_beside_a_true_positive():
+    truth = {"play_button": _box("play_button", 400, 225, 160, 90)}
+    found = [
+        {"class": "play_button", "x": 405, "y": 230, "w": 160, "h": 90, "score": 0.9},
+        {"class": "play_button", "x": 1000, "y": 700, "w": 160, "h": 90, "score": 0.8},
+    ]
+
+    assert score.compare(found, truth)["play_button"] == "tp+extra"
+
+
+def test_compare_calls_two_detections_on_one_template_box_a_plain_true_positive():
+    truth = {"play_button": _box("play_button", 400, 225, 160, 90)}
+    found = [
+        {"class": "play_button", "x": 400, "y": 225, "w": 160, "h": 90, "score": 0.9},
+        {"class": "play_button", "x": 410, "y": 235, "w": 160, "h": 90, "score": 0.8},
+    ]
+
+    assert score.compare(found, truth)["play_button"] == "tp"
+
+
+def test_report_counts_an_extra_as_a_true_and_a_false_positive():
+    totals = report_of([{"play_button": "tp+extra"}])["play_button"]
+
+    assert totals["tp"] == 1 and totals["fp"] == 1
+    assert totals["precision"] == 0.5
+
+
+def test_report_fails_on_an_extra_tap_anchor_detection():
+    summary = score.report([{"play_button": "tp"}, {"play_button": "tp+extra"}])
+
+    assert summary["tap_anchor_false_positives"] == 1
+    assert summary["pass"] is False
+
+
+def test_report_passes_on_an_extra_for_a_class_that_is_not_a_tap_anchor():
+    summary = score.report([{"power_cube": "tp+extra"}])
+
+    assert summary["classes"]["power_cube"]["fp"] == 1
+    assert summary["tap_anchor_false_positives"] == 0
+    assert summary["pass"] is True
+
+
+def test_report_fails_when_there_is_nothing_to_report():
+    assert score.report([])["pass"] is False
+
+
+def test_main_fails_when_no_frame_could_be_scored(tmp_path, monkeypatch, capsys):
+    frames = tmp_path / "frames"
+    frames.mkdir()
+    cv2.imwrite(str(frames / "small.jpg"), _frame(450, 800))
+    _write_model(tmp_path / "models")
+    session = _session([(PLAY, 0.9, (0.3, 0.5, 0.1, 0.1))])
+    monkeypatch.setattr(score, "load_model", _fake_load_model(session, _meta({"play_button": 0.5})))
+
+    code = score.main(
+        ["--models", str(tmp_path / "models"), "--frames", str(frames)],
+        find=_finder({}),
+    )
+
+    assert code == 1
+    written = json.loads((tmp_path / "models" / "score.json").read_text(encoding="utf-8"))
+    assert written["pass"] is False
+    assert written["frames"] == {"scored": 0, "skipped": 1}
+    assert "nothing is proven" in capsys.readouterr().out
+
+
+def test_main_fails_on_an_extra_tap_anchor_detection(tmp_path, monkeypatch):
+    frames = tmp_path / "frames"
+    _write_frames(frames)
+    _write_model(tmp_path / "models")
+    session = _session([(PLAY, 0.9, (0.3, 0.5, 0.1, 0.1)), (PLAY, 0.8, (0.8, 0.8, 0.1, 0.1))])
+    monkeypatch.setattr(score, "load_model", _fake_load_model(session, _meta({"play_button": 0.5})))
+    find = _finder({"play": Match(name="play", confidence=0.9, x=480, y=450, w=160, h=90)})
+
+    code = score.main(
+        ["--models", str(tmp_path / "models"), "--frames", str(frames)],
+        find=find,
+    )
+
+    assert code == 1
+    written = json.loads((tmp_path / "models" / "score.json").read_text(encoding="utf-8"))
+    assert written["tap_anchor_failures"] == [{"file": "good.jpg", "class": "play_button"}]
+    assert written["classes"]["play_button"] == {
+        "tp": 1,
+        "fp": 1,
+        "fn": 0,
+        "tn": 0,
+        "precision": 0.5,
+        "recall": 1.0,
+    }
