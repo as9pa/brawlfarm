@@ -14,7 +14,7 @@ from __future__ import annotations
 import argparse
 import itertools
 import math
-from collections.abc import Callable, Iterable, Iterator
+from collections.abc import Callable, Iterable, Iterator, Sequence
 from pathlib import Path
 
 import cv2
@@ -27,6 +27,8 @@ from tools.play import dataset
 FPS_OUT = 2.0
 # How many frames the border measurement looks at before the first one is written.
 TRIM_SAMPLE = 40
+# The share of a video's duration the sampled frames are spread over, away from intro and credits.
+SAMPLE_START, SAMPLE_END = 0.05, 0.95
 
 _CHUNK = 64 * 1024
 
@@ -107,6 +109,38 @@ def iter_video(path: Path, fps_out: float = FPS_OUT) -> Iterator[tuple[float, np
             print(f"{Path(path).name}: skipped {untimed} frames with no time and no rate")
 
 
+def sample_video(path: Path, n: int = TRIM_SAMPLE) -> list[np.ndarray]:
+    """n frames spread evenly over the middle of a container video, for the border measurement.
+
+    The first frames of a video are the worst ones to measure: an intro, a channel card or a
+    fade is often full bleed while the footage behind it is letterboxed, and the trim would then
+    find no border at all. So this seeks instead of decoding from the start, one seek and one
+    frame per step between SAMPLE_START and SAMPLE_END of the duration. A video that cannot say
+    how long it is, or that fails any step, gives back nothing and the caller buffers instead.
+    """
+    import av  # only the dataset and play groups have PyAV
+
+    try:
+        with av.open(str(path)) as container:
+            stream = container.streams.video[0]
+            if not container.duration:
+                return []
+            picked = []
+            for step in range(max(n, 1)):
+                share = SAMPLE_START
+                if n > 1:
+                    share += (SAMPLE_END - SAMPLE_START) * step / (n - 1)
+                container.seek(int(container.duration * share), any_frame=False, backward=True)
+                frame = next(container.decode(stream), None)
+                if frame is None:
+                    break
+                picked.append(frame.to_ndarray(format="bgr24"))
+            return picked
+    except Exception as exc:  # a broken container, an audio-only file, an unseekable stream
+        print(f"{Path(path).name}: cannot sample it for the border trim ({exc})")
+        return []
+
+
 def iter_session(folder: Path) -> Iterator[tuple[float | None, np.ndarray]]:
     """The session's screenshots in name order. Sessions recorded at half size are useless for
     training, so anything that is not exactly 1600 x 900 is skipped and reported at the end."""
@@ -142,13 +176,16 @@ def add_source(
     *,
     score=vision.score,
     trim: bool = False,
+    sample: Sequence[np.ndarray] | None = None,
 ) -> dict[str, int]:
     """Fit, hash, dedupe, save and index every frame of one source. Returns the counts.
 
-    `trim` is for footage that arrives inside baked-in black bars: the first TRIM_SAMPLE frames
-    are buffered, measured together, and then every frame of the source is cropped to the same
-    box before it is fitted. Emulator frames never need it, and asking for it on them costs a
-    measurement that finds nothing.
+    `trim` is for footage that arrives inside baked-in black bars: the border is measured once
+    and then every frame of the source is cropped to the same box before it is fitted. The
+    measurement reads `sample` when it is given one, which is how a caller with the file in
+    hand hands over frames from the whole video instead of its opening seconds; without one the
+    first TRIM_SAMPLE frames are buffered and measured. Emulator frames never need any of it,
+    and asking for it on them costs a measurement that finds nothing.
     """
     dataset.check_source(source)
     root = Path(root)
@@ -158,12 +195,14 @@ def add_source(
     counts = {"seen": 0, "kept": 0, "duplicates": 0}
     incoming = iter(frames)
     box: tuple[int, int, int, int] | None = None
-    if trim:
-        sample = list(itertools.islice(incoming, TRIM_SAMPLE))
-        if sample:
-            box = dataset.content_box([frame for _t, frame in sample])
-        # The sampled frames go through the same crop as the rest, not around it.
-        incoming = itertools.chain(sample, incoming)
+    if trim and sample:
+        box = dataset.content_box(list(sample))
+    elif trim:
+        buffered = list(itertools.islice(incoming, TRIM_SAMPLE))
+        if buffered:
+            box = dataset.content_box([frame for _t, frame in buffered])
+        # The buffered frames go through the same crop as the rest, not around it.
+        incoming = itertools.chain(buffered, incoming)
     for t, frame in incoming:
         counts["seen"] += 1
         crop = box if box is not None else (0, 0, frame.shape[1], frame.shape[0])
@@ -231,8 +270,17 @@ def main(argv: list[str] | None = None) -> int:
 
     for name, kind, make in jobs:
         # Only a container video can carry baked-in bars; sessions and match files are
-        # emulator frames, already the right shape.
-        counts = add_source(root, name, kind, make(), trim=kind == "video")
+        # emulator frames, already the right shape. The bars are measured on frames taken from
+        # the whole video rather than on its opening seconds, which may be an intro.
+        trim = kind == "video"
+        counts = add_source(
+            root,
+            name,
+            kind,
+            make(),
+            trim=trim,
+            sample=sample_video(target) if trim else None,
+        )
         print(
             f"{name}: seen {counts['seen']}, kept {counts['kept']}, "
             f"duplicates {counts['duplicates']}"

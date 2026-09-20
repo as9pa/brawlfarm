@@ -191,11 +191,24 @@ def test_content_box_finds_the_picture_inside_the_border():
     assert dataset.content_box([_bordered(), _bordered()]) == (100, 60, 220, 120)
 
 
-def test_content_box_takes_the_brightest_frame_per_row_and_column():
-    # One dark frame of the same source would hide the picture if the means were averaged.
-    frames = [_bordered(level=200), _bordered(level=4)]
+def test_content_box_survives_a_dark_frame_of_the_same_source():
+    # A dark moment in a minority of the frames must not widen the border.
+    frames = [_bordered(level=200)] * 7 + [_bordered(level=4)] * 3
 
     assert dataset.content_box(frames) == (100, 60, 220, 120)
+
+
+def test_content_box_survives_a_full_bleed_minority():
+    # An intro or a replay overlay fills the frame; three of ten must not hide the bars.
+    frames = [_bordered()] * 7 + [np.full((180, 320, 3), 200, dtype=np.uint8)] * 3
+
+    assert dataset.content_box(frames) == (100, 60, 220, 120)
+
+
+def test_content_box_of_a_full_bleed_set_is_the_whole_frame():
+    frames = [np.full((180, 320, 3), 200, dtype=np.uint8)] * 10
+
+    assert dataset.content_box(frames) == (0, 0, 320, 180)
 
 
 def test_content_box_of_a_dark_set_is_the_whole_frame():

@@ -52,10 +52,12 @@ def content_box(frames: Sequence[np.ndarray]) -> tuple[int, int, int, int]:
 
     A downloaded video often carries the game inside baked-in bars, which would shrink the game
     against the emulator's own frames once everything is fitted to 1600 x 900. The bars are a
-    property of the source, so the measurement takes several frames and keeps the brightest mean
-    per row and per column: a dark moment in one frame must not widen the border. Anything that
-    looks unlike a letterbox, a border that would eat half a dimension, a set of frames that do
-    not agree on their size, gives the whole frame back rather than a guess.
+    property of the source, so the measurement takes several frames and keeps the median mean
+    gray level per row and per column. The median is what makes it a property of the source
+    rather than of a moment: a dark scene in a few frames cannot widen the border, and an intro
+    or a replay overlay that fills the whole frame in a few cannot hide it. Anything that looks
+    unlike a letterbox, a border that would eat half a dimension, a set of frames that do not
+    agree on their size, gives the whole frame back rather than a guess.
     """
     frames = list(frames)
     if not frames:
@@ -64,14 +66,14 @@ def content_box(frames: Sequence[np.ndarray]) -> tuple[int, int, int, int]:
     full = (0, 0, width, height)
     if any(frame.shape[:2] != (height, width) for frame in frames):
         return full
-    rows = np.zeros(height, dtype=np.float32)
-    cols = np.zeros(width, dtype=np.float32)
-    for frame in frames:
+    per_row = np.empty((len(frames), height), dtype=np.float32)
+    per_col = np.empty((len(frames), width), dtype=np.float32)
+    for n, frame in enumerate(frames):
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY).astype(np.float32)
-        rows = np.maximum(rows, gray.mean(axis=1))
-        cols = np.maximum(cols, gray.mean(axis=0))
-    vertical = _lit_range(rows)
-    horizontal = _lit_range(cols)
+        per_row[n] = gray.mean(axis=1)
+        per_col[n] = gray.mean(axis=0)
+    vertical = _lit_range(np.median(per_row, axis=0))
+    horizontal = _lit_range(np.median(per_col, axis=0))
     if vertical is None or horizontal is None:
         return full
     top, bottom = vertical

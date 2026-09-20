@@ -151,6 +151,7 @@ def fake_pipeline(monkeypatch):
 
     monkeypatch.setattr(ingest_youtube, "download", fake_download)
     monkeypatch.setattr(frames, "iter_video", lambda path, **kw: iter([]))
+    monkeypatch.setattr(frames, "sample_video", lambda path, **kw: ["sampled"])
     monkeypatch.setattr(frames, "add_source", fake_add_source)
     return added
 
@@ -169,6 +170,7 @@ def test_main_skips_a_source_already_in_the_index(tmp_path, capsys, fake_pipelin
     assert [source for source, _, _, _ in fake_pipeline] == ["yt-BBBBBBBBBBB"]
     assert fake_pipeline[0][1] == "youtube"
     assert fake_pipeline[0][3]["trim"] is True
+    assert fake_pipeline[0][3]["sample"] == ["sampled"]
     assert "kept 3" in out
 
 

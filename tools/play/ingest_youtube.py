@@ -116,7 +116,15 @@ def main(argv: list[str] | None = None) -> int:
                 return 1
             continue
         # Downloads are the footage with baked-in black bars, so they are measured and cropped.
-        counts = frames.add_source(root, source, "youtube", frames.iter_video(path), trim=True)
+        # The measurement reads frames from the whole video, never just past the intro.
+        counts = frames.add_source(
+            root,
+            source,
+            "youtube",
+            frames.iter_video(path),
+            trim=True,
+            sample=frames.sample_video(path),
+        )
         print(
             f"{source}: seen {counts['seen']}, kept {counts['kept']}, "
             f"duplicates {counts['duplicates']}"

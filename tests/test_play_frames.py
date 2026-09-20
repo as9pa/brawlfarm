@@ -186,6 +186,61 @@ def test_add_source_without_trim_indexes_the_whole_frame_as_the_crop(tmp_path):
     assert row["crop"] == [0, 0, 1600, 900]
 
 
+def test_add_source_measures_a_given_sample_instead_of_buffering(tmp_path):
+    # The sample is full bleed and the footage is bordered: the crop proves the sample won.
+    incoming = [(0.0, _bordered_video_frame(90))]
+
+    frames.add_source(
+        tmp_path,
+        "clip",
+        "video",
+        incoming,
+        score=_half_score,
+        trim=True,
+        sample=[np.full((dataset.FRAME_H, dataset.FRAME_W, 3), 200, dtype=np.uint8)],
+    )
+
+    row = json.loads((tmp_path / "index.jsonl").read_text(encoding="utf-8").splitlines()[0])
+    assert row["crop"] == [0, 0, 1600, 900]
+
+
+def test_add_source_falls_back_to_buffering_when_the_sample_is_empty(tmp_path):
+    incoming = [(0.0, _bordered_video_frame(90))]
+
+    frames.add_source(tmp_path, "clip", "video", incoming, score=_half_score, trim=True, sample=[])
+
+    row = json.loads((tmp_path / "index.jsonl").read_text(encoding="utf-8").splitlines()[0])
+    assert row["crop"] == [100, 60, 1080, 600]
+
+
+def test_sample_video_spreads_over_the_whole_clip(tmp_path):
+    av = pytest.importorskip("av")
+    path = tmp_path / "clip.mp4"
+    with av.open(str(path), "w") as container:
+        stream = container.add_stream("mpeg4", rate=10)
+        stream.width, stream.height = 320, 180
+        stream.pix_fmt = "yuv420p"
+        for n in range(30):
+            picture = av.VideoFrame.from_ndarray(
+                np.full((180, 320, 3), 10 + n * 8, dtype=np.uint8), format="bgr24"
+            )
+            container.mux(stream.encode(picture))
+        container.mux(stream.encode(None))
+
+    out = frames.sample_video(path, n=4)
+
+    assert 0 < len(out) <= 4
+    assert all(frame.shape == (180, 320, 3) for frame in out)
+
+
+def test_sample_video_of_a_file_that_is_not_a_video_is_empty(tmp_path):
+    pytest.importorskip("av")
+    path = tmp_path / "clip.mp4"
+    path.write_bytes(b"not a video")
+
+    assert frames.sample_video(path) == []
+
+
 def test_add_source_trims_with_fewer_frames_than_the_sample(tmp_path, monkeypatch):
     monkeypatch.setattr(frames, "TRIM_SAMPLE", 40)
     incoming = iter([(0.0, _bordered_video_frame(90))])
@@ -201,10 +256,11 @@ def test_main_trims_container_videos_only(tmp_path, monkeypatch):
     calls = []
 
     def recorder(root, name, kind, made, **kwargs):
-        calls.append((kind, kwargs.get("trim")))
+        calls.append((kind, kwargs.get("trim"), kwargs.get("sample")))
         return {"seen": 0, "kept": 0, "duplicates": 0}
 
     monkeypatch.setattr(frames, "iter_video", lambda path, **kw: iter([]))
+    monkeypatch.setattr(frames, "sample_video", lambda path, **kw: ["sampled"])
     monkeypatch.setattr(frames, "add_source", recorder)
     video = tmp_path / "clip.mp4"
     video.write_bytes(b"video")
@@ -215,4 +271,4 @@ def test_main_trims_container_videos_only(tmp_path, monkeypatch):
 
     assert frames.main(["--video", str(video), "--root", str(root)]) == 0
     assert frames.main(["--session", str(session), "--root", str(root)]) == 0
-    assert calls == [("video", True), ("session", False)]
+    assert calls == [("video", True, ["sampled"]), ("session", False, None)]
