@@ -53,6 +53,8 @@ uv tool install "brawlfarm[play-gpu]" # the same, plus onnxruntime on CUDA for t
 uvx brawlfarm                         # run it once without installing it
 ```
 
+The `play-gpu` extra downloads NVIDIA's CUDA and cuDNN runtime wheels (well over a gigabyte) and needs only the NVIDIA display driver on the machine. Nothing uses it yet; the detector that does arrives in a later release. One known catch: `onnxruntime` (which the text reader needs) and `onnxruntime-gpu` install into the same folder, and which one wins depends on install order. To check, run `python -c "import onnxruntime as o; print(o.get_available_providers())"` in the environment; if `CUDAExecutionProvider` is missing, run `uv pip install --reinstall-package onnxruntime-gpu onnxruntime-gpu` there. The GPU package also carries the CPU provider, so the text reader keeps working.
+
 The commands below assume the checkout and say `uv run brawlfarm`; with a tool install the command is just `brawlfarm`. `docs/setup.md` is the step by step walkthrough and `docs/release.md` is how a release ships.
 
 ## Setup

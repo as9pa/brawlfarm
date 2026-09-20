@@ -158,14 +158,14 @@ desktop = ["pywebview>=5.3", "pystray>=0.19", "pillow>=10"]
 # The play extras: PyAV decodes the scrcpy stream; onnxruntime-gpu runs the detector on CUDA.
 # Keep each list identical to its dependency group below.
 play = ["av>=14"]
-play-gpu = ["av>=14", "onnxruntime-gpu>=1.20"]
+play-gpu = ["av>=14", "onnxruntime-gpu[cuda,cudnn]>=1.21"]
 
 [dependency-groups]
 # av is in dev as well so the decoder tests run in CI; the tests skip when it is absent.
 dev = ["pytest>=8.3", "pytest-asyncio>=0.24", "ruff>=0.12", "httpx>=0.27", "av>=14"]
 desktop = ["pywebview>=5.3", "pystray>=0.19", "pillow>=10"]
 play = ["av>=14"]
-play-gpu = ["av>=14", "onnxruntime-gpu>=1.20"]
+play-gpu = ["av>=14", "onnxruntime-gpu[cuda,cudnn]>=1.21"]
 ```
 
       Then run `uv sync` (installs av into the worktree venv) and `uv lock` if it changed.
