@@ -168,7 +168,8 @@ def main(argv: list[str] | None = None) -> int:
 
     print(f"loading {checkpoint}")
     model = RFDETRNano(pretrain_weights=str(checkpoint))
-    onnx_file = exported_onnx(run, model.export(output_dir=str(run)))
+    # verbose=False: the default prints the whole ONNX graph over the run's own output.
+    onnx_file = exported_onnx(run, model.export(output_dir=str(run), verbose=False))
     if onnx_file is None:
         print(f"the export left no single ONNX file in {run}")
         return 1

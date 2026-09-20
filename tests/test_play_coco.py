@@ -144,6 +144,28 @@ def test_from_labelstudio_reads_predictions_only_with_the_flag():
     assert from_predictions["frames/a/a-000001.jpg"][0]["class"] == "close_x"
 
 
+def test_from_labelstudio_keeps_a_frame_with_no_prediction_as_a_negative():
+    task = _task("frames/a/a-000001.jpg", [])
+    task["predictions"] = []
+
+    assert coco.from_labelstudio([task], use_predictions=True) == {"frames/a/a-000001.jpg": []}
+    del task["predictions"]
+    assert coco.from_labelstudio([task], use_predictions=True) == {"frames/a/a-000001.jpg": []}
+
+
+def test_from_labelstudio_skips_a_task_nobody_has_annotated():
+    task = _task("frames/a/a-000001.jpg", [])
+    task["annotations"] = []
+
+    assert coco.from_labelstudio([task]) == {}
+
+
+def test_from_labelstudio_keeps_an_annotation_with_an_empty_result_as_a_negative():
+    assert coco.from_labelstudio([_task("frames/a/a-000001.jpg", [])]) == {
+        "frames/a/a-000001.jpg": []
+    }
+
+
 def test_from_labelstudio_refuses_an_unknown_class():
     task = _task("frames/a/a-000001.jpg", [("brawler", 25, 25, 10, 10)])
 

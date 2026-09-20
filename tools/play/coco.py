@@ -91,10 +91,17 @@ def _file_of(task: dict) -> str:
 
 
 def _result_of(task: dict, *, use_predictions: bool) -> list[dict] | None:
-    """The result list to read, or None when the task has nothing to take."""
+    """The result list to read, or None when the task has nothing to take.
+
+    A frame the templates drafted nothing on is a frame with no control on it, which is exactly
+    the negative the detector has to learn from, so in predictions mode a missing prediction is
+    an empty result and never a reason to drop the frame. In annotation mode a task nobody has
+    opened is unlabelled and is dropped, while an annotation with an empty result is a labeller
+    saying there is nothing here, and is kept.
+    """
     if use_predictions:
         predictions = task.get("predictions") or []
-        return predictions[0].get("result", []) if predictions else None
+        return predictions[0].get("result", []) if predictions else []
     for annotation in task.get("annotations") or []:
         # A cancelled annotation is the labeller saying the frame is unusable, not an empty one.
         if not annotation.get("was_cancelled"):
