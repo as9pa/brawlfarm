@@ -567,7 +567,13 @@ def test_start_pushes_forwards_spawns_and_yields_frames(fakes) -> None:
         assert calls[0] == ("push", play.SERVER_JAR, stream.REMOTE_JAR)
         assert calls[1][0] == "forward" and calls[1][2] == "localabstract:scrcpy"
         assert calls[2][0] == "shell"
-        assert calls[2][1][:4] == ["app_process", "/", "com.genymobile.scrcpy.Server", play.SERVER_VERSION]
+        assert calls[2][1][:5] == [
+            f"CLASSPATH={stream.REMOTE_JAR}",
+            "app_process",
+            "/",
+            "com.genymobile.scrcpy.Server",
+            play.SERVER_VERSION,
+        ]
         assert "control=false" in calls[2][1] and "raw_stream=true" in calls[2][1]
         assert _wait(lambda: s.frames > 0)
         frame, age = s.latest()
@@ -739,7 +745,14 @@ class Stream:
         self.port = _free_port()
         adb.forward(self.port, REMOTE_SOCKET)
         self._proc = self._spawn(
-            ["app_process", "/", "com.genymobile.scrcpy.Server", play.SERVER_VERSION, *SERVER_ARGS]
+            [
+                f"CLASSPATH={REMOTE_JAR}",
+                "app_process",
+                "/",
+                "com.genymobile.scrcpy.Server",
+                play.SERVER_VERSION,
+                *SERVER_ARGS,
+            ]
         )
         # Drain the server's output so its pipe never fills and stalls it; keep the tail.
         self._drain = threading.Thread(target=self._drain_output, name="play-stream-log", daemon=True)
