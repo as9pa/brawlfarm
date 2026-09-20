@@ -51,6 +51,7 @@ class MatchRecorder:
         self._disabled_for: Path | None = None
         self._numbered_for: Path | None = None
         self._next = 1
+        self._await_stop = False
         self._said_missing = False
 
     @property
@@ -59,6 +60,14 @@ class MatchRecorder:
 
     def observe(self, state: State, session: Path | None) -> None:
         if self._stream is not None:
+            error = getattr(self._stream, "error", None)
+            if error is not None:
+                # The stream died inside the match: release it now and wait for the next match,
+                # because restarting here would cut this one into pieces.
+                log.warning("match recording ended early: %s", error)
+                self._stop()
+                self._await_stop = True
+                return
             over = (
                 session is None
                 or session != self._session
@@ -68,6 +77,8 @@ class MatchRecorder:
             if over:
                 self._stop()
             return
+        if state in STOP_STATES or session is None:
+            self._await_stop = False
         if state != State.IN_MATCH or session is None:
             return
         if not play.available():
@@ -75,19 +86,19 @@ class MatchRecorder:
                 log.info("match recording off: the play extra is not installed")
                 self._said_missing = True
             return
-        if self._disabled_for == session:
+        if self._disabled_for == session or self._await_stop:
             return
         self._start(session)
 
     def _start(self, session: Path) -> None:
-        # The first match of a session numbers itself off the folder, so a resumed
-        # session never overwrites; after that the counter carries, because the stream
-        # owns the file and this side does not wait for it to appear.
-        if self._numbered_for != session:
-            self._numbered_for = session
-            self._next = len(list(session.glob("match-*.h264"))) + 1
-        path = session / f"match-{self._next}.h264"
         try:
+            # The first match of a session numbers itself off the folder, so a resumed
+            # session never overwrites; after that the counter carries, because the stream
+            # owns the file and this side does not wait for it to appear.
+            if self._numbered_for != session:
+                self._numbered_for = session
+                self._next = len(list(session.glob("match-*.h264"))) + 1
+            path = session / f"match-{self._next}.h264"
             stream = self._factory(path)
             stream.start()
         except Exception as exc:  # observation must never stop the loop

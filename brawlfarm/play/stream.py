@@ -79,6 +79,7 @@ class Stream:
         self._drain: threading.Thread | None = None
         self._server_lines: deque[str] = deque(maxlen=_SERVER_LINES)
         self._record_fh = None
+        self._forwarded = False
         self._stopping = False
         self._stopped = False
         self.port: int | None = None
@@ -90,32 +91,43 @@ class Stream:
 
     def start(self) -> None:
         """Push, forward, spawn, wait for the first byte, then decode in the background.
-        Raises StreamError (after cleaning up) when no byte arrives before the deadline."""
+        Raises StreamError (after cleaning up) when the start does not finish: no byte before
+        the deadline, or anything else failing once the forward is in place."""
         adb.push(play.SERVER_JAR, REMOTE_JAR)
         self.port = _free_port()
         adb.forward(self.port, REMOTE_SOCKET)
-        # app_process finds the server class through CLASSPATH; without it the program aborts.
-        self._proc = self._spawn(
-            [
-                f"CLASSPATH={REMOTE_JAR}",
-                "app_process",
-                "/",
-                "com.genymobile.scrcpy.Server",
-                play.SERVER_VERSION,
-                *SERVER_ARGS,
-            ]
-        )
-        # Drain the server's output so its pipe never fills and stalls it; keep the tail.
-        self._drain = threading.Thread(
-            target=self._drain_output, name="play-stream-log", daemon=True
-        )
-        self._drain.start()
-        self._sock = self._wait_for_bytes()
-        if self._record_path is not None:
-            self._record_fh = self._record_path.open("wb")
-        self.started_at = self._clock()
-        self._thread = threading.Thread(target=self._pump, name="play-stream", daemon=True)
-        self._thread.start()
+        self._forwarded = True
+        # From here on the forward outlives a half-started stream unless start() tears it down:
+        # the caller drops the Stream on failure and never reaches stop().
+        try:
+            # app_process finds the server class through CLASSPATH; without it the program aborts.
+            self._proc = self._spawn(
+                [
+                    f"CLASSPATH={REMOTE_JAR}",
+                    "app_process",
+                    "/",
+                    "com.genymobile.scrcpy.Server",
+                    play.SERVER_VERSION,
+                    *SERVER_ARGS,
+                ]
+            )
+            # Drain the server's output so its pipe never fills and stalls it; keep the tail.
+            self._drain = threading.Thread(
+                target=self._drain_output, name="play-stream-log", daemon=True
+            )
+            self._drain.start()
+            self._sock = self._wait_for_bytes()
+            if self._record_path is not None:
+                self._record_fh = self._record_path.open("wb")
+            self.started_at = self._clock()
+            self._thread = threading.Thread(target=self._pump, name="play-stream", daemon=True)
+            self._thread.start()
+        except StreamError:
+            self._teardown()
+            raise
+        except Exception as exc:  # one type for the caller to catch
+            self._teardown()
+            raise StreamError(f"stream start failed: {exc}") from exc
 
     def _wait_for_bytes(self) -> Any:
         """adb accepts the forwarded connection before the server listens and closes it without
@@ -192,7 +204,8 @@ class Stream:
             except Exception:
                 pass
             self._proc = None
-        if self.port is not None:
+        if self.port is not None and self._forwarded:
+            self._forwarded = False  # a second teardown must not remove it twice
             try:
                 adb.forward_remove(self.port)
             except adb.AdbError as exc:

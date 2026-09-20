@@ -172,3 +172,27 @@ def test_a_server_that_never_sends_is_an_error_within_the_deadline(fakes, monkey
         s.start()
     assert "Device: fake" in str(err.value), "the server's output tail is in the error"
     s.stop()
+
+
+def test_a_spawn_that_fails_removes_the_forward(fakes) -> None:
+    calls, proc = fakes
+
+    def boom(args):
+        raise OSError("boom")
+
+    s = stream.Stream(connect=lambda port: FakeSocket(b""), spawn=boom)
+    with pytest.raises(stream.StreamError) as err:
+        s.start()
+    assert isinstance(err.value.__cause__, OSError)
+    assert calls.count(("forward_remove", s.port)) == 1
+
+
+def test_a_record_path_that_cannot_be_opened_tears_the_start_down(fakes, tmp_path: Path) -> None:
+    calls, proc = fakes
+    data = CLIP.read_bytes()
+    out = tmp_path / "gone" / "match-1.h264"  # the folder does not exist
+    s = stream.Stream(record=out, connect=lambda port: FakeSocket(data))
+    with pytest.raises(stream.StreamError):
+        s.start()
+    assert proc.killed
+    assert calls.count(("forward_remove", s.port)) == 1

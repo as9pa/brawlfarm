@@ -4,6 +4,7 @@ stream failure switches match recording off for the rest of the session."""
 
 from __future__ import annotations
 
+import logging
 from pathlib import Path
 
 import pytest
@@ -18,6 +19,7 @@ class FakeStream:
         self.fail = fail
         self.started = False
         self.stopped = False
+        self.error: str | None = None
 
     def start(self) -> None:
         if self.fail:
@@ -114,3 +116,31 @@ def test_close_stops_an_open_recording(rec, tmp_path: Path) -> None:
     r.observe(State.IN_MATCH, tmp_path)
     r.close()
     assert made[0].stopped and r.recording is None
+
+
+def test_a_session_folder_that_cannot_be_listed_disables_recording(
+    rec, tmp_path: Path, monkeypatch
+) -> None:
+    r, made, now = rec
+
+    def boom(self, pattern):
+        raise OSError("session folder gone")
+
+    monkeypatch.setattr(Path, "glob", boom)
+    r.observe(State.IN_MATCH, tmp_path)
+    assert made == [] and r.recording is None
+
+
+def test_a_stream_that_dies_mid_match_is_released_and_logged(rec, tmp_path: Path, caplog) -> None:
+    r, made, now = rec
+    r.observe(State.IN_MATCH, tmp_path)
+    made[0].error = "stream ended"
+    with caplog.at_level(logging.WARNING, logger="brawlfarm.play.matchrec"):
+        r.observe(State.UNKNOWN, tmp_path)
+    assert made[0].stopped and r.recording is None
+    assert sum("ended early" in message for message in caplog.messages) == 1
+    r.observe(State.IN_MATCH, tmp_path)
+    assert len(made) == 1, "the same match never starts a second stream"
+    r.observe(State.RESULTS, tmp_path)
+    r.observe(State.IN_MATCH, tmp_path)
+    assert len(made) == 2, "the next match records again"
