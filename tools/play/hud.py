@@ -37,7 +37,9 @@ HOUGH_MIN_DIST = 0.05  # share of the box height
 HOUGH_EDGE = 110  # param1
 HOUGH_VOTES = 38  # param2
 INNER = 0.62  # the colour is read inside this share of the radius
-BASE_FREE = (1.3, 2.6, 26)  # knob radii from, to, and param2, when the base radius is unknown
+# The band starts above the knob's own rim, which Hough otherwise clamps up into it and calls
+# a base. The measured base is about 2.3 knob radii.
+BASE_FREE = (1.7, 2.8, 26)  # knob radii from, to, and param2, when the base radius is unknown
 BASE_FIXED = (0.95, 1.05, 22)  # shares of the known radius, and param2
 # Two radii, not one: a ring that holds the knob still reaches its own radius past it again.
 BASE_MARGIN = 8  # px of slack on each side of the base search window
@@ -202,20 +204,22 @@ def base(
     the radius over a whole source passes it in and only the centre is searched for.
 
     Either way the crop reaches BASE_MARGIN past twice the top of the radius band, so a ring
-    the guard would accept is always whole inside it.
+    the guard would accept is always whole inside it, and stops at the content box, because a
+    black bar inside the crop is a hard edge that Hough reads as an arc of its own.
     """
     if radius is None:
         r_lo, r_hi, votes = BASE_FREE[0] * knob.r, BASE_FREE[1] * knob.r, BASE_FREE[2]
     else:
         r_lo, r_hi, votes = BASE_FIXED[0] * radius, BASE_FIXED[1] * radius, BASE_FIXED[2]
     reach = 2.0 * r_hi + BASE_MARGIN
+    bx, by, bw, bh = box
     window = (
-        int(knob.x - reach),
-        int(knob.y - reach),
-        int(knob.x + reach) + 1,
-        int(knob.y + reach) + 1,
+        max(bx, int(knob.x - reach)),
+        max(by, int(knob.y - reach)),
+        min(bx + bw, int(knob.x + reach) + 1),
+        min(by + bh, int(knob.y + reach) + 1),
     )
-    min_dist = max(1, int(HOUGH_MIN_DIST * box[3]))
+    min_dist = max(1, int(HOUGH_MIN_DIST * bh))
     for x, y, r in _circles(frame, window, int(r_lo), int(r_hi), votes, min_dist):
         # the knob is always inside its own base, whatever else the window picked up
         if math.hypot(x - knob.x, y - knob.y) <= r:

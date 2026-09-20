@@ -121,8 +121,18 @@ def test_base_free_and_fixed():
     assert (fixed.cls, fixed.state) == ("base", "ring")
     assert abs(fixed.x - bx) <= 6.0
     assert abs(fixed.y - by) <= 6.0
-    bare = draw_hud(base=None)
-    assert hud.base(bare, BOX, hud.find(bare, BOX)["knob"]) is None
+
+
+def test_base_free_ignores_the_knob_rim():
+    """The free band starts at 1.7 knob radii, above the knob's own rim.
+
+    Hough finds a centre first and only then fits a radius inside the band, so the knob is
+    always a candidate centre and a band that reached down to the rim called it a base.
+    """
+    for at in ((0.12, 0.80), (0.22, 0.62), (0.08, 0.90)):
+        frame = draw_hud(knob=at, base=None)
+        knob = hud.find(frame, BOX)["knob"]
+        assert hud.base(frame, BOX, knob) is None
 
 
 def test_base_finds_a_ring_far_off_centre():
@@ -139,12 +149,29 @@ def test_base_finds_a_ring_far_off_centre():
 
 
 def test_base_window_clips_at_the_frame_edge():
-    """A knob in the corner of the box puts most of the window off the frame, not off a cliff."""
-    frame = draw_hud(knob=None, base=None)
-    corner = hud.Found("knob", float(BOX[0] + 20), float(BOX[1] + BOX[3] - 16), 46.0, "blue")
-    for radius in (None, hud_draw.BASE_R * BOX[3]):
-        got = hud.base(frame, BOX, corner, radius=radius)
+    """A knob in the corner of an unpadded frame puts most of the window off it, not off a cliff."""
+    box = (0, 0, 1600, 900)
+    frame = draw_hud(box=box, knob=None, base=None)
+    corner = hud.Found("knob", 24.0, 876.0, 46.0, "blue")
+    for radius in (None, hud_draw.BASE_R * box[3]):
+        got = hud.base(frame, box, corner, radius=radius)
         assert got is None or got.cls == "base"
+
+
+def test_base_window_stays_inside_the_content_box():
+    """A pillarboxed frame keeps its black bars out of the crop, ring and all.
+
+    A bar edge is a hard line Hough reads as an arc of its own, and a ring drawn out there
+    could sit close enough to a knob near the box edge for the guard to wave it through.
+    """
+    box = (172, 96, 1252, 704)
+    frame = draw_hud(box=box, knob=None, base=None)
+    ring = int(round(hud_draw.BASE_R * box[3]))
+    knob = hud.Found("knob", float(box[0] + 30), box[1] + 0.8 * box[3], 0.065 * box[3], "blue")
+    decoy = (box[0] - 60, int(round(knob.y)))
+    cv2.circle(frame, decoy, ring, (hud_draw.BASE_GRAY,) * 3, hud_draw.RIM, cv2.LINE_AA)
+    assert hud.base(frame, box, knob) is None
+    assert hud.base(frame, box, knob, radius=float(ring)) is None
 
 
 def test_base_rejects_a_circle_that_does_not_hold_the_knob():
