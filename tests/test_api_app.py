@@ -33,6 +33,16 @@ def test_health_reports_version_home_and_instances(api) -> None:
     assert body["uptime_s"] >= 0.0
 
 
+def test_health_says_whether_the_play_extra_is_installed(api, monkeypatch) -> None:
+    from brawlfarm import play
+
+    client, _sup, _home = api
+    monkeypatch.setattr(play, "available", lambda: False)
+    assert client.get("/api/health").json()["play_available"] is False
+    monkeypatch.setattr(play, "available", lambda: True)
+    assert client.get("/api/health").json()["play_available"] is True
+
+
 def test_the_lifespan_runs_one_tick_so_views_exist(api) -> None:
     _client, sup, _home = api
     assert [v.name for v in sup.views()] == ["alpha", "bravo"]

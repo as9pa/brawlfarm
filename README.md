@@ -46,9 +46,11 @@ Windows 11, BlueStacks 5 with Android Debug Bridge enabled, an instance display 
 Clone the repository and `uv sync`, or, once the first release is on PyPI, install it as a tool:
 
 ```
-uv tool install brawlfarm            # a brawlfarm command on your PATH
-uv tool install "brawlfarm[desktop]" # the same, plus --window and the tray icon
-uvx brawlfarm                        # run it once without installing it
+uv tool install brawlfarm             # a brawlfarm command on your PATH
+uv tool install "brawlfarm[desktop]"  # the same, plus --window and the tray icon
+uv tool install "brawlfarm[play]"     # the same, plus the play stream (PyAV)
+uv tool install "brawlfarm[play-gpu]" # the same, plus onnxruntime on CUDA for the detector
+uvx brawlfarm                         # run it once without installing it
 ```
 
 The commands below assume the checkout and say `uv run brawlfarm`; with a tool install the command is just `brawlfarm`. `docs/setup.md` is the step by step walkthrough and `docs/release.md` is how a release ships.
@@ -87,6 +89,8 @@ uv run brawlfarm --window        # a desktop window and a tray icon instead of t
 ```
 
 `--window` needs the optional desktop extras, which `uv sync --group desktop` installs in a checkout and `uv tool install "brawlfarm[desktop]"` installs from PyPI; without them brawlfarm says so and opens the browser as usual. Closing the window only hides it to the tray icon, whose menu has Open panel and Quit.
+
+The play extras add a 30 fps video feed of the instance for the in-match play mode that is being built (spec in docs/superpowers/specs/2026-09-18-play-mode.md). In observe mode, with the recorder on, each match is also saved as `match-N.h264` in the session folder. `uv sync --group play` installs it in a checkout.
 
 Settings live in `%LOCALAPPDATA%\brawlfarm\config.toml` (override the folder with `BRAWLFARM_HOME`). Add one `[[instances]]` table per BlueStacks instance with its `name` and `adb_port`; each instance's files live under `instances/<name>/`. Stopping the process leaves workers running; the next start reattaches to them through their status files.
 

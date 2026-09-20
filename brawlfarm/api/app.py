@@ -24,7 +24,7 @@ from fastapi.staticfiles import StaticFiles
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 import brawlfarm
-from brawlfarm import __version__
+from brawlfarm import __version__, play
 from brawlfarm.api import (
     alerts,
     brawlers,
@@ -169,13 +169,15 @@ def create_app(sup: Supervisor, home: Path) -> FastAPI:
     @app.get("/api/health")
     async def health(request: Request) -> dict:
         """The shell's probe: which version is running, where its data lives, how many
-        instances it manages and how long this process has been up."""
+        instances it manages, how long this process has been up and whether the play
+        extra is installed."""
         state = request.app.state
         return {
             "version": __version__,
             "home": str(state.home),
             "instances": len(state.sup.settings.instances),
             "uptime_s": round(time.monotonic() - state.started_at, 3),
+            "play_available": play.available(),
         }
 
     # --- routers ---------------------------------------------------------------------

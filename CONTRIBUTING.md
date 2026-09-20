@@ -14,6 +14,7 @@ A change that weakens any of these is not merged, regardless of how good the res
 - One worker per instance.
 - Kill only by the PID recorded in that instance's `status.json`, never by process name.
 - No user string reaches a shell or a path. No `shell=True`, no string interpolation into a command line or a filesystem path.
+- The play stream is read-only. The scrcpy server runs with control off, and nothing under `brawlfarm/play/` may import a tap or swipe.
 
 ## Calibration changes
 
