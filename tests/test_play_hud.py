@@ -125,16 +125,41 @@ def test_base_free_and_fixed():
     assert hud.base(bare, BOX, hud.find(bare, BOX)["knob"]) is None
 
 
-def test_base_rejects_a_circle_that_does_not_hold_the_knob():
-    frame = draw_hud(base=None)
+def test_base_finds_a_ring_far_off_centre():
+    """The knob rides out to the rim of its base, so a window one radius wide cuts the ring."""
+    ring = hud_draw.BASE_R * BOX[3]
+    bx, by = _at(BOX, (0.10, 0.78))
+    frame = draw_hud(knob=((bx + 0.9 * ring - BOX[0]) / BOX[2], 0.78))
     knob = hud.find(frame, BOX)["knob"]
+    for radius in (None, ring):
+        got = hud.base(frame, BOX, knob, radius=radius)
+        assert got is not None
+        assert abs(got.x - bx) <= 6.0
+        assert abs(got.y - by) <= 6.0
+
+
+def test_base_window_clips_at_the_frame_edge():
+    """A knob in the corner of the box puts most of the window off the frame, not off a cliff."""
+    frame = draw_hud(knob=None, base=None)
+    corner = hud.Found("knob", float(BOX[0] + 20), float(BOX[1] + BOX[3] - 16), 46.0, "blue")
+    for radius in (None, hud_draw.BASE_R * BOX[3]):
+        got = hud.base(frame, BOX, corner, radius=radius)
+        assert got is None or got.cls == "base"
+
+
+def test_base_rejects_a_circle_that_does_not_hold_the_knob():
+    # No knob disc is drawn, and the knob is handed in instead: a real knob rim is a circle
+    # centred on the knob, which the guard has no reason to reject, and it would hide the two
+    # decoys this test is about.
+    frame = draw_hud(knob=None, base=None)
+    knob = hud.Found("knob", *_at(BOX, (0.12, 0.80)), 0.065 * BOX[3], "blue")
     ring = int(round(hud_draw.BASE_R * BOX[3]))
     far = (int(round(knob.x)) + 2 * ring, int(round(knob.y)))
     cv2.circle(frame, far, ring, (hud_draw.BASE_GRAY,) * 3, hud_draw.RIM, cv2.LINE_AA)
     assert hud.base(frame, BOX, knob) is None
-    # A ring that far out never reaches the accumulator at all. A small one whose centre does
-    # sit inside the search window is the case the guard itself has to turn away.
+    # Both decoys sit inside the two-radii window, so the guard is what turns them away: the
+    # far one by a whole radius, the small one because it is too small to hold the knob.
     small = int(round(hud.BASE_FREE[0] * knob.r)) + 4
-    near = (int(round(knob.x)) + int(1.5 * small), int(round(knob.y)))
+    near = (int(round(knob.x)) - int(1.5 * small), int(round(knob.y)))
     cv2.circle(frame, near, small, (hud_draw.BASE_GRAY,) * 3, hud_draw.RIM, cv2.LINE_AA)
     assert hud.base(frame, BOX, knob) is None

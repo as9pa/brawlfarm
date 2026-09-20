@@ -39,6 +39,8 @@ HOUGH_VOTES = 38  # param2
 INNER = 0.62  # the colour is read inside this share of the radius
 BASE_FREE = (1.3, 2.6, 26)  # knob radii from, to, and param2, when the base radius is unknown
 BASE_FIXED = (0.95, 1.05, 22)  # shares of the known radius, and param2
+# Two radii, not one: a ring that holds the knob still reaches its own radius past it again.
+BASE_MARGIN = 8  # px of slack on each side of the base search window
 
 
 @dataclass(frozen=True)
@@ -198,13 +200,15 @@ def base(
     search finds one in most knob frames but its radius spreads from 0.094 to 0.193 of the box
     height, which is enough to turn a move vector the wrong way; so a caller that has learned
     the radius over a whole source passes it in and only the centre is searched for.
+
+    Either way the crop reaches BASE_MARGIN past twice the top of the radius band, so a ring
+    the guard would accept is always whole inside it.
     """
     if radius is None:
         r_lo, r_hi, votes = BASE_FREE[0] * knob.r, BASE_FREE[1] * knob.r, BASE_FREE[2]
-        reach = BASE_FREE[1] * knob.r
     else:
         r_lo, r_hi, votes = BASE_FIXED[0] * radius, BASE_FIXED[1] * radius, BASE_FIXED[2]
-        reach = radius
+    reach = 2.0 * r_hi + BASE_MARGIN
     window = (
         int(knob.x - reach),
         int(knob.y - reach),
