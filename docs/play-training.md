@@ -38,7 +38,7 @@ If you have run brawlfarm with the recorder on, you already have sessions under
 at full size (1600 x 900) are usable; a session recorded at half size has nothing to give here.
 
 ```
-uv run python tools/play/frames.py --session %LOCALAPPDATA%\brawlfarm\calibration\recordings\Pie64\20260918-101112
+uv run python tools/play/frames.py --session "$env:LOCALAPPDATA\brawlfarm\calibration\recordings\Pie64\20260918-101112"
 ```
 
 A session's `match-N.h264` files are their own sources, worth extracting separately because
@@ -163,7 +163,7 @@ on first run, including torch from the CUDA 12.8 index, about 3 GB. It never tou
 project's own `pyproject.toml` or lock file.
 
 ```
-uv run tools/play/train.py --epochs 8
+uv run tools/play/train.py
 ```
 
 `--root` picks the dataset root, `--epochs` the number of passes over the training set (an
@@ -176,11 +176,12 @@ about 50 seconds; a real run takes much longer. Output goes to `runs/<YYYYmmdd-H
 ## Step 7: export
 
 ```
-uv run tools/play/export.py --run runs/20260918-101112
+uv run tools/play/export.py
 ```
 
-`--root` picks the dataset root, `--run` the training run to export (a folder path, or a name
-under `runs/`; without it the most recent run is used). Export converts the trained model to
+`--root` picks the dataset root, `--run` the training run to export (a folder path, or just the
+folder's name under `runs/`, for example `--run 20260918-101112`; without it the most recent run is
+used). Export converts the trained model to
 **ONNX**, a portable model file format, then runs the ONNX model over the validation images and
 checks its output against the training library's own output on the same images, so a broken
 conversion is caught here rather than later. On the same RTX 4080 SUPER, export took about 25
