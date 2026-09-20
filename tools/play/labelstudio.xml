@@ -1,0 +1,20 @@
+<View>
+  <Image name="image" value="$image" zoom="true" zoomControl="true"/>
+  <RectangleLabels name="label" toName="image">
+    <Label value="self"/>
+    <Label value="enemy"/>
+    <Label value="teammate"/>
+    <Label value="power_cube"/>
+    <Label value="box"/>
+    <Label value="bush"/>
+    <Label value="showdown_card"/>
+    <Label value="skull_star"/>
+    <Label value="team_up_panel"/>
+    <Label value="event_tab"/>
+    <Label value="play_button"/>
+    <Label value="play_again_button"/>
+    <Label value="proceed_button"/>
+    <Label value="exit_button"/>
+    <Label value="close_x"/>
+  </RectangleLabels>
+</View>
