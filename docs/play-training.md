@@ -72,7 +72,65 @@ video, in about 8 minutes. Some creators bake black borders into their video; th
 trimmed per source before frames are cut, and the trim is recorded in `index.jsonl` so it can
 be reversed.
 
-## Step 3: pre-labels
+By default the ingest also drops any frame where the mobile touch controls are not visible: a
+frame with no HUD on it carries no action to learn from, so it is not worth the disk space. The
+per video line reports how many frames were dropped this way, for example `seen 1200, kept 950,
+duplicates 200, no HUD 50`. If a video gives up nothing at all, you will see
+`<source>: no frame showed a mobile HUD; check that it is mobile Showdown play with a clean HUD`,
+which almost always means the footage is not mobile gameplay, or something is covering the
+controls for the whole video. Pass `--keep-no-hud` to keep every frame anyway, which is mostly
+useful for checking the filter itself rather than for building a training set.
+
+## Step 3: read the actions
+
+Once a YouTube source is in the index, `actions.py` reads what the player was doing on every
+frame that shows the HUD: where the joystick was pushed, where the shot was aimed, and what
+state each button was in.
+
+```
+uv run python -m tools.play.actions
+```
+
+`--source` labels only the named source, and can be repeated for more than one; without it,
+every YouTube source already in the index is labelled. `--root` picks the dataset root. For each
+source this writes `frames/<source>/actions.jsonl`, one line per frame, and
+`frames/<source>/actions.meta.json` beside it, recording what the source was learned to look
+like.
+
+Each line of `actions.jsonl` has:
+
+- `file`: the frame's path.
+- `t`: the frame's timestamp, when one is known.
+- `hud`: whether the mobile HUD was visible on this frame.
+- `move`: the joystick's push, as an `(x, y)` pair from -1 to 1 in each direction, or `null`
+  when it could not be read. `x` grows to the right, `y` grows downward.
+- `aim`: how far the attack stick has been dragged from its resting position, the same shape as
+  `move`.
+- `aiming`: whether that drag is large enough to count as a deliberate aim rather than noise
+  around the resting position.
+- `super`, `gadget`, `hyper`: the state of each button, or `null` when the button is not on
+  screen at all. States are colour names rather than "on" or "off", because what a colour means
+  for a given brawler is a question for whatever later reads this file, not for the HUD reader:
+  `super` is `blue`, `gold`, `white` or `dark`; `gadget` is `green` or `grey`; `hyper` is
+  `purple`.
+
+There is no plain "attack was tapped" flag. Frames are only 0.5 seconds apart, and a tap that
+lands and releases in between is never caught in a still picture, so aiming is the only signal
+this reader has for the attack button.
+
+A channel can be rejected for a whole source, most often because a creator has put their own
+overlay over the joystick or the attack stick; when that happens `move` or `aim` is `null` on
+every row for that source, the reason is printed, and it is recorded in `actions.meta.json`
+rather than filling the file with guesses. Even on a clean source, individual frames can still
+give a `null` move: the joystick's push is read from a small dot at the centre of its base, and
+when the stick is resting near the middle the knob sitting on top of it hides that dot. That is
+exactly the case where the move label matters least, but it is worth knowing that a string of
+`null` move values on their own does not mean the reader has failed.
+
+Nothing reads `actions.jsonl` yet. It exists for the cloned policy proposed in release 1.3.0,
+which trains on it; this step only produces the file.
+
+## Step 4: pre-labels
 
 The farm's own template matcher already knows how to find a handful of screens, so it can draw
 a first draft of some boxes for you instead of you drawing every one by hand.
@@ -88,7 +146,7 @@ inside a match (`self`, `enemy`, `teammate`, `power_cube`, `box`, `bush`) and `s
 `team_up_panel`, `event_tab` have no template behind them and are labelled by hand. Pre-labelling
 2815 frames took about 9.5 minutes.
 
-## Step 4: labelling in Label Studio
+## Step 5: labelling in Label Studio
 
 [Label Studio](https://labelstud.io/) is the tool you draw boxes in. Version 1.23.0 is what
 this kit was checked against, on Python 3.12 (Python 3.13 has not been tried). Start it with
@@ -135,7 +193,7 @@ Labelling rules:
 - Never label names or tags. A player's name or club tag showing in a screenshot is not a
   class this kit tracks, and it should never be typed into a label.
 
-## Step 5: export and build the COCO set
+## Step 6: export and build the COCO set
 
 Export the project as **JSON**, not JSON-MIN and not COCO. Label Studio's own COCO export does
 not carry the split rule this kit needs, so `coco.py` does the conversion:
@@ -156,7 +214,7 @@ split. With fewer than three sources there are not enough videos to split at all
 writes the same frames into all three splits and marks the layout as a smoke set; every later
 tool in this kit warns when it sees that mark.
 
-## Step 6: train
+## Step 7: train
 
 `train.py` is a self-contained script: `uv run tools/play/train.py` builds its own environment
 on first run, including torch from the CUDA 12.8 index, about 3 GB. It never touches the
@@ -173,7 +231,7 @@ more than the 8 used for a smoke test), `--batch` the number of images per train
 lets a small GPU behave like a bigger one. On an RTX 4080 SUPER, 8 epochs on a tiny set took
 about 50 seconds; a real run takes much longer. Output goes to `runs/<YYYYmmdd-HHMMSS>/`.
 
-## Step 7: export
+## Step 8: export
 
 ```
 uv run tools/play/export.py
@@ -194,7 +252,7 @@ at or above 0.98 on the validation images. A class with no validation images get
 most cautious threshold available. Thresholds and the run they came from are written to
 `play.json` next to `play.onnx`.
 
-## Step 8: score
+## Step 9: score
 
 ```
 uv run python tools/play/score.py
