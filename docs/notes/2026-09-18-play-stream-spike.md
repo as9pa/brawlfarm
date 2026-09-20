@@ -15,7 +15,10 @@ the same connection and sends nothing in. The stream replaces `adb screencap`
 inside a match only. Outside a match screencap stays, because the 13 templates
 were validated on screencap frames (H.264 compression shifts pixels, and
 `close_x` has a 0.006 margin) and because the encoder costs BlueStacks about 60
-percent of one core for as long as it runs.
+percent of one core for as long as it runs. Pull request 1's live pass measures
+the template score drift between a screencap and a stream frame of the same
+menu; a later pull request may switch the whole loop to the stream if the drift
+is small.
 
 ## What the stream costs
 
