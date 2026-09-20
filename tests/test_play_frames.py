@@ -126,3 +126,27 @@ def test_main_refuses_an_indexed_source_unless_again(tmp_path, monkeypatch):
 
     index = dataset.Index(root)
     assert index.has_source("20260918-101112")
+
+
+def test_add_source_numbers_past_a_gap_in_the_existing_frames(tmp_path):
+    folder = tmp_path / "frames" / "clip"
+    folder.mkdir(parents=True)
+    _write_jpg(folder / "clip-000000.jpg", _gradient())
+    _write_jpg(folder / "clip-000002.jpg", _checkerboard())
+    before = {p.name: p.read_bytes() for p in folder.glob("*.jpg")}
+
+    counts = frames.add_source(tmp_path, "clip", "video", [(0.0, _gradient())], score=_half_score)
+
+    assert counts == {"seen": 1, "kept": 1, "duplicates": 0}
+    assert (folder / "clip-000003.jpg").exists()
+    assert {p.name: p.read_bytes() for p in folder.glob("*.jpg") if p.name in before} == before
+    row = json.loads((tmp_path / "index.jsonl").read_text(encoding="utf-8").splitlines()[0])
+    assert row["file"] == "frames/clip/clip-000003.jpg"
+
+
+def test_video_time_falls_back_to_the_average_rate():
+    class _Untimed:
+        time = None
+
+    assert frames._video_time(_Untimed(), 3, 10) == pytest.approx(0.3)
+    assert frames._video_time(_Untimed(), 3, None) is None

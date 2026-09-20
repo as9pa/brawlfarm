@@ -170,3 +170,9 @@ def test_save_frame_writes_a_relative_jpeg_path(tmp_path):
     written = tmp_path / "frames" / "clip" / "clip-000012.jpg"
     decoded = cv2.imdecode(np.frombuffer(written.read_bytes(), np.uint8), cv2.IMREAD_COLOR)
     assert decoded.shape == (dataset.FRAME_H, dataset.FRAME_W, 3)
+
+
+def test_save_frame_refuses_to_overwrite(tmp_path):
+    dataset.save_frame(tmp_path, "clip", 3, _gradient())
+    with pytest.raises(FileExistsError):
+        dataset.save_frame(tmp_path, "clip", 3, _gradient())

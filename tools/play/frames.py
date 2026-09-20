@@ -71,16 +71,37 @@ def iter_h264(
     yield from emit(decoder.flush())
 
 
+def _video_time(frame, index: int, rate) -> float | None:
+    """A container frame's time in seconds, or None when there is no way to place it.
+
+    Most frames carry a presentation time. A stream that does not falls back to the frame
+    index over the stream's average rate; treating an untimed frame as t = 0 instead would
+    drop every one of them after the first sample.
+    """
+    if frame.time is not None:
+        return float(frame.time)
+    if rate:
+        return index / float(rate)
+    return None
+
+
 def iter_video(path: Path, fps_out: float = FPS_OUT) -> Iterator[tuple[float, np.ndarray]]:
     """Sample a container video (mp4, mkv, webm) by its own presentation times."""
     import av  # only the dataset and play groups have PyAV
 
     with av.open(str(path)) as container:
+        stream = container.streams.video[0]
         take = _sampler(fps_out)
-        for frame in container.decode(video=0):
-            t = 0.0 if frame.time is None else float(frame.time)
+        untimed = 0
+        for index, frame in enumerate(container.decode(stream)):
+            t = _video_time(frame, index, stream.average_rate)
+            if t is None:
+                untimed += 1
+                continue
             if take(t):
                 yield t, frame.to_ndarray(format="bgr24")
+        if untimed:
+            print(f"{Path(path).name}: skipped {untimed} frames with no time and no rate")
 
 
 def iter_session(folder: Path) -> Iterator[tuple[float | None, np.ndarray]]:
@@ -98,6 +119,18 @@ def iter_session(folder: Path) -> Iterator[tuple[float | None, np.ndarray]]:
         print(f"{folder.name}: skipped {skipped} frames that are not 1600 x 900")
 
 
+def _next_index(root: Path, source: str) -> int:
+    """One past the highest number this source has already written, so --again adds frames
+    instead of overwriting them. A count would not do: delete one frame in the middle and the
+    count lands on a name the index still points at."""
+    highest = -1
+    for path in (root / "frames" / source).glob(f"{source}-*.jpg"):
+        suffix = path.stem[len(source) + 1 :]
+        if suffix.isdigit():
+            highest = max(highest, int(suffix))
+    return highest + 1
+
+
 def add_source(
     root: Path,
     source: str,
@@ -111,9 +144,7 @@ def add_source(
     root = Path(root)
     index = dataset.Index(root)
     deduper = dataset.Deduper(seen=index.hashes())
-    # Numbering continues past whatever this source already wrote, so --again adds frames
-    # instead of overwriting the ones the index already points at.
-    n = len(list((root / "frames" / source).glob("*.jpg")))
+    n = _next_index(root, source)
     counts = {"seen": 0, "kept": 0, "duplicates": 0}
     for t, frame in frames:
         counts["seen"] += 1

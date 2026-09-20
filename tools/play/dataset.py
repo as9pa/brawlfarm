@@ -155,6 +155,10 @@ def save_frame(root: Path, source: str, n: int, frame: np.ndarray) -> str:
     """Write one JPEG and return its path relative to the root, with forward slashes."""
     rel = f"frames/{source}/{source}-{n:06d}.jpg"
     path = Path(root) / rel
+    if path.exists():
+        # An index line already points at this name; overwriting it would silently replace a
+        # labelled frame with a different picture.
+        raise FileExistsError(rel)
     path.parent.mkdir(parents=True, exist_ok=True)
     ok, buf = cv2.imencode(".jpg", frame, [int(cv2.IMWRITE_JPEG_QUALITY), JPEG_QUALITY])
     if not ok:
