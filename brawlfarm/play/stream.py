@@ -94,8 +94,16 @@ class Stream:
         adb.push(play.SERVER_JAR, REMOTE_JAR)
         self.port = _free_port()
         adb.forward(self.port, REMOTE_SOCKET)
+        # app_process finds the server class through CLASSPATH; without it the program aborts.
         self._proc = self._spawn(
-            ["app_process", "/", "com.genymobile.scrcpy.Server", play.SERVER_VERSION, *SERVER_ARGS]
+            [
+                f"CLASSPATH={REMOTE_JAR}",
+                "app_process",
+                "/",
+                "com.genymobile.scrcpy.Server",
+                play.SERVER_VERSION,
+                *SERVER_ARGS,
+            ]
         )
         # Drain the server's output so its pipe never fills and stalls it; keep the tail.
         self._drain = threading.Thread(

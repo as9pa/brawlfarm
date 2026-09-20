@@ -97,7 +97,8 @@ def test_start_pushes_forwards_spawns_and_yields_frames(fakes) -> None:
         assert calls[0] == ("push", play.SERVER_JAR, stream.REMOTE_JAR)
         assert calls[1][0] == "forward" and calls[1][2] == "localabstract:scrcpy"
         assert calls[2][0] == "shell"
-        assert calls[2][1][:4] == [
+        assert calls[2][1][:5] == [
+            f"CLASSPATH={stream.REMOTE_JAR}",
             "app_process",
             "/",
             "com.genymobile.scrcpy.Server",
