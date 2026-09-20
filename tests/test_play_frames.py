@@ -84,7 +84,7 @@ def test_add_source_keeps_new_frames_and_counts_duplicates(tmp_path):
     first = _gradient()
     incoming = [(0.0, first), (0.5, first.copy()), (1.0, _checkerboard())]
     counts = frames.add_source(tmp_path, "clip", "video", incoming, score=_half_score)
-    assert counts == {"seen": 3, "kept": 2, "duplicates": 1}
+    assert counts == {"seen": 3, "kept": 2, "duplicates": 1, "dropped": 0}
 
     files = sorted(p.name for p in (tmp_path / "frames" / "clip").glob("*.jpg"))
     assert files == ["clip-000000.jpg", "clip-000001.jpg"]
@@ -104,6 +104,51 @@ def test_add_source_keeps_new_frames_and_counts_duplicates(tmp_path):
 def test_add_source_refuses_a_bad_source_name(tmp_path):
     with pytest.raises(ValueError):
         frames.add_source(tmp_path, "../x", "video", [], score=_half_score)
+
+
+def test_add_source_drops_what_keep_refuses(tmp_path):
+    seen = []
+
+    def keep(frame, pad):
+        seen.append(frame.shape)
+        return len(seen) != 2
+
+    # A flipped gradient hashes unlike the gradient, so the two survivors are no duplicate pair.
+    incoming = [(0.0, _gradient()), (0.5, _checkerboard()), (1.0, np.fliplr(_gradient()).copy())]
+
+    counts = frames.add_source(tmp_path, "clip", "video", incoming, score=_half_score, keep=keep)
+
+    assert counts == {"seen": 3, "kept": 2, "duplicates": 0, "dropped": 1}
+    files = sorted(p.name for p in (tmp_path / "frames" / "clip").glob("*.jpg"))
+    assert files == ["clip-000000.jpg", "clip-000001.jpg"]
+    rows = [
+        json.loads(line)
+        for line in (tmp_path / "index.jsonl").read_text(encoding="utf-8").splitlines()
+    ]
+    assert [row["hud"] for row in rows] == [True, True]
+
+
+def test_add_source_without_keep_is_unchanged(tmp_path):
+    counts = frames.add_source(tmp_path, "clip", "video", [(0.0, _gradient())], score=_half_score)
+
+    assert counts["dropped"] == 0
+    row = json.loads((tmp_path / "index.jsonl").read_text(encoding="utf-8").splitlines()[0])
+    assert "hud" not in row
+
+
+def test_keep_sees_the_fitted_frame_and_its_pad(tmp_path):
+    # The filter reads coordinates off the pad, so it has to be handed the frame that was padded.
+    seen = []
+
+    def keep(frame, pad):
+        seen.append((frame.shape, pad))
+        return True
+
+    frames.add_source(
+        tmp_path, "clip", "video", [(0.0, _gradient(800, 1600))], score=_half_score, keep=keep
+    )
+
+    assert seen == [((900, 1600, 3), (0, 50, 0, 50))]
 
 
 def _faked_add_source(monkeypatch):
@@ -137,7 +182,7 @@ def test_add_source_numbers_past_a_gap_in_the_existing_frames(tmp_path):
 
     counts = frames.add_source(tmp_path, "clip", "video", [(0.0, _gradient())], score=_half_score)
 
-    assert counts == {"seen": 1, "kept": 1, "duplicates": 0}
+    assert counts == {"seen": 1, "kept": 1, "duplicates": 0, "dropped": 0}
     assert (folder / "clip-000003.jpg").exists()
     assert {p.name: p.read_bytes() for p in folder.glob("*.jpg") if p.name in before} == before
     row = json.loads((tmp_path / "index.jsonl").read_text(encoding="utf-8").splitlines()[0])
