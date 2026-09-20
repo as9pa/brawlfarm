@@ -88,7 +88,7 @@ frame that shows the HUD: where the joystick was pushed, where the shot was aime
 state each button was in.
 
 ```
-uv run python -m tools.play.actions
+uv run python tools/play/actions.py
 ```
 
 `--source` labels only the named source, and can be repeated for more than one; without it,
@@ -122,7 +122,7 @@ A channel can be rejected for a whole source, most often because a creator has p
 overlay over the joystick or the attack stick; when that happens `move` or `aim` is `null` on
 every row for that source, the reason is printed, and it is recorded in `actions.meta.json`
 rather than filling the file with guesses. Even on a clean source, individual frames can still
-give a `null` move: the joystick's push is read from a small dot at the centre of its base, and
+give a `null` move: the joystick's push is read from a small dot at the centre of its ring, and
 when the stick is resting near the middle the knob sitting on top of it hides that dot. That is
 exactly the case where the move label matters least, but it is worth knowing that a string of
 `null` move values on their own does not mean the reader has failed.
