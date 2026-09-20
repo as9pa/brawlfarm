@@ -1,0 +1,172 @@
+"""The play dataset core: the class list, hashing, framing, dedupe, the index and frame files.
+
+Synthetic images only. Nothing here reads the owner's data home or a real template.
+"""
+
+from __future__ import annotations
+
+import hashlib
+import json
+import os
+from pathlib import Path
+
+import cv2
+import numpy as np
+import pytest
+
+from tools.play import classes, dataset
+
+
+def _gradient(h: int = 900, w: int = 1600) -> np.ndarray:
+    row = np.linspace(0, 255, w, dtype=np.float32)
+    img = np.repeat(row[None, :], h, axis=0).astype(np.uint8)
+    return np.dstack([img, img, img])
+
+
+def _checkerboard(h: int = 900, w: int = 1600, size: int = 40) -> np.ndarray:
+    ys, xs = np.mgrid[0:h, 0:w]
+    cells = (((ys // size + xs // size) % 2) * 255).astype(np.uint8)
+    return np.dstack([cells, cells, cells])
+
+
+def _spread_hashes(n: int) -> list[int]:
+    """n pseudo-random 64-bit hashes, far apart from each other so only exact repeats match."""
+    return [int.from_bytes(hashlib.sha256(str(i).encode()).digest()[:8], "big") for i in range(n)]
+
+
+def test_category_id_is_the_one_based_position():
+    assert classes.category_id("self") == 1
+    assert classes.category_id(classes.CLASSES[-1]) == len(classes.CLASSES)
+    with pytest.raises(KeyError):
+        classes.category_id("not_a_class")
+
+
+def test_template_classes_and_tap_anchors_are_classes():
+    for name in classes.TEMPLATE_CLASS.values():
+        assert name in classes.CLASSES
+    for name in classes.TAP_ANCHORS:
+        assert name in classes.CLASSES
+
+
+def test_default_root_is_under_the_isolated_home(tmp_path):
+    home = Path(os.environ["BRAWLFARM_HOME"]).resolve()
+    assert dataset.default_root() == home / "datasets" / "play"
+
+
+def test_dhash_ignores_a_uniform_brightness_shift():
+    frame = _gradient()
+    brighter = np.clip(frame.astype(np.int16) + 3, 0, 255).astype(np.uint8)
+    assert dataset.dhash(frame) == dataset.dhash(brighter)
+
+
+def test_dhash_separates_unrelated_frames():
+    assert dataset.hamming(dataset.dhash(_gradient()), dataset.dhash(_checkerboard())) > 10
+
+
+def test_fit_frame_leaves_a_16_9_frame_unpadded():
+    out, pad = dataset.fit_frame(_gradient(1080, 1920))
+    assert out.shape == (dataset.FRAME_H, dataset.FRAME_W, 3)
+    assert pad == (0, 0, 0, 0)
+
+
+def test_fit_frame_pads_a_wide_frame_top_and_bottom():
+    out, pad = dataset.fit_frame(_gradient(1080, 2340))
+    left, top, right, bottom = pad
+    assert out.shape == (dataset.FRAME_H, dataset.FRAME_W, 3)
+    assert (left, right) == (0, 0)
+    assert top > 0 and top == bottom
+    assert not out[:top].any()
+    assert not out[dataset.FRAME_H - bottom :].any()
+
+
+def test_fit_frame_returns_an_exact_frame_unchanged():
+    frame = _gradient()
+    out, pad = dataset.fit_frame(frame)
+    assert pad == (0, 0, 0, 0)
+    assert np.array_equal(out, frame)
+
+
+def test_deduper_refuses_an_exact_repeat_beyond_the_window():
+    d = dataset.Deduper(window=4)
+    first = _spread_hashes(1)[0]
+    assert d.is_new(first)
+    for h in _spread_hashes(20)[1:]:
+        assert d.is_new(h)
+    assert not d.is_new(first)
+
+
+def test_deduper_refuses_a_near_neighbour_and_keeps_a_far_one():
+    d = dataset.Deduper()
+    base = _spread_hashes(1)[0]
+    assert d.is_new(base)
+    near = base ^ 0b111  # distance 3
+    far = base ^ 0b11111  # distance 5
+    assert not d.is_new(near)
+    assert d.is_new(far)
+
+
+def test_deduper_takes_seed_hashes():
+    seed = _spread_hashes(2)
+    d = dataset.Deduper(seen=seed)
+    assert not d.is_new(seed[0])
+    assert not d.is_new(seed[1])
+
+
+@pytest.mark.parametrize("name", ["../x", "a b", "", "x" * 65, "a/b", "a.b"])
+def test_check_source_refuses_a_bad_name(name):
+    with pytest.raises(ValueError):
+        dataset.check_source(name)
+
+
+def test_check_source_returns_a_good_name():
+    assert dataset.check_source("20260918-101112-match-1") == "20260918-101112-match-1"
+
+
+def test_index_appends_lines_and_reloads(tmp_path):
+    index = dataset.Index(tmp_path)
+    assert index.hashes() == []
+    assert not index.has_source("clip")
+    index.add(
+        file="frames/clip/clip-000000.jpg",
+        source="clip",
+        kind="video",
+        t=0.0,
+        hash_=1,
+        teams_left=0.5,
+        pad=(0, 0, 0, 0),
+    )
+    index.add(
+        file="frames/clip/clip-000001.jpg",
+        source="clip",
+        kind="video",
+        t=None,
+        hash_=0xABCDEF0123456789,
+        teams_left=0.25,
+        pad=(0, 10, 0, 10),
+    )
+
+    lines = (tmp_path / "index.jsonl").read_text(encoding="utf-8").splitlines()
+    assert len(lines) == 2
+    row = json.loads(lines[1])
+    assert row == {
+        "file": "frames/clip/clip-000001.jpg",
+        "source": "clip",
+        "kind": "video",
+        "t": None,
+        "hash": "abcdef0123456789",
+        "teams_left": 0.25,
+        "pad": [0, 10, 0, 10],
+    }
+
+    again = dataset.Index(tmp_path)
+    assert again.hashes() == [1, 0xABCDEF0123456789]
+    assert again.has_source("clip")
+    assert not again.has_source("other")
+
+
+def test_save_frame_writes_a_relative_jpeg_path(tmp_path):
+    rel = dataset.save_frame(tmp_path, "clip", 12, _gradient())
+    assert rel == "frames/clip/clip-000012.jpg"
+    written = tmp_path / "frames" / "clip" / "clip-000012.jpg"
+    decoded = cv2.imdecode(np.frombuffer(written.read_bytes(), np.uint8), cv2.IMREAD_COLOR)
+    assert decoded.shape == (dataset.FRAME_H, dataset.FRAME_W, 3)
