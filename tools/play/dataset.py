@@ -21,9 +21,11 @@ from brawlfarm import settings
 
 FRAME_W, FRAME_H = 1600, 900
 JPEG_QUALITY = 92
-# A row or column is border when its brightest mean gray level over the sample stays below
-# this. JPEG ringing and a video encoder both lift a true black bar off zero by a little.
+# A pixel counts as lit from this gray level up. JPEG ringing and a video encoder both lift a
+# true black bar off zero by a little.
 BORDER_LEVEL = 12
+# A row or column is picture when more than this share of its pixels is lit over the sample.
+LIT_SHARE = 0.5
 SOURCE_RE = re.compile(r"^[A-Za-z0-9_-]{1,64}$")
 
 
@@ -39,9 +41,9 @@ def check_source(name: str) -> str:
     return name
 
 
-def _lit_range(means: np.ndarray) -> tuple[int, int] | None:
-    """First and one-past-last index whose mean is above the border level, or None if none is."""
-    lit = np.flatnonzero(means >= BORDER_LEVEL)
+def _lit_range(shares: np.ndarray) -> tuple[int, int] | None:
+    """First and one-past-last index whose lit share is over LIT_SHARE, or None if none is."""
+    lit = np.flatnonzero(shares > LIT_SHARE)
     if lit.size == 0:
         return None
     return int(lit[0]), int(lit[-1]) + 1
@@ -52,12 +54,15 @@ def content_box(frames: Sequence[np.ndarray]) -> tuple[int, int, int, int]:
 
     A downloaded video often carries the game inside baked-in bars, which would shrink the game
     against the emulator's own frames once everything is fitted to 1600 x 900. The bars are a
-    property of the source, so the measurement takes several frames and keeps the median mean
-    gray level per row and per column. The median is what makes it a property of the source
-    rather than of a moment: a dark scene in a few frames cannot widen the border, and an intro
-    or a replay overlay that fills the whole frame in a few cannot hide it. Anything that looks
-    unlike a letterbox, a border that would eat half a dimension, a set of frames that do not
-    agree on their size, gives the whole frame back rather than a guess.
+    property of the source, so the measurement takes several frames and keeps, per row and per
+    column, the median share of its pixels that are lit. A share rather than a mean gray level
+    because a creator's overlay that covers part of a bar and reaches the frame edge lifts that
+    bar's mean well over the level while leaving most of the bar black, and the bar would be
+    read as picture. The median is what makes it a property of the source rather than of a
+    moment: a dark scene in a few frames cannot widen the border, and an intro or a replay
+    overlay that fills the whole frame in a few cannot hide it. Anything that looks unlike a
+    letterbox, a border that would eat half a dimension, a set of frames that do not agree on
+    their size, gives the whole frame back rather than a guess.
     """
     frames = list(frames)
     if not frames:
@@ -69,9 +74,10 @@ def content_box(frames: Sequence[np.ndarray]) -> tuple[int, int, int, int]:
     per_row = np.empty((len(frames), height), dtype=np.float32)
     per_col = np.empty((len(frames), width), dtype=np.float32)
     for n, frame in enumerate(frames):
-        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY).astype(np.float32)
-        per_row[n] = gray.mean(axis=1)
-        per_col[n] = gray.mean(axis=0)
+        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+        lit = (gray >= BORDER_LEVEL).astype(np.float32)
+        per_row[n] = lit.mean(axis=1)
+        per_col[n] = lit.mean(axis=0)
     vertical = _lit_range(np.median(per_row, axis=0))
     horizontal = _lit_range(np.median(per_col, axis=0))
     if vertical is None or horizontal is None:
@@ -197,8 +203,9 @@ class Index:
         teams_left: float,
         pad: tuple[int, int, int, int],
         crop: tuple[int, int, int, int] | None = None,
+        hud: bool | None = None,
     ) -> None:
-        row = {
+        row: dict = {
             "file": file,
             "source": source,
             "kind": kind,
@@ -208,6 +215,10 @@ class Index:
             "pad": list(pad),
             "crop": None if crop is None else list(crop),
         }
+        # Only a caller that has run the HUD reader says anything, so a row written without it
+        # stays byte for byte what it was before there was a HUD reader.
+        if hud is not None:
+            row["hud"] = hud
         self.path.parent.mkdir(parents=True, exist_ok=True)
         # Opened per line so an interrupted extraction still leaves a complete index behind.
         with self.path.open("a", encoding="utf-8") as fh:
