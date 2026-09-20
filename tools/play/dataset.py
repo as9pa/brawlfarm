@@ -11,7 +11,7 @@ from __future__ import annotations
 import json
 import re
 from collections import deque
-from collections.abc import Iterable
+from collections.abc import Iterable, Sequence
 from pathlib import Path
 
 import cv2
@@ -21,6 +21,9 @@ from brawlfarm import settings
 
 FRAME_W, FRAME_H = 1600, 900
 JPEG_QUALITY = 92
+# A row or column is border when its brightest mean gray level over the sample stays below
+# this. JPEG ringing and a video encoder both lift a true black bar off zero by a little.
+BORDER_LEVEL = 12
 SOURCE_RE = re.compile(r"^[A-Za-z0-9_-]{1,64}$")
 
 
@@ -34,6 +37,48 @@ def check_source(name: str) -> str:
     if not SOURCE_RE.fullmatch(name):
         raise ValueError(f"bad source name: {name!r}")
     return name
+
+
+def _lit_range(means: np.ndarray) -> tuple[int, int] | None:
+    """First and one-past-last index whose mean is above the border level, or None if none is."""
+    lit = np.flatnonzero(means >= BORDER_LEVEL)
+    if lit.size == 0:
+        return None
+    return int(lit[0]), int(lit[-1]) + 1
+
+
+def content_box(frames: Sequence[np.ndarray]) -> tuple[int, int, int, int]:
+    """The picture inside a source's constant black borders, as x, y, w, h in source pixels.
+
+    A downloaded video often carries the game inside baked-in bars, which would shrink the game
+    against the emulator's own frames once everything is fitted to 1600 x 900. The bars are a
+    property of the source, so the measurement takes several frames and keeps the brightest mean
+    per row and per column: a dark moment in one frame must not widen the border. Anything that
+    looks unlike a letterbox, a border that would eat half a dimension, a set of frames that do
+    not agree on their size, gives the whole frame back rather than a guess.
+    """
+    frames = list(frames)
+    if not frames:
+        raise ValueError("content_box needs at least one frame")
+    height, width = frames[0].shape[:2]
+    full = (0, 0, width, height)
+    if any(frame.shape[:2] != (height, width) for frame in frames):
+        return full
+    rows = np.zeros(height, dtype=np.float32)
+    cols = np.zeros(width, dtype=np.float32)
+    for frame in frames:
+        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY).astype(np.float32)
+        rows = np.maximum(rows, gray.mean(axis=1))
+        cols = np.maximum(cols, gray.mean(axis=0))
+    vertical = _lit_range(rows)
+    horizontal = _lit_range(cols)
+    if vertical is None or horizontal is None:
+        return full
+    top, bottom = vertical
+    left, right = horizontal
+    if 2 * (right - left) < width or 2 * (bottom - top) < height:
+        return full
+    return left, top, right - left, bottom - top
 
 
 def dhash(frame: np.ndarray) -> int:
@@ -133,6 +178,7 @@ class Index:
         hash_: int,
         teams_left: float,
         pad: tuple[int, int, int, int],
+        crop: tuple[int, int, int, int] | None = None,
     ) -> None:
         row = {
             "file": file,
@@ -142,6 +188,7 @@ class Index:
             "hash": f"{hash_:016x}",
             "teams_left": teams_left,
             "pad": list(pad),
+            "crop": None if crop is None else list(crop),
         }
         self.path.parent.mkdir(parents=True, exist_ok=True)
         # Opened per line so an interrupted extraction still leaves a complete index behind.

@@ -115,7 +115,8 @@ def main(argv: list[str] | None = None) -> int:
             if not args.keep_going:
                 return 1
             continue
-        counts = frames.add_source(root, source, "youtube", frames.iter_video(path))
+        # Downloads are the footage with baked-in black bars, so they are measured and cropped.
+        counts = frames.add_source(root, source, "youtube", frames.iter_video(path), trim=True)
         print(
             f"{source}: seen {counts['seen']}, kept {counts['kept']}, "
             f"duplicates {counts['duplicates']}"

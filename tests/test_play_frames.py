@@ -150,3 +150,69 @@ def test_video_time_falls_back_to_the_average_rate():
 
     assert frames._video_time(_Untimed(), 3, 10) == pytest.approx(0.3)
     assert frames._video_time(_Untimed(), 3, None) is None
+
+
+def _bordered_video_frame(value: int) -> np.ndarray:
+    """1080p-ish frame with the game picture inside a baked-in black border."""
+    frame = np.zeros((720, 1280, 3), dtype=np.uint8)
+    # A coarse pattern seeded by the value, so consecutive frames are not deduped away.
+    small = np.random.default_rng(value).integers(20, 250, size=(8, 9), dtype=np.uint8)
+    picture = cv2.resize(small, (1080, 600), interpolation=cv2.INTER_NEAREST)
+    frame[60:660, 100:1180] = np.dstack([picture, picture, picture])
+    return frame
+
+
+def test_add_source_trims_the_border_and_indexes_the_crop(tmp_path):
+    incoming = [(float(n), _bordered_video_frame(40 + n * 30)) for n in range(5)]
+
+    counts = frames.add_source(tmp_path, "clip", "video", incoming, score=_half_score, trim=True)
+
+    assert counts["kept"] == 5
+    rows = [
+        json.loads(line)
+        for line in (tmp_path / "index.jsonl").read_text(encoding="utf-8").splitlines()
+    ]
+    assert all(row["crop"] == [100, 60, 1080, 600] for row in rows)
+    kept = cv2.imdecode(
+        np.frombuffer((tmp_path / rows[0]["file"]).read_bytes(), np.uint8), cv2.IMREAD_COLOR
+    )
+    assert kept.shape == (dataset.FRAME_H, dataset.FRAME_W, 3)
+
+
+def test_add_source_without_trim_indexes_the_whole_frame_as_the_crop(tmp_path):
+    frames.add_source(tmp_path, "clip", "video", [(0.0, _gradient())], score=_half_score)
+
+    row = json.loads((tmp_path / "index.jsonl").read_text(encoding="utf-8").splitlines()[0])
+    assert row["crop"] == [0, 0, 1600, 900]
+
+
+def test_add_source_trims_with_fewer_frames_than_the_sample(tmp_path, monkeypatch):
+    monkeypatch.setattr(frames, "TRIM_SAMPLE", 40)
+    incoming = iter([(0.0, _bordered_video_frame(90))])
+
+    counts = frames.add_source(tmp_path, "clip", "video", incoming, score=_half_score, trim=True)
+
+    assert counts["kept"] == 1
+    row = json.loads((tmp_path / "index.jsonl").read_text(encoding="utf-8").splitlines()[0])
+    assert row["crop"] == [100, 60, 1080, 600]
+
+
+def test_main_trims_container_videos_only(tmp_path, monkeypatch):
+    calls = []
+
+    def recorder(root, name, kind, made, **kwargs):
+        calls.append((kind, kwargs.get("trim")))
+        return {"seen": 0, "kept": 0, "duplicates": 0}
+
+    monkeypatch.setattr(frames, "iter_video", lambda path, **kw: iter([]))
+    monkeypatch.setattr(frames, "add_source", recorder)
+    video = tmp_path / "clip.mp4"
+    video.write_bytes(b"video")
+    session = tmp_path / "20260918-101112"
+    session.mkdir()
+    _write_jpg(session / "0001-home.jpg", _gradient())
+    root = tmp_path / "root"
+
+    assert frames.main(["--video", str(video), "--root", str(root)]) == 0
+    assert frames.main(["--session", str(session), "--root", str(root)]) == 0
+    assert calls == [("video", True), ("session", False)]

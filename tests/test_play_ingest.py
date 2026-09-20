@@ -146,7 +146,7 @@ def fake_pipeline(monkeypatch):
         return path
 
     def fake_add_source(root, source, kind, frames_in, **kwargs):
-        added.append((source, kind, list(frames_in)))
+        added.append((source, kind, list(frames_in), kwargs))
         return {"seen": 4, "kept": 3, "duplicates": 1}
 
     monkeypatch.setattr(ingest_youtube, "download", fake_download)
@@ -166,8 +166,9 @@ def test_main_skips_a_source_already_in_the_index(tmp_path, capsys, fake_pipelin
     assert code == 0
     assert f"yt-{VIDEO_ID}" in out
     assert "already in the index" in out
-    assert [source for source, _, _ in fake_pipeline] == ["yt-BBBBBBBBBBB"]
+    assert [source for source, _, _, _ in fake_pipeline] == ["yt-BBBBBBBBBBB"]
     assert fake_pipeline[0][1] == "youtube"
+    assert fake_pipeline[0][3]["trim"] is True
     assert "kept 3" in out
 
 
@@ -203,7 +204,7 @@ def test_main_keep_going_counts_the_failure_and_still_exits_1(
 
     out = capsys.readouterr().out
     assert code == 1
-    assert [source for source, _, _ in fake_pipeline] == ["yt-BBBBBBBBBBB"]
+    assert [source for source, _, _, _ in fake_pipeline] == ["yt-BBBBBBBBBBB"]
     assert "1 failed" in out
 
 

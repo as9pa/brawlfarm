@@ -143,6 +143,7 @@ def test_index_appends_lines_and_reloads(tmp_path):
         hash_=0xABCDEF0123456789,
         teams_left=0.25,
         pad=(0, 10, 0, 10),
+        crop=(0, 60, 1280, 600),
     )
 
     lines = (tmp_path / "index.jsonl").read_text(encoding="utf-8").splitlines()
@@ -153,6 +154,7 @@ def test_index_appends_lines_and_reloads(tmp_path):
         "source": "clip",
         "kind": "video",
         "t": None,
+        "crop": [0, 60, 1280, 600],
         "hash": "abcdef0123456789",
         "teams_left": 0.25,
         "pad": [0, 10, 0, 10],
@@ -176,3 +178,41 @@ def test_save_frame_refuses_to_overwrite(tmp_path):
     dataset.save_frame(tmp_path, "clip", 3, _gradient())
     with pytest.raises(FileExistsError):
         dataset.save_frame(tmp_path, "clip", 3, _gradient())
+
+
+def _bordered(h: int = 180, w: int = 320, left: int = 100, top: int = 60, level: int = 200):
+    """A bright picture inside a black border, the shape a letterboxed video has."""
+    frame = np.zeros((h, w, 3), dtype=np.uint8)
+    frame[top:, left:] = level
+    return frame
+
+
+def test_content_box_finds_the_picture_inside_the_border():
+    assert dataset.content_box([_bordered(), _bordered()]) == (100, 60, 220, 120)
+
+
+def test_content_box_takes_the_brightest_frame_per_row_and_column():
+    # One dark frame of the same source would hide the picture if the means were averaged.
+    frames = [_bordered(level=200), _bordered(level=4)]
+
+    assert dataset.content_box(frames) == (100, 60, 220, 120)
+
+
+def test_content_box_of_a_dark_set_is_the_whole_frame():
+    assert dataset.content_box([np.zeros((180, 320, 3), dtype=np.uint8)]) == (0, 0, 320, 180)
+
+
+def test_content_box_refuses_a_box_smaller_than_half_the_frame():
+    frame = np.zeros((180, 320, 3), dtype=np.uint8)
+    frame[80:120, 140:180] = 200
+
+    assert dataset.content_box([frame]) == (0, 0, 320, 180)
+
+
+def test_content_box_of_frames_that_differ_in_size_is_the_whole_frame():
+    assert dataset.content_box([_bordered(), _bordered(h=200)]) == (0, 0, 320, 180)
+
+
+def test_content_box_needs_a_frame():
+    with pytest.raises(ValueError):
+        dataset.content_box([])

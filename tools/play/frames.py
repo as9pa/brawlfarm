@@ -12,6 +12,7 @@ nothing here talks to adb or sends input.
 from __future__ import annotations
 
 import argparse
+import itertools
 import math
 from collections.abc import Callable, Iterable, Iterator
 from pathlib import Path
@@ -24,6 +25,8 @@ from brawlfarm.play import h264
 from tools.play import dataset
 
 FPS_OUT = 2.0
+# How many frames the border measurement looks at before the first one is written.
+TRIM_SAMPLE = 40
 
 _CHUNK = 64 * 1024
 
@@ -138,17 +141,34 @@ def add_source(
     frames: Iterable[tuple[float | None, np.ndarray]],
     *,
     score=vision.score,
+    trim: bool = False,
 ) -> dict[str, int]:
-    """Fit, hash, dedupe, save and index every frame of one source. Returns the counts."""
+    """Fit, hash, dedupe, save and index every frame of one source. Returns the counts.
+
+    `trim` is for footage that arrives inside baked-in black bars: the first TRIM_SAMPLE frames
+    are buffered, measured together, and then every frame of the source is cropped to the same
+    box before it is fitted. Emulator frames never need it, and asking for it on them costs a
+    measurement that finds nothing.
+    """
     dataset.check_source(source)
     root = Path(root)
     index = dataset.Index(root)
     deduper = dataset.Deduper(seen=index.hashes())
     n = _next_index(root, source)
     counts = {"seen": 0, "kept": 0, "duplicates": 0}
-    for t, frame in frames:
+    incoming = iter(frames)
+    box: tuple[int, int, int, int] | None = None
+    if trim:
+        sample = list(itertools.islice(incoming, TRIM_SAMPLE))
+        if sample:
+            box = dataset.content_box([frame for _t, frame in sample])
+        # The sampled frames go through the same crop as the rest, not around it.
+        incoming = itertools.chain(sample, incoming)
+    for t, frame in incoming:
         counts["seen"] += 1
-        fitted, pad = dataset.fit_frame(frame)
+        crop = box if box is not None else (0, 0, frame.shape[1], frame.shape[0])
+        x, y, w, h = crop
+        fitted, pad = dataset.fit_frame(frame[y : y + h, x : x + w])
         hash_ = dataset.dhash(fitted)
         if not deduper.is_new(hash_):
             counts["duplicates"] += 1
@@ -162,6 +182,7 @@ def add_source(
             hash_=hash_,
             teams_left=round(float(score(fitted, "teams_left")), 4),
             pad=pad,
+            crop=crop,
         )
         n += 1
         counts["kept"] += 1
@@ -209,7 +230,9 @@ def main(argv: list[str] | None = None) -> int:
                 return 2
 
     for name, kind, make in jobs:
-        counts = add_source(root, name, kind, make())
+        # Only a container video can carry baked-in bars; sessions and match files are
+        # emulator frames, already the right shape.
+        counts = add_source(root, name, kind, make(), trim=kind == "video")
         print(
             f"{name}: seen {counts['seen']}, kept {counts['kept']}, "
             f"duplicates {counts['duplicates']}"
