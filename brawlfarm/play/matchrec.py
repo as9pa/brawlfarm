@@ -51,7 +51,7 @@ class MatchRecorder:
         self._disabled_for: Path | None = None
         self._numbered_for: Path | None = None
         self._next = 1
-        self._await_stop = False
+        self._await_stop: Path | None = None
         self._said_missing = False
 
     @property
@@ -65,8 +65,10 @@ class MatchRecorder:
                 # The stream died inside the match: release it now and wait for the next match,
                 # because restarting here would cut this one into pieces.
                 log.warning("match recording ended early: %s", error)
+                # Latched to the session the stream died in, so a new session records at once.
+                dead_in = self._session
                 self._stop()
-                self._await_stop = True
+                self._await_stop = dead_in
                 return
             over = (
                 session is None
@@ -78,7 +80,7 @@ class MatchRecorder:
                 self._stop()
             return
         if state in STOP_STATES or session is None:
-            self._await_stop = False
+            self._await_stop = None
         if state != State.IN_MATCH or session is None:
             return
         if not play.available():
@@ -86,7 +88,7 @@ class MatchRecorder:
                 log.info("match recording off: the play extra is not installed")
                 self._said_missing = True
             return
-        if self._disabled_for == session or self._await_stop:
+        if self._disabled_for == session or self._await_stop == session:
             return
         self._start(session)
 

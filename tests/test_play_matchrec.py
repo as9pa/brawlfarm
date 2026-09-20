@@ -144,3 +144,17 @@ def test_a_stream_that_dies_mid_match_is_released_and_logged(rec, tmp_path: Path
     r.observe(State.RESULTS, tmp_path)
     r.observe(State.IN_MATCH, tmp_path)
     assert len(made) == 2, "the next match records again"
+
+
+def test_a_new_session_records_at_once_after_a_stream_died(rec, tmp_path: Path) -> None:
+    r, made, now = rec
+    first, second = tmp_path / "a", tmp_path / "b"
+    first.mkdir()
+    second.mkdir()
+    r.observe(State.IN_MATCH, first)
+    made[0].error = "stream ended"
+    r.observe(State.IN_MATCH, first)
+    r.observe(State.IN_MATCH, first)
+    assert len(made) == 1, "the dead match stays unrecorded in its own session"
+    r.observe(State.IN_MATCH, second)
+    assert len(made) == 2, "the latch belongs to the session the stream died in"

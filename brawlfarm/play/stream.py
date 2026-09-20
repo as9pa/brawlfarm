@@ -124,9 +124,11 @@ class Stream:
             self._thread.start()
         except StreamError:
             self._teardown()
+            self._close_record()
             raise
         except Exception as exc:  # one type for the caller to catch
             self._teardown()
+            self._close_record()
             raise StreamError(f"stream start failed: {exc}") from exc
 
     def _wait_for_bytes(self) -> Any:
@@ -184,6 +186,10 @@ class Stream:
             self._thread.join(timeout=2.0)
         if self._drain is not None:
             self._drain.join(timeout=1.0)
+        self._close_record()
+
+    def _close_record(self) -> None:
+        """Only once the pump is gone or was never started: it is the handle's one writer."""
         if self._record_fh is not None:
             try:
                 self._record_fh.close()
