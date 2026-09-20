@@ -1,0 +1,131 @@
+"""Per-class confidence thresholds, and the ONNX in and out the exporter shares with them.
+
+A detector that ships to the farm loop is allowed to miss things and is not allowed to invent
+them: a false positive on a tap anchor is a tap on the wrong pixel. So a threshold is picked per
+class as the lowest one that still buys MIN_PRECISION on the validation set, never a single
+number for the whole model, and it never drops below FLOOR however clean a class looks.
+
+This module is imported by train.py and export.py, which run in their own isolated environment
+with rfdetr and torch in it and no brawlfarm. It therefore imports numpy and the standard
+library only, and pulls cv2 in inside preprocess where a resize is unavoidable.
+"""
+
+from __future__ import annotations
+
+from collections.abc import Sequence
+
+import numpy as np
+
+MIN_PRECISION = 0.98
+FLOOR, CEILING = 0.30, 0.95
+# the ImageNet statistics RF-DETR normalises with, in RGB order
+MEAN = (0.485, 0.456, 0.406)
+STD = (0.229, 0.224, 0.225)
+
+
+def iou(a: Sequence[float], b: Sequence[float]) -> float:
+    """Intersection over union of two boxes given as (x, y, w, h) with x, y the top left."""
+    ax, ay, aw, ah = a
+    bx, by, bw, bh = b
+    left, top = max(ax, bx), max(ay, by)
+    right, bottom = min(ax + aw, bx + bw), min(ay + ah, by + bh)
+    if right <= left or bottom <= top:
+        return 0.0
+    overlap = (right - left) * (bottom - top)
+    union = aw * ah + bw * bh - overlap
+    return float(overlap / union) if union > 0 else 0.0
+
+
+def match_detections(dets: list[dict], truth: list[dict], iou_min: float = 0.5) -> list[bool]:
+    """Greedy one-to-one matching, best box first: True where a detection is a true positive.
+
+    `dets` is expected in descending score order, which is what decode returns, so the
+    confident detection gets first pick of the truth boxes. A truth box is consumed once: a
+    second detection of the same object is a false positive, the same way the farm loop would
+    see it. Classes never match each other, whatever the overlap.
+    """
+    taken = [False] * len(truth)
+    hits = []
+    for det in dets:
+        best, best_iou = -1, iou_min
+        box = (det["x"], det["y"], det["w"], det["h"])
+        for i, real in enumerate(truth):
+            if taken[i] or real["class_index"] != det["class_index"]:
+                continue
+            score = iou(box, (real["x"], real["y"], real["w"], real["h"]))
+            if score >= best_iou:
+                best, best_iou = i, score
+        if best >= 0:
+            taken[best] = True
+        hits.append(best >= 0)
+    return hits
+
+
+def pick(
+    scores: Sequence[float], is_tp: Sequence[bool], *, min_precision: float = MIN_PRECISION
+) -> float:
+    """The lowest threshold in [FLOOR, CEILING] whose precision reaches min_precision.
+
+    The search walks a one hundredth grid upwards and stops at the first threshold that is
+    clean enough, so the answer is already rounded to two decimals. A class with no detection
+    at all, or one that never reaches the precision at any threshold, gets CEILING: the model
+    has not earned the right to be believed about it.
+    """
+    keep = np.asarray(scores, dtype=np.float64)
+    true = np.asarray(is_tp, dtype=bool)
+    steps = int(round((CEILING - FLOOR) * 100))
+    for step in range(steps + 1):
+        threshold = round(FLOOR + step / 100, 2)
+        above = keep >= threshold
+        total = int(above.sum())
+        if total and int(true[above].sum()) / total >= min_precision:
+            return threshold
+    return CEILING
+
+
+def decode(
+    dets: np.ndarray, logits: np.ndarray, width: int, height: int, floor: float = 0.05
+) -> list[dict]:
+    """RF-DETR's two ONNX outputs turned into pixel boxes, highest score first.
+
+    `dets` is (queries, 4) as centre x, centre y, width, height in 0..1, `logits` is
+    (queries, classes + 1) of unnormalised scores; a leading batch dimension of one is
+    accepted for both. Column k is class index k, which is COCO category id k + 1, and the
+    last column is the background the library never reports. Every query and class above
+    `floor` becomes a box, so the caller can pick its own threshold per class afterwards.
+    """
+    boxes = np.asarray(dets, dtype=np.float64).reshape(-1, np.asarray(dets).shape[-1])
+    scores = np.asarray(logits, dtype=np.float64)
+    scores = scores.reshape(-1, scores.shape[-1])[:, :-1]
+    scores = 1.0 / (1.0 + np.exp(-scores))
+
+    found = []
+    for query, cls in zip(*np.nonzero(scores >= floor), strict=True):
+        cx, cy, w, h = boxes[query]
+        found.append(
+            {
+                "class_index": int(cls),
+                "score": float(scores[query, cls]),
+                "x": float((cx - w / 2) * width),
+                "y": float((cy - h / 2) * height),
+                "w": float(w * width),
+                "h": float(h * height),
+            }
+        )
+    found.sort(key=lambda box: box["score"], reverse=True)
+    return found
+
+
+def preprocess(bgr: np.ndarray, size: int = 384) -> np.ndarray:
+    """A BGR screen as the ONNX model's input: RGB, size x size, normalised, NCHW, batch of one.
+
+    The resize is a plain squash with no letterbox, which is what the library does, so a box
+    decoded from the output maps back to the original picture by scaling alone.
+    """
+    import cv2  # inside the body: this module has to import wherever numpy alone is installed
+
+    rgb = cv2.cvtColor(bgr, cv2.COLOR_BGR2RGB)
+    small = cv2.resize(rgb, (size, size), interpolation=cv2.INTER_LINEAR)
+    scaled = small.astype(np.float32) / 255.0
+    scaled = (scaled - np.array(MEAN, dtype=np.float32)) / np.array(STD, dtype=np.float32)
+    return np.ascontiguousarray(scaled.transpose(2, 0, 1)[None], dtype=np.float32)
