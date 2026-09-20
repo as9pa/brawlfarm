@@ -28,6 +28,17 @@ def _hd_player() -> psutil.Process | None:
     return None
 
 
+def _cpu(hp: psutil.Process | None, interval: float | None = None) -> float:
+    """HD-Player's CPU percent, or nan when it is gone. It can exit mid-run, and a reading
+    that raises must never cost us the stream teardown."""
+    if hp is None:
+        return float("nan")
+    try:
+        return hp.cpu_percent(interval=interval)
+    except psutil.Error:
+        return float("nan")
+
+
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
@@ -38,21 +49,23 @@ def main(argv: list[str] | None = None) -> int:
 
     adb.connect()
     hp = _hd_player()
-    idle = hp.cpu_percent(interval=3.0) if hp else float("nan")
+    idle = _cpu(hp, interval=3.0)
 
     s = stream.Stream(record=args.record)
-    s.start()
-    print(f"instance on adb port {config.ADB_PORT}")
-    print(f"stream up on port {s.port}; sampling {args.seconds:g} s")
-    if hp:
-        hp.cpu_percent(None)
-    psutil.cpu_percent(None)
     gaps: list[float] = []
-    last = s.frames
-    last_t = time.monotonic()
-    end = last_t + args.seconds
     drift_rows: list[tuple[str, float, float]] = []
+    drift_tried = False
+    s.start()
+    # Everything past here runs under the try: once the stream is up, no failure may skip
+    # stop(), or the encoder keeps costing the instance a core.
     try:
+        print(f"instance on adb port {config.ADB_PORT}")
+        print(f"stream up on port {s.port}; sampling {args.seconds:g} s")
+        _cpu(hp)
+        psutil.cpu_percent(None)
+        last = s.frames
+        last_t = time.monotonic()
+        end = last_t + args.seconds
         while time.monotonic() < end:
             time.sleep(0.005)
             if s.frames != last:
@@ -62,10 +75,16 @@ def main(argv: list[str] | None = None) -> int:
             if s.error:
                 print("stream error:", s.error)
                 return 1
-            if not drift_rows and s.frames > 30:
+            if not drift_tried and s.frames > 30:
+                # One attempt only, even when it yields no rows: a screen that goes static
+                # stops the encoder, so latest() stays stale and retrying would screencap
+                # every 5 ms.
+                drift_tried = True
                 shot = adb.screencap()
                 frame, _age = s.latest()
-                if frame is not None:
+                if frame is None:
+                    print("no fresh stream frame for the drift table (static screen)")
+                else:
                     for name in vision.TEMPLATE_NAMES:
                         drift_rows.append(
                             (
@@ -78,9 +97,9 @@ def main(argv: list[str] | None = None) -> int:
                 # the gap clock again so the stall does not read as a stream gap.
                 last, last_t = s.frames, time.monotonic()
     finally:
-        busy = hp.cpu_percent(None) if hp else float("nan")
-        host = psutil.cpu_percent(None)
         s.stop()
+        busy = _cpu(hp)
+        host = psutil.cpu_percent(None)
 
     span = max(1e-6, (last_t - (s.started_at or last_t)))
     print(f"frames {s.frames} in {span:.1f} s: {s.frames / span:.1f} fps")
