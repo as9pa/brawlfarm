@@ -97,9 +97,13 @@ def main(argv: list[str] | None = None) -> int:
                 # the gap clock again so the stall does not read as a stream gap.
                 last, last_t = s.frames, time.monotonic()
     finally:
-        s.stop()
-        busy = _cpu(hp)
-        host = psutil.cpu_percent(None)
+        # Read the CPU while the encoder still runs, so the number is the stream's cost; the
+        # inner finally keeps the teardown unconditional.
+        try:
+            busy = _cpu(hp)
+            host = psutil.cpu_percent(None)
+        finally:
+            s.stop()
 
     span = max(1e-6, (last_t - (s.started_at or last_t)))
     print(f"frames {s.frames} in {span:.1f} s: {s.frames / span:.1f} fps")
