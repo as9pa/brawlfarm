@@ -12,9 +12,12 @@ import subprocess
 import sys
 from pathlib import Path
 
+import cv2
+import numpy as np
 import pytest
 
-from tools.play import frames, ingest_youtube
+from tests.hud_draw import draw_hud
+from tools.play import dataset, frames, ingest_youtube
 
 VIDEO_ID = "AAAAAAAAAAA"
 CANONICAL = f"https://www.youtube.com/watch?v={VIDEO_ID}"
@@ -147,7 +150,7 @@ def fake_pipeline(monkeypatch):
 
     def fake_add_source(root, source, kind, frames_in, **kwargs):
         added.append((source, kind, list(frames_in), kwargs))
-        return {"seen": 4, "kept": 3, "duplicates": 1}
+        return {"seen": 4, "kept": 3, "duplicates": 1, "dropped": 0}
 
     monkeypatch.setattr(ingest_youtube, "download", fake_download)
     monkeypatch.setattr(frames, "iter_video", lambda path, **kw: iter([]))
@@ -218,3 +221,122 @@ def test_main_refuses_a_bad_url_file_before_anything_runs(tmp_path, capsys, fake
     assert code == 2
     assert fake_pipeline == []
     assert "line 1" in capsys.readouterr().out
+
+
+FULL = (0, 0, dataset.FRAME_W, dataset.FRAME_H)
+
+
+def _blocked(frame: np.ndarray, x: int) -> np.ndarray:
+    """One bright block, clear of every HUD search box, at a place of this frame's own.
+
+    A blurred floor hashes flat, so without it the fake video's frames land within the
+    deduper's distance of each other and a test about the filter would measure the dedupe.
+    """
+    cv2.rectangle(frame, (x, 100), (x + 500, 400), (210, 210, 210), -1)
+    return frame
+
+
+def _hud_frames() -> list[np.ndarray]:
+    """Two frames the real detector calls a HUD, drawn full bleed so the trim finds no border
+    and the pad stays zero: the filter then reads the box it reads on footage without bars.
+    """
+    return [
+        _blocked(draw_hud(FULL, seed=0), 150),
+        _blocked(
+            draw_hud(FULL, seed=1, attack=(0.83, 0.47), knob=(0.26, 0.60), base=(0.25, 0.58)), 700
+        ),
+    ]
+
+
+def _no_hud_frames() -> list[np.ndarray]:
+    """Two arena floors with no touch controls on them at all."""
+    return [
+        _blocked(
+            draw_hud(
+                FULL, attack=None, super_state=None, knob=None, base=None, gadget=False, seed=seed
+            ),
+            x,
+        )
+        for seed, x in ((7, 300), (8, 1000))
+    ]
+
+
+@pytest.fixture
+def fake_video(monkeypatch):
+    """A faked download in front of the real add_source, so the HUD filter runs for real.
+
+    The frames of the video are whatever the test appends to the returned list. Only the
+    template score is faked, the way the frames tests do it: no template file is read.
+    """
+    made: list[np.ndarray] = []
+
+    def fake_download(video_id, url, videos, *, run=None):
+        path = Path(videos) / f"{video_id}.mp4"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(b"video")
+        return path
+
+    real = frames.add_source
+    monkeypatch.setattr(ingest_youtube, "download", fake_download)
+    monkeypatch.setattr(
+        frames,
+        "iter_video",
+        lambda path, **kw: iter([(float(n), frame) for n, frame in enumerate(made)]),
+    )
+    monkeypatch.setattr(frames, "sample_video", lambda path, **kw: list(made))
+    monkeypatch.setattr(
+        frames,
+        "add_source",
+        lambda *a, **kw: real(*a, score=lambda frame, name: 0.5, **kw),
+    )
+    return made
+
+
+def _rows(root: Path) -> list[dict]:
+    return [
+        json.loads(line) for line in (root / "index.jsonl").read_text(encoding="utf-8").splitlines()
+    ]
+
+
+def test_main_drops_the_frames_with_no_mobile_hud(tmp_path, capsys, fake_video):
+    fake_video.extend(_hud_frames() + _no_hud_frames())
+    root = tmp_path / "play"
+    urls = _urls_file(tmp_path, f"{CANONICAL}\n")
+
+    code = ingest_youtube.main([str(urls), "--root", str(root)])
+
+    out = capsys.readouterr().out
+    assert code == 0
+    assert f"yt-{VIDEO_ID}: seen 4, kept 2, duplicates 0, no HUD 2" in out
+    assert "2 frames kept, 2 dropped for no HUD" in out
+    assert [row["hud"] for row in _rows(root)] == [True, True]
+
+
+def test_main_keep_no_hud_keeps_every_frame(tmp_path, capsys, fake_video):
+    fake_video.extend(_hud_frames() + _no_hud_frames())
+    root = tmp_path / "play"
+    urls = _urls_file(tmp_path, f"{CANONICAL}\n")
+
+    code = ingest_youtube.main([str(urls), "--root", str(root), "--keep-no-hud"])
+
+    out = capsys.readouterr().out
+    assert code == 0
+    assert f"yt-{VIDEO_ID}: seen 4, kept 4, duplicates 0, no HUD 0" in out
+    assert "4 frames kept, 0 dropped for no HUD" in out
+    rows = _rows(root)
+    assert len(rows) == 4
+    assert all("hud" not in row for row in rows)
+
+
+def test_main_names_a_video_that_showed_no_hud_at_all(tmp_path, capsys, fake_video):
+    fake_video.extend(_no_hud_frames())
+    root = tmp_path / "play"
+    urls = _urls_file(tmp_path, f"{CANONICAL}\n")
+
+    code = ingest_youtube.main([str(urls), "--root", str(root)])
+
+    out = capsys.readouterr().out
+    assert code == 0
+    assert f"yt-{VIDEO_ID}: seen 2, kept 0, duplicates 0, no HUD 2" in out
+    assert "no frame showed a mobile HUD" in out
+    assert not (root / "index.jsonl").exists()

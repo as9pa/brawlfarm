@@ -177,6 +177,7 @@ def add_source(
     score=vision.score,
     trim: bool = False,
     sample: Sequence[np.ndarray] | None = None,
+    keep: Callable[[np.ndarray, tuple[int, int, int, int]], bool] | None = None,
 ) -> dict[str, int]:
     """Fit, hash, dedupe, save and index every frame of one source. Returns the counts.
 
@@ -186,13 +187,20 @@ def add_source(
     hand hands over frames from the whole video instead of its opening seconds; without one the
     first TRIM_SAMPLE frames are buffered and measured. Emulator frames never need any of it,
     and asking for it on them costs a measurement that finds nothing.
+
+    `keep` is the frame filter the YouTube ingest hands over to drop footage with no mobile
+    HUD on it. It reads the fitted frame and its pad, because that is the picture the index
+    will hold and the pad is where the HUD coordinates come from. It runs before the hash, so
+    a refused frame teaches the deduper nothing and a frame kept later cannot be lost to it;
+    what it let through is recorded as `hud` on the row, and without a filter no row says
+    anything about a HUD at all.
     """
     dataset.check_source(source)
     root = Path(root)
     index = dataset.Index(root)
     deduper = dataset.Deduper(seen=index.hashes())
     n = _next_index(root, source)
-    counts = {"seen": 0, "kept": 0, "duplicates": 0}
+    counts = {"seen": 0, "kept": 0, "duplicates": 0, "dropped": 0}
     incoming = iter(frames)
     box: tuple[int, int, int, int] | None = None
     if trim and sample:
@@ -208,6 +216,9 @@ def add_source(
         crop = box if box is not None else (0, 0, frame.shape[1], frame.shape[0])
         x, y, w, h = crop
         fitted, pad = dataset.fit_frame(frame[y : y + h, x : x + w])
+        if keep is not None and not keep(fitted, pad):
+            counts["dropped"] += 1
+            continue
         hash_ = dataset.dhash(fitted)
         if not deduper.is_new(hash_):
             counts["duplicates"] += 1
@@ -222,6 +233,7 @@ def add_source(
             teams_left=round(float(score(fitted, "teams_left")), 4),
             pad=pad,
             crop=crop,
+            hud=None if keep is None else True,
         )
         n += 1
         counts["kept"] += 1

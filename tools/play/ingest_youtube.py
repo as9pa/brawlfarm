@@ -17,7 +17,9 @@ import subprocess
 import sys
 from pathlib import Path
 
-from tools.play import dataset, frames
+import numpy as np
+
+from tools.play import dataset, frames, hud
 
 URL_RE = re.compile(
     r"^https://(?:www\.)?(?:youtube\.com/watch\?v=|youtu\.be/)([A-Za-z0-9_-]{11})(?:[&?].*)?$"
@@ -81,6 +83,16 @@ def download(video_id: str, url: str, videos: Path, *, run=subprocess.run) -> Pa
     return out
 
 
+def hud_keep(frame: np.ndarray, pad: tuple[int, int, int, int]) -> bool:
+    """True when a fitted frame shows the mobile touch HUD, the filter the ingest runs by default.
+
+    A download is only worth its disk when the touch controls are on screen: a frame without
+    them carries no action to learn from, and menus, replays and desktop footage are exactly
+    what a creator's video has between the fights.
+    """
+    return hud.visible(hud.find(frame, hud.frame_box(pad)))
+
+
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
@@ -88,6 +100,11 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("urls", type=Path, help="a text file of YouTube URLs, one per line")
     ap.add_argument("--root", type=Path, default=None, help="dataset root")
     ap.add_argument("--keep-going", action="store_true", help="carry on after a failed download")
+    ap.add_argument(
+        "--keep-no-hud",
+        action="store_true",
+        help="keep frames with no mobile HUD on screen; the default drops them",
+    )
     args = ap.parse_args(argv)
 
     root = args.root if args.root is not None else dataset.default_root()
@@ -98,7 +115,7 @@ def main(argv: list[str] | None = None) -> int:
         return 2
 
     videos = root / "videos"
-    kept = skipped = failed = 0
+    kept = skipped = failed = dropped = 0
     for video_id, url in urls:
         source = dataset.check_source(f"yt-{video_id}")
         # Re-read per video: add_source appends to the same index, so a repeated id in the
@@ -124,13 +141,25 @@ def main(argv: list[str] | None = None) -> int:
             frames.iter_video(path),
             trim=True,
             sample=frames.sample_video(path),
+            keep=None if args.keep_no_hud else hud_keep,
         )
         print(
             f"{source}: seen {counts['seen']}, kept {counts['kept']}, "
-            f"duplicates {counts['duplicates']}"
+            f"duplicates {counts['duplicates']}, no HUD {counts['dropped']}"
         )
+        # A video that gave nothing is worth saying out loud: it is usually the wrong footage,
+        # not a bad day for the detector, and the owner picks the next URL from this line.
+        if counts["kept"] == 0 and counts["dropped"] > 0:
+            print(
+                f"{source}: no frame showed a mobile HUD; check that it is mobile Showdown "
+                "play with a clean HUD"
+            )
         kept += counts["kept"]
-    print(f"{len(urls)} videos: {kept} frames kept, {skipped} already indexed, {failed} failed")
+        dropped += counts["dropped"]
+    print(
+        f"{len(urls)} videos: {kept} frames kept, {dropped} dropped for no HUD, "
+        f"{skipped} already indexed, {failed} failed"
+    )
     return 1 if failed else 0
 
 

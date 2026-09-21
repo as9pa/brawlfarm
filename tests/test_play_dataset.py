@@ -166,6 +166,33 @@ def test_index_appends_lines_and_reloads(tmp_path):
     assert not again.has_source("other")
 
 
+def test_index_row_carries_hud_only_when_given(tmp_path):
+    index = dataset.Index(tmp_path)
+    index.add(
+        file="frames/clip/clip-000000.jpg",
+        source="clip",
+        kind="video",
+        t=0.0,
+        hash_=1,
+        teams_left=0.5,
+        pad=(0, 0, 0, 0),
+    )
+    index.add(
+        file="frames/clip/clip-000001.jpg",
+        source="clip",
+        kind="video",
+        t=0.5,
+        hash_=2,
+        teams_left=0.5,
+        pad=(0, 0, 0, 0),
+        hud=False,
+    )
+
+    rows = dataset.index_rows(tmp_path)
+    assert "hud" not in rows[0]
+    assert rows[1]["hud"] is False
+
+
 def test_save_frame_writes_a_relative_jpeg_path(tmp_path):
     rel = dataset.save_frame(tmp_path, "clip", 12, _gradient())
     assert rel == "frames/clip/clip-000012.jpg"
@@ -203,6 +230,32 @@ def test_content_box_survives_a_full_bleed_minority():
     frames = [_bordered()] * 7 + [np.full((180, 320, 3), 200, dtype=np.uint8)] * 3
 
     assert dataset.content_box(frames) == (100, 60, 220, 120)
+
+
+def _pillarboxed(h: int = 360, w: int = 640, left: int = 80, right: int = 560, level: int = 120):
+    """A picture over the full height inside black side bars, the shape a phone capture has."""
+    frame = np.zeros((h, w, 3), dtype=np.uint8)
+    frame[:, left:right] = level
+    return frame
+
+
+def test_content_box_ignores_an_overlay_inside_a_bar():
+    # A creator's overlay reaches the frame edge: it lifts the bar's mean gray but lights well
+    # under half of the bar's pixels, so the bar still reads as a bar.
+    frames = []
+    for _ in range(8):
+        frame = _pillarboxed()
+        frame[200:340, :80] = 200
+        frames.append(frame)
+
+    assert dataset.content_box(frames) == (80, 0, 480, 360)
+
+
+def test_content_box_keeps_a_dark_scene_inside_the_box():
+    # A dark scene lights none of its pixels, but a minority of the frames cannot move the box.
+    frames = [_pillarboxed()] * 5 + [_pillarboxed(level=6)] * 3
+
+    assert dataset.content_box(frames) == (80, 0, 480, 360)
 
 
 def test_content_box_of_a_full_bleed_set_is_the_whole_frame():
