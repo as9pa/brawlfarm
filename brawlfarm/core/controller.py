@@ -1576,9 +1576,19 @@ class Controller:
 
     def _play_close(self) -> None:
         """Drain the shadow session's closing rows (the summary, the file it wrote) into
-        the feed. Called from run()'s finally, which owns the try that swallows this."""
+        the feed. Called from _play_shutdown, which owns the try that swallows this."""
         for kind, fields in self.play.close():
             self.dl.event(kind, **fields)
+
+    def _play_shutdown(self) -> None:
+        """run()'s finally: stop the shadow session and write its closing rows. The
+        attribute lookup is inside the try too, because a controller built without
+        __init__ has no `play` and a finally that raises masks the real exception."""
+        try:
+            if self.play is not None:
+                self._play_close()
+        except Exception:
+            pass
 
     # --- main loop -----------------------------------------------------------
 
@@ -1743,11 +1753,6 @@ class Controller:
             except Exception:
                 pass
             # Same for the shadow session: its thread is stopped and its summary written
-            # on every exit, in its own try so neither close can eat the other's. The
-            # attribute lookup is inside the try too: a controller built without __init__
-            # has no `play`, and a finally that raises would mask the real exception.
-            try:
-                if self.play is not None:
-                    self._play_close()
-            except Exception:
-                pass
+            # on every exit. It swallows everything itself, so neither close can eat the
+            # other's and neither can mask the exception that got us here.
+            self._play_shutdown()
