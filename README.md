@@ -55,6 +55,20 @@ uvx brawlfarm                         # run it once without installing it
 
 The `play-gpu` extra downloads NVIDIA's CUDA and cuDNN runtime wheels (well over a gigabyte) and needs only the NVIDIA display driver on the machine. Nothing uses it yet; the detector that does arrives in a later release. One known catch: `onnxruntime` (which the text reader needs) and `onnxruntime-gpu` install into the same folder, and which one wins depends on install order. To check, run `python -c "import onnxruntime as o; print(o.get_available_providers())"` in the environment; if `CUDAExecutionProvider` is missing, run `uv pip install --reinstall-package onnxruntime-gpu onnxruntime-gpu` there. The GPU package also carries the CPU provider, so the text reader keeps working.
 
+### Shadow mode
+
+Shadow mode runs the detector beside the farm loop while a match plays and logs what it sees. It sends no input: farm mode drives exactly as it does today.
+
+To turn it on, set `shadow = true` under `[behavior]` in `config.toml` under `%LOCALAPPDATA%\brawlfarm`, then restart the instance. There is no switch in the panel yet.
+
+It needs the `play` extra above, plus a model: `models\play.onnx` and `models\play.json` under `%LOCALAPPDATA%\brawlfarm`. No model ships yet; without one, shadow mode says so once in the feed and does nothing.
+
+Shadow files land under `instances\<name>\shadow\`, one JSON lines file per match, with boxes and timings only. The newest 50 files are kept.
+
+Three feed rows carry shadow mode: `play_on` when a session starts, `play_summary` once the match ends, and `play_fallback` when a session gives up, with a reason such as `extra_missing`, `model_missing`, `model_invalid`, `stream_start`, `stream_error`, `stale`, `detector_error` or `session_error`.
+
+The stream takes about 60 percent of one BlueStacks core while a match runs.
+
 The commands below assume the checkout and say `uv run brawlfarm`; with a tool install the command is just `brawlfarm`. `docs/setup.md` is the step by step walkthrough and `docs/release.md` is how a release ships.
 
 ## Setup
