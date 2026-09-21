@@ -1,0 +1,445 @@
+"""The shadow session: a detector runs beside an untouched farm loop and sends nothing.
+
+Everything here drives the session by hand (``threaded=False``) except the one threaded test,
+so the reads are deterministic: the fake clock only moves when a test moves it.
+"""
+
+from __future__ import annotations
+
+import ast
+import json
+import subprocess
+import sys
+import threading
+import time
+from datetime import datetime
+from pathlib import Path
+
+import numpy as np
+import pytest
+
+from brawlfarm.core.states import State
+from brawlfarm.play import detect, session
+
+HEADER_KEYS = {
+    "model",
+    "training_set_hash",
+    "provider",
+    "smoke",
+    "classes",
+    "rate_hz",
+    "started",
+}
+
+
+class FakeStream:
+    def __init__(self, *, fail: bool = False) -> None:
+        self.fail = fail
+        self.started = False
+        self.stopped = False
+        self.error: str | None = None
+        self.frame: np.ndarray | None = np.zeros((900, 1600, 3), dtype=np.uint8)
+        self.age = 0.25
+
+    def start(self) -> None:
+        if self.fail:
+            raise RuntimeError("no encoder")
+        self.started = True
+
+    def latest(self):
+        if self.frame is None or self.error is not None:
+            return None, None
+        return self.frame, self.age
+
+    def stop(self) -> None:
+        self.stopped = True
+
+
+class FakeDetector:
+    name = "play-v1"
+    provider = "CPUExecutionProvider"
+    smoke = False
+    training_set_hash = "abc123"
+    classes = ("enemy", "bush")
+
+    def __init__(self) -> None:
+        self.fail = False
+        self.boxes = [
+            detect.Box(cls="enemy", score=0.9123, x=10.4, y=20.6, w=30.2, h=40.8),
+            detect.Box(cls="bush", score=0.5551, x=1.0, y=2.0, w=3.0, h=4.0),
+        ]
+        self.calls = 0
+
+    def detect(self, frame):
+        self.calls += 1
+        if self.fail:
+            raise RuntimeError("bad input")
+        return list(self.boxes)
+
+
+class Harness:
+    """A session and the doubles behind it, plus the fake clock the tests move."""
+
+    def __init__(self, folder: Path, *, threaded: bool = False, sleep=None) -> None:
+        self.streams: list[FakeStream] = []
+        self.detector = FakeDetector()
+        self.detector_calls = 0
+        self.stream_fails = False
+        self.factory_error: Exception | None = None
+        self.now = [100.0]
+        self.session = session.PlaySession(
+            folder=folder,
+            stream_factory=self._stream,
+            detector_factory=self._detector,
+            clock=lambda: self.now[0],
+            sleep=sleep or (lambda seconds: None),
+            threaded=threaded,
+            now=lambda: datetime(2026, 9, 20, 10, 11, 12),
+        )
+
+    def _stream(self) -> FakeStream:
+        if self.factory_error is not None and isinstance(self.factory_error, RuntimeError):
+            raise self.factory_error
+        made = FakeStream(fail=self.stream_fails)
+        self.streams.append(made)
+        return made
+
+    def _detector(self) -> FakeDetector:
+        self.detector_calls += 1
+        if self.factory_error is not None and not isinstance(self.factory_error, RuntimeError):
+            raise self.factory_error
+        return self.detector
+
+    def run(self, ticks: int = 1) -> None:
+        """What the thread would do: begin, then a few ticks."""
+        self.session._begin()
+        for _ in range(ticks):
+            self.session._tick()
+
+
+@pytest.fixture()
+def h(tmp_path: Path, monkeypatch) -> Harness:
+    monkeypatch.setattr(session.play, "available", lambda: True)
+    return Harness(tmp_path)
+
+
+def reasons(events) -> list[str]:
+    return [fields["reason"] for kind, fields in events if kind == "play_fallback"]
+
+
+def kinds(events) -> list[str]:
+    return [kind for kind, _ in events]
+
+
+# -- starting and stopping ---------------------------------------------------------
+
+
+def test_a_session_starts_only_on_a_match_in_the_playing_phase(h: Harness) -> None:
+    assert h.session.observe(State.IN_MATCH, "returning") == []
+    assert not h.session.active
+    assert h.session.observe(State.MENU, "playing") == []
+    assert not h.session.active
+    assert h.session.observe(State.IN_MATCH, "playing") == []
+    assert h.session.active
+
+
+def test_the_happy_path_writes_a_file_and_reports_on_and_a_summary(h: Harness, tmp_path) -> None:
+    h.session.observe(State.IN_MATCH, "playing")
+    h.run(ticks=3)
+    h.now[0] += 12.0
+
+    events = h.session.observe(State.RESULTS, "playing")
+
+    assert kinds(events) == ["play_on", "play_summary"]
+    on = events[0][1]
+    assert on["shadow"] is True and on["model"] == "play-v1" and on["smoke"] is False
+    assert on["provider"] == "CPUExecutionProvider" and isinstance(on["start_ms"], float)
+    done = events[1][1]
+    assert done["shadow"] is True and done["frames"] == 3
+    assert done["boxes"] == {"enemy": 3, "bush": 3}
+    assert done["stale_ticks"] == 0 and done["seconds"] == 12.0
+    assert set(done) == {
+        "shadow",
+        "frames",
+        "seconds",
+        "fps",
+        "ms_p50",
+        "ms_p95",
+        "stale_ticks",
+        "boxes",
+        "file",
+    }
+
+    written = tmp_path / done["file"]
+    assert written.parent == tmp_path  # the file field is a name, never a path
+    lines = [json.loads(line) for line in written.read_text(encoding="utf-8").splitlines()]
+    assert len(lines) == 4
+    assert set(lines[0]) == HEADER_KEYS
+    assert lines[0]["classes"] == ["enemy", "bush"] and lines[0]["rate_hz"] == session.RATE_HZ
+    assert set(lines[1]) == {"t", "age", "ms", "boxes"}
+    assert lines[1]["boxes"] == [["enemy", 0.912, 10, 20, 30, 40], ["bush", 0.555, 1, 2, 3, 4]]
+    assert h.streams[0].stopped and not h.session.active
+
+
+@pytest.mark.parametrize(
+    ("state", "phase"),
+    [
+        (State.IN_MATCH, "returning"),
+        (State.IN_MATCH, "at_menu"),
+        (State.MENU, "playing"),
+        (State.DISCONNECT, "playing"),
+    ],
+)
+def test_every_way_out_of_a_match_ends_the_session(h: Harness, state, phase) -> None:
+    h.session.observe(State.IN_MATCH, "playing")
+    h.run(ticks=1)
+
+    events = h.session.observe(state, phase)
+
+    assert kinds(events) == ["play_on", "play_summary"]
+    assert not h.session.active and h.streams[0].stopped
+
+
+def test_the_time_cap_ends_the_session(h: Harness) -> None:
+    h.session.observe(State.IN_MATCH, "playing")
+    h.run(ticks=1)
+    h.now[0] += session.MAX_SECONDS
+
+    events = h.session.observe(State.IN_MATCH, "playing")
+
+    assert kinds(events) == ["play_on", "play_summary"]
+    assert not h.session.active and h.streams[0].stopped
+
+
+def test_unknown_and_popup_inside_the_match_keep_the_session_open(h: Harness) -> None:
+    h.session.observe(State.IN_MATCH, "playing")
+    h.run(ticks=1)
+
+    assert kinds(h.session.observe(State.UNKNOWN, "playing")) == ["play_on"]
+    assert h.session.observe(State.POPUP, "playing") == []
+    assert h.session.active
+
+
+# -- the ways it gives up ----------------------------------------------------------
+
+
+def test_a_stream_factory_that_raises_gives_one_fallback(h: Harness) -> None:
+    h.factory_error = RuntimeError("no adb")
+    h.session.observe(State.IN_MATCH, "playing")
+    h.session._begin()
+
+    events = h.session.observe(State.IN_MATCH, "playing")
+
+    assert reasons(events) == ["stream_start"]
+    assert kinds(events) == ["play_fallback"]  # nothing was inferred, so no summary
+    assert not h.session.active
+
+
+def test_a_stream_that_will_not_start_gives_one_fallback(h: Harness) -> None:
+    h.stream_fails = True
+    h.session.observe(State.IN_MATCH, "playing")
+    h.session._begin()
+
+    events = h.session.observe(State.IN_MATCH, "playing")
+
+    assert reasons(events) == ["stream_start"] and not h.session.active
+
+
+def test_a_stream_error_inside_the_match_gives_one_fallback_and_a_summary(h: Harness) -> None:
+    h.session.observe(State.IN_MATCH, "playing")
+    h.run(ticks=1)
+    h.streams[0].error = "server gone"
+    assert h.session._tick() is False
+    assert h.session._tick() is False  # the thread may tick again; still one row
+
+    events = h.session.observe(State.IN_MATCH, "playing")
+
+    assert reasons(events) == ["stream_error"]
+    assert kinds(events) == ["play_on", "play_fallback", "play_summary"]
+    assert h.streams[0].stopped
+
+
+def test_a_stale_stream_gives_up_only_after_the_limit(h: Harness) -> None:
+    h.session.observe(State.IN_MATCH, "playing")
+    h.run(ticks=1)
+    h.streams[0].frame = None
+    h.now[0] += session.STALE_LIMIT - 1.0
+    assert h.session._tick() is True
+    h.now[0] += 1.0
+    assert h.session._tick() is False
+
+    events = h.session.observe(State.IN_MATCH, "playing")
+
+    assert reasons(events) == ["stale"]
+    assert dict(events)["play_summary"]["stale_ticks"] == 2
+
+
+def test_a_detector_that_raises_gives_one_fallback_with_the_detail(h: Harness) -> None:
+    h.session.observe(State.IN_MATCH, "playing")
+    h.session._begin()
+    h.detector.fail = True
+    assert h.session._tick() is False
+
+    events = h.session.observe(State.IN_MATCH, "playing")
+
+    assert reasons(events) == ["detector_error"]
+    detail = [f for k, f in events if k == "play_fallback"][0]["detail"]
+    assert "bad input" in detail
+
+
+def test_a_missing_model_is_one_quiet_fallback_and_no_session_ever_again(h: Harness) -> None:
+    h.factory_error = detect.ModelMissing("no play.onnx")
+    h.session.observe(State.IN_MATCH, "playing")
+    h.session._begin()
+
+    events = h.session.observe(State.IN_MATCH, "playing")
+    assert events == [("play_fallback", {"reason": "model_missing", "shadow": True})]
+    assert h.streams == []  # the stream never starts when the model is not there
+
+    assert h.session.observe(State.RESULTS, "playing") == []
+    assert h.session.observe(State.IN_MATCH, "playing") == []
+    assert not h.session.active
+
+
+def test_an_invalid_model_is_one_fallback_with_the_detail(h: Harness) -> None:
+    h.factory_error = detect.ModelInvalid("threshold for enemy is missing")
+    h.session.observe(State.IN_MATCH, "playing")
+    h.session._begin()
+
+    events = h.session.observe(State.IN_MATCH, "playing")
+
+    assert reasons(events) == ["model_invalid"]
+    assert "threshold for enemy" in events[0][1]["detail"]
+    assert h.session.observe(State.RESULTS, "playing") == []
+    assert h.session.observe(State.IN_MATCH, "playing") == []
+
+
+def test_the_play_extra_missing_is_one_fallback_for_the_life_of_the_process(
+    tmp_path: Path, monkeypatch
+) -> None:
+    monkeypatch.setattr(session.play, "available", lambda: False)
+    h = Harness(tmp_path)
+
+    events = h.session.observe(State.IN_MATCH, "playing")
+    assert events == [("play_fallback", {"reason": "extra_missing", "shadow": True})]
+    assert not h.session.active
+
+    assert h.session.observe(State.RESULTS, "playing") == []
+    assert h.session.observe(State.IN_MATCH, "playing") == []
+
+
+def test_a_mid_match_failure_waits_for_the_match_to_end_before_trying_again(h: Harness) -> None:
+    h.session.observe(State.IN_MATCH, "playing")
+    h.run(ticks=1)
+    h.streams[0].error = "server gone"
+    h.session._tick()
+    h.session.observe(State.IN_MATCH, "playing")
+
+    assert h.session.observe(State.IN_MATCH, "playing") == []
+    assert not h.session.active
+
+    h.session.observe(State.RESULTS, "playing")
+    h.session.observe(State.IN_MATCH, "playing")
+    assert h.session.active
+    h.run(ticks=1)
+    assert len(h.streams) == 2 and h.streams[1].started
+
+
+def test_the_detector_is_loaded_once_across_two_matches(h: Harness) -> None:
+    h.session.observe(State.IN_MATCH, "playing")
+    h.run(ticks=1)
+    h.session.observe(State.RESULTS, "playing")
+    h.session.observe(State.IN_MATCH, "playing")
+    h.run(ticks=1)
+    h.session.observe(State.RESULTS, "playing")
+
+    assert h.detector_calls == 1 and len(h.streams) == 2
+
+
+def test_old_shadow_files_are_pruned_to_the_cap(h: Harness, tmp_path: Path) -> None:
+    for index in range(55):
+        (tmp_path / f"20260919-00{index:04d}.jsonl").write_text("{}\n", encoding="utf-8")
+    (tmp_path / "keep.txt").write_text("not mine", encoding="utf-8")
+
+    h.session.observe(State.IN_MATCH, "playing")
+    h.run(ticks=1)
+    h.session.observe(State.RESULTS, "playing")
+
+    assert len(list(tmp_path.glob("*.jsonl"))) == session.KEEP_FILES
+    assert (tmp_path / "keep.txt").exists()
+
+
+def test_a_second_session_in_the_same_second_gets_a_numbered_name(h: Harness) -> None:
+    h.session.observe(State.IN_MATCH, "playing")
+    h.run(ticks=1)
+    first = h.session.observe(State.RESULTS, "playing")[1][1]["file"]
+    h.session.observe(State.IN_MATCH, "playing")
+    h.run(ticks=1)
+    second = h.session.observe(State.RESULTS, "playing")[1][1]["file"]
+
+    assert first == "20260920-101112.jsonl" and second == "20260920-101112-2.jsonl"
+
+
+def test_close_ends_a_live_session_and_a_second_close_says_nothing(h: Harness) -> None:
+    h.session.observe(State.IN_MATCH, "playing")
+    h.run(ticks=2)
+
+    events = h.session.close()
+
+    assert kinds(events) == ["play_on", "play_summary"]
+    assert h.streams[0].stopped and not h.session.active
+    assert h.session.close() == []
+
+
+def test_close_without_a_session_says_nothing(h: Harness) -> None:
+    assert h.session.close() == []
+
+
+# -- the real thread ---------------------------------------------------------------
+
+
+def test_a_threaded_session_runs_and_is_gone_when_the_match_ends(tmp_path: Path, monkeypatch):
+    monkeypatch.setattr(session.play, "available", lambda: True)
+    monkeypatch.setattr(session, "RATE_HZ", 500.0)  # no real waiting in the test
+    h = Harness(tmp_path, threaded=True, sleep=time.sleep)
+
+    h.session.observe(State.IN_MATCH, "playing")
+    for _ in range(300):  # the ticks happened; how fast they happened is not asserted
+        if h.detector.calls >= 3:
+            break
+        time.sleep(0.01)
+
+    events = h.session.observe(State.RESULTS, "playing")
+
+    assert kinds(events) == ["play_on", "play_summary"]
+    assert dict(events)["play_summary"]["frames"] >= 1
+    assert h.streams[0].stopped
+    assert [t for t in threading.enumerate() if t.name == "play-shadow"] == []
+
+
+# -- rails -------------------------------------------------------------------------
+
+
+def test_no_module_under_play_reaches_for_an_input_helper() -> None:
+    banned = ("tap", "swipe", "input_", "keyevent")
+    folder = Path(session.__file__).resolve().parent
+    for source in sorted(folder.rglob("*.py")):
+        tree = ast.parse(source.read_text(encoding="utf-8"))
+        for node in ast.walk(tree):
+            if isinstance(node, ast.ImportFrom) and node.module == "brawlfarm.core.adb":
+                names = [alias.name for alias in node.names]
+            elif isinstance(node, ast.Attribute) and isinstance(node.value, ast.Name):
+                names = [node.attr] if node.value.id == "adb" else []
+            else:
+                continue
+            for name in names:
+                assert not any(word in name for word in banned), f"{source.name}: {name}"
+
+
+def test_importing_the_session_pulls_nothing_heavy() -> None:
+    code = (
+        "import sys, brawlfarm.play.session; "
+        "print([m for m in ('onnxruntime', 'av') if m in sys.modules])"
+    )
+    done = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, check=True)
+    assert done.stdout.strip() == "[]"
