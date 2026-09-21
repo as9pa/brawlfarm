@@ -1558,11 +1558,13 @@ class Controller:
         on first use (the import lives here so shadow off costs nothing), then writes the
         rows it returns — feed rows only ever leave this thread. The session swallows its
         own errors; anything that still escapes turns shadow off for the rest of the
-        process after one log line, because the farm is not allowed to care."""
-        if self._play_off or not self._play_shadow_on():
+        process after one log line, because the farm is not allowed to care. Shadow off
+        returns before it reads an attribute, so a controller built without __init__ (the
+        tests that drive the loop directly) never trips over one."""
+        if not self._play_shadow_on() or getattr(self, "_play_off", False):
             return
         try:
-            if self.play is None:
+            if getattr(self, "play", None) is None:
                 from brawlfarm.play import session
 
                 self.play = session.PlaySession()
@@ -1741,9 +1743,11 @@ class Controller:
             except Exception:
                 pass
             # Same for the shadow session: its thread is stopped and its summary written
-            # on every exit, and its own try so neither close can eat the other's.
-            if self.play is not None:
-                try:
+            # on every exit, in its own try so neither close can eat the other's. The
+            # attribute lookup is inside the try too: a controller built without __init__
+            # has no `play`, and a finally that raises would mask the real exception.
+            try:
+                if self.play is not None:
                     self._play_close()
-                except Exception:
-                    pass
+            except Exception:
+                pass

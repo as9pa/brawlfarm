@@ -129,6 +129,23 @@ def test_the_close_drains_the_summary_rows(monkeypatch) -> None:
     assert c.dl.events == rows
 
 
+def test_a_controller_without_the_attributes_survives_both_paths(monkeypatch) -> None:
+    """tests/test_preview.py drives the real loop on a controller built without __init__,
+    so neither path may assume `play` or `_play_off` exists. The tick returns before it
+    reads one, and run()'s finally keeps its `self.play` lookup inside its own try (the
+    shape repeated here), because a finally that raises masks the exception it was
+    handed."""
+    monkeypatch.setattr(config, "PLAY_SHADOW", False)
+    c = Controller.__new__(Controller)  # no dl, no play, no _play_off
+    c._play_observe(State.IN_MATCH)
+    assert not hasattr(c, "play")
+    try:
+        if c.play is not None:
+            c._play_close()
+    except Exception:
+        pass
+
+
 def test_the_close_lets_its_caller_swallow_the_failure() -> None:
     c = _ctrl(_Session(boom=True))
     with pytest.raises(RuntimeError):  # run()'s finally owns the try/except
