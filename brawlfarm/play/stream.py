@@ -25,9 +25,6 @@ from brawlfarm.core import adb
 log = logging.getLogger("brawlfarm.play.stream")
 
 STALE_AFTER = 0.5  # seconds; older than this and latest() says there is no frame
-VIDEO_BIT_RATE = (
-    1_000_000  # bits per second; the scrcpy default drops the game's connection mid-match
-)
 CONNECT_DEADLINE = 8.0  # seconds to wait for the first byte after the server starts
 REMOTE_JAR = "/data/local/tmp/scrcpy-server.jar"
 REMOTE_SOCKET = "localabstract:scrcpy"
@@ -37,7 +34,6 @@ SERVER_ARGS = [
     "control=false",  # fixed: the stream never sends input
     "video_codec=h264",
     "max_fps=30",
-    f"video_bit_rate={VIDEO_BIT_RATE}",
     "raw_stream=true",
     "log_level=warn",
 ]
