@@ -143,6 +143,11 @@ class Controller:
         self.recorder = Recorder(
             config.HOME_DIR / "calibration", config.DATA_DIR.name, config.DATA_DIR / "record.flag"
         )
+        # Shadow play session (the model watching the farm play): built on the first tick
+        # that needs it, so a worker with `shadow` off never imports the play package.
+        # Observation only — it never taps. _play_off latches on the first failure.
+        self.play = None
+        self._play_off = False
         # Network-stuck tracker (see RESULTS_STUCK_TAPS):
         self._results_taps = 0  # consecutive advance_results taps without progress
         self.popup_count = 0
@@ -1541,6 +1546,38 @@ class Controller:
             self.log("freeze detected")
             self.recover("freeze")
 
+    # --- shadow play session -------------------------------------------------
+
+    def _play_shadow_on(self) -> bool:
+        """Is the play model allowed to watch this tick? Shadow only for now: the one
+        expression the driving mode widens."""
+        return config.PLAY_SHADOW
+
+    def _play_observe(self, state: State) -> None:
+        """One shadow tick, on the same frame the farm just acted on. Builds the session
+        on first use (the import lives here so shadow off costs nothing), then writes the
+        rows it returns — feed rows only ever leave this thread. The session swallows its
+        own errors; anything that still escapes turns shadow off for the rest of the
+        process after one log line, because the farm is not allowed to care."""
+        if self._play_off or not self._play_shadow_on():
+            return
+        try:
+            if self.play is None:
+                from brawlfarm.play import session
+
+                self.play = session.PlaySession()
+            for kind, fields in self.play.observe(state, self.phase):
+                self.dl.event(kind, **fields)
+        except Exception as e:
+            self._play_off = True
+            self.log(f"play shadow error (shadow off): {e!r}")
+
+    def _play_close(self) -> None:
+        """Drain the shadow session's closing rows (the summary, the file it wrote) into
+        the feed. Called from run()'s finally, which owns the try that swallows this."""
+        for kind, fields in self.play.close():
+            self.dl.event(kind, **fields)
+
     # --- main loop -----------------------------------------------------------
 
     def ensure_game_open(self) -> bool:
@@ -1615,6 +1652,10 @@ class Controller:
                     # writes it only while record.flag is set, and returns False
                     # (never raises) every other tick.
                     self.recorder.observe(screen, state, self.phase)
+                    # Same tick for the shadow model: it sees the states the farm handles
+                    # and continues past below (disconnect, popup) too, so a match that
+                    # ends in a modal is still a match it saw end.
+                    self._play_observe(state)
                     if self.phase != self._prev_phase:
                         self._maybe_shot(screen, self.phase)
                         self._prev_phase = self.phase
@@ -1699,3 +1740,10 @@ class Controller:
                 self.recorder.close()
             except Exception:
                 pass
+            # Same for the shadow session: its thread is stopped and its summary written
+            # on every exit, and its own try so neither close can eat the other's.
+            if self.play is not None:
+                try:
+                    self._play_close()
+                except Exception:
+                    pass

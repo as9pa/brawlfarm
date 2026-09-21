@@ -38,6 +38,8 @@ MATCHES = frozenset(
         "select_brawler",
         "rotate_brawler",
         "quest_pick",
+        "play_on",
+        "play_summary",
     }
 )
 INTERRUPTS = frozenset(
@@ -58,7 +60,7 @@ INTERRUPTS = frozenset(
         "skin_reward",
     }
 )
-ERRORS = frozenset({"crash", "bad_resolution", "recalibrate"})
+ERRORS = frozenset({"crash", "bad_resolution", "recalibrate", "play_fallback"})
 DROP = frozenset({"tap", "gas_edges"})  # per-tap noise, never worth a feed line
 
 KINDS = ("all", "matches", "interrupts", "errors")

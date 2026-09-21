@@ -110,6 +110,9 @@ def test_classify_sorts_every_kind_into_a_chip() -> None:
     assert classify("recalibrate") == "errors"
     assert classify("select_brawler_error") == "errors"  # _error wins over the matches set
     assert classify("adb_error") == "errors"
+    assert classify("play_on") == "matches"
+    assert classify("play_summary") == "matches"
+    assert classify("play_fallback") == "errors"
     assert classify("mega_quest") == "other"  # visible under All only
     assert classify("tap") is None  # one per tap: noise
     assert classify("gas_edges") is None
