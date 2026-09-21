@@ -105,6 +105,7 @@ def test_start_pushes_forwards_spawns_and_yields_frames(fakes) -> None:
             play.SERVER_VERSION,
         ]
         assert "control=false" in calls[2][1] and "raw_stream=true" in calls[2][1]
+        assert "video_bit_rate=1000000" in calls[2][1]
         assert _wait(lambda: s.frames > 0)
         frame, age = s.latest()
         assert frame is not None and frame.shape == (900, 1600, 3)
@@ -196,3 +197,10 @@ def test_a_record_path_that_cannot_be_opened_tears_the_start_down(fakes, tmp_pat
         s.start()
     assert proc.killed
     assert calls.count(("forward_remove", s.port)) == 1
+
+
+def test_the_server_args_ask_for_a_capped_bit_rate() -> None:
+    assert "video_bit_rate=1000000" in stream.SERVER_ARGS
+    # A tripwire: the default bit rate made the game disconnect mid-match, so raising this
+    # needs a new live pass.
+    assert stream.VIDEO_BIT_RATE <= 2_000_000
