@@ -26,7 +26,6 @@ from typing import Any
 
 import numpy as np
 
-from brawlfarm import play
 from brawlfarm.core.states import State
 from brawlfarm.play import matchrec
 
@@ -70,6 +69,9 @@ class PlaySession:
 
     Frames come from the emulator's screen captures, so a frame is 0.2 to 0.3 s old by the time
     the model sees it.
+
+    Shadow mode needs no optional extra. It captures the screen through adb and runs the model on
+    onnxruntime, which rapidocr-onnxruntime already requires, so a plain install can run it.
     """
 
     def __init__(
@@ -103,9 +105,8 @@ class PlaySession:
 
         self._running = False
         self._closed = False
-        self._off = False  # latched for the life of the process: no extra, no usable model
+        self._off = False  # latched for the life of the process: no usable model
         self._await_stop = False  # a failed session waits for the match to be over
-        self._said_extra = False
         self._thread: threading.Thread | None = None
         self._stop_flag = threading.Event()
         self._source: Any = None
@@ -161,13 +162,6 @@ class PlaySession:
         if self._closed or self._off or self._await_stop:
             return
         if not playing or state != State.IN_MATCH:
-            return
-        if not play.available():
-            if not self._said_extra:
-                self._said_extra = True
-                self._off = True
-                log.info("shadow mode off: the play extra is not installed")
-                self._queue("play_fallback", reason="extra_missing")
             return
         self._start()
 

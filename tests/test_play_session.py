@@ -18,6 +18,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 
+from brawlfarm import play
 from brawlfarm.core.states import State
 from brawlfarm.play import capture, detect, session
 
@@ -118,8 +119,7 @@ class Harness:
 
 
 @pytest.fixture()
-def h(tmp_path: Path, monkeypatch) -> Harness:
-    monkeypatch.setattr(session.play, "available", lambda: True)
+def h(tmp_path: Path) -> Harness:
     return Harness(tmp_path)
 
 
@@ -326,18 +326,18 @@ def test_an_invalid_model_is_one_fallback_with_the_detail(h: Harness) -> None:
     assert h.session.observe(State.IN_MATCH, "playing") == []
 
 
-def test_the_play_extra_missing_is_one_fallback_for_the_life_of_the_process(
-    tmp_path: Path, monkeypatch
-) -> None:
-    monkeypatch.setattr(session.play, "available", lambda: False)
+def test_a_missing_play_extra_no_longer_stops_shadow_mode(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.setattr(play, "available", lambda: False)
     h = Harness(tmp_path)
 
-    events = h.session.observe(State.IN_MATCH, "playing")
-    assert events == [("play_fallback", {"reason": "extra_missing", "shadow": True})]
-    assert not h.session.active
+    h.session.observe(State.IN_MATCH, "playing")
+    assert h.session.active
+    h.run(ticks=1)
 
-    assert h.session.observe(State.RESULTS, "playing") == []
-    assert h.session.observe(State.IN_MATCH, "playing") == []
+    events = h.session.observe(State.RESULTS, "playing")
+
+    assert kinds(events) == ["play_on", "play_summary"]
+    assert reasons(events) == []
 
 
 def test_a_mid_match_failure_waits_for_the_match_to_end_before_trying_again(h: Harness) -> None:
@@ -411,7 +411,6 @@ def test_close_without_a_session_says_nothing(h: Harness) -> None:
 
 
 def test_a_threaded_session_runs_and_is_gone_when_the_match_ends(tmp_path: Path, monkeypatch):
-    monkeypatch.setattr(session.play, "available", lambda: True)
     monkeypatch.setattr(session, "RATE_HZ", 500.0)  # no real waiting in the test
     h = Harness(tmp_path, threaded=True, sleep=time.sleep)
 
