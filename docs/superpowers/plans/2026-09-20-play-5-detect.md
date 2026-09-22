@@ -197,3 +197,298 @@ Live pass (the controller, not a subagent): copy the smoke model from the pull r
 ### Task 6: whole-branch review and the pull request
 
 Whole-branch review on sonnet, one fix round, one scoped re-review. Full gate. Push with the personal token scoped to the one command; open "Play mode 5 of 7: the detector module and shadow mode" with the live pass numbers, the order change and its reason, and the limits (smoke model only; no real model exists yet; no web copy for the new feed rows). Do not merge.
+
+---
+
+## Redesign: the detector reads screencaps, not the stream (2026-09-22)
+
+Task 7 (a stream bit rate cap) was reverted: no stream setting stops the disconnects. The owner
+chose the screencap-fed detector. Tasks 8 to 11 replace the stream as the session's frame source;
+Task 6 still ends the branch.
+
+**Measured on the live instance, at the game's menu, no input, no stream, no match:**
+`adb.screencap()` one thread 5.34 per second, p50 180 ms, p95 238 ms, 0 failures, BGR (900, 1600, 3).
+Two concurrent capture threads 4.57 and 4.64 per second, 0 failures. A farm-shaped thread (capture
+plus classify on a 1.379 s tick) had a busy time of p50 464 ms alone and 510 ms beside a 5 Hz capture
+thread, which itself got 4.88 captures per second. In a match a capture costs 236 to 278 ms, not 180.
+The stream delivered the session 4.9 frames per second because the session throttles to `RATE_HZ`, so
+the pull source is throughput-equivalent. What changes is age: 0.03 to 0.05 s becomes 0.2 to 0.3 s.
+
+### Task 8: the screencap frame source
+
+**Files:**
+- Create: `brawlfarm/play/capture.py`
+- Test: `tests/test_play_capture.py`
+
+**Interfaces:**
+- Consumes: `brawlfarm.core.adb.screencap() -> np.ndarray` (BGR, 900x1600x3, raises `adb.AdbError`).
+- Produces: `ScreencapSource`, which Task 9 uses through the same four names the session already
+  calls on a stream: `start()`, `latest()`, `stop()`, and the attribute `error`.
+
+The class duck-types `brawlfarm/play/stream.py`'s `Stream` so the session changes as little as
+possible. A daemon thread captures in a loop and keeps only the newest frame.
+
+```python
+"""The detector's frame source: the emulator's own screen captures, pulled on a thread.
+
+Play mode was designed around a live scrcpy stream. That stream disconnects the game during a
+match (see the open defect in docs/superpowers/specs/2026-09-18-play-mode.md, section 2), so the
+detector reads ``adb.screencap()`` instead. One capture costs 180 to 280 ms, which gives about 5
+frames a second: the same rate the session consumed from the stream, with a later frame.
+
+This class duck-types ``brawlfarm.play.stream.Stream`` on purpose: ``start()``, ``latest()``,
+``stop()`` and ``error`` are all the session uses.
+"""
+
+from __future__ import annotations
+
+import logging
+import threading
+import time
+from typing import Any, Callable
+
+import numpy as np
+
+from brawlfarm.core import adb
+
+log = logging.getLogger("brawlfarm.play.capture")
+
+STALE_AFTER = 1.0  # seconds; older than this and latest() says there is no frame
+MIN_INTERVAL = 0.2  # seconds between captures: the session reads at 5 Hz, so do not capture faster
+MAX_ERRORS = 3  # consecutive capture failures before the source gives up (one adb hiccup is normal)
+JOIN_TIMEOUT = 3.0
+
+
+class ScreencapSource:
+    """Newest-frame-wins screen captures on a background thread."""
+
+    def __init__(
+        self,
+        *,
+        capture: Callable[[], np.ndarray] | None = None,
+        clock: Callable[[], float] = time.monotonic,
+        sleep: Callable[[float], Any] = time.sleep,
+        min_interval: float = MIN_INTERVAL,
+        max_errors: int = MAX_ERRORS,
+    ) -> None:
+        self._capture = capture or adb.screencap
+        self._clock = clock
+        self._sleep = sleep
+        self._min_interval = float(min_interval)
+        self._max_errors = int(max_errors)
+        self._lock = threading.Lock()
+        self._frame: np.ndarray | None = None
+        self._frame_at: float | None = None
+        self._stop = threading.Event()
+        self._thread: threading.Thread | None = None
+        self.error: str | None = None
+        self.frames = 0
+
+    # -- lifetime ----------------------------------------------------------------
+
+    def start(self) -> None:
+        """Begin capturing. Calling it twice is a no-op, never a second thread."""
+        if self._thread is not None:
+            return
+        self._thread = threading.Thread(target=self._pump, name="play-capture", daemon=True)
+        self._thread.start()
+
+    def stop(self) -> None:
+        """Stop capturing and wait briefly for the thread. Safe to call twice, or before start."""
+        self._stop.set()
+        thread, self._thread = self._thread, None
+        if thread is not None:
+            thread.join(JOIN_TIMEOUT)
+
+    # -- frames --------------------------------------------------------------------
+
+    def latest(self) -> tuple[np.ndarray | None, float | None]:
+        """The newest frame and its age in seconds, or (None, None) when there is none, the
+        newest is older than STALE_AFTER, or the source has given up."""
+        with self._lock:
+            frame, at = self._frame, self._frame_at
+        if frame is None or at is None or self.error is not None:
+            return None, None
+        age = self._clock() - at
+        if age > STALE_AFTER:
+            return None, None
+        return frame, age
+
+    def _pump(self) -> None:
+        failures = 0
+        while not self._stop.is_set():
+            began = self._clock()
+            try:
+                frame = self._capture()
+            except Exception as exc:  # one hiccup is normal; a run of them is not
+                failures += 1
+                if failures >= self._max_errors:
+                    self.error = f"{self._max_errors} captures failed: {exc!r}"
+                    log.warning("capture source gave up: %s", self.error)
+                    return
+            else:
+                failures = 0
+                with self._lock:
+                    # the age counts from BEFORE the call, so it includes the capture's own cost
+                    self._frame, self._frame_at = frame, began
+                    self.frames += 1
+            rest = self._min_interval - (self._clock() - began)
+            if rest > 0:
+                self._sleep(rest)
+```
+
+- [ ] **Step 1: write the failing tests**
+
+`tests/test_play_capture.py`, following the fakes and naming style already used by
+`tests/test_play_session.py` (read that file first). Every test drives a fake capture and a fake
+clock; none of them touches adb, a thread's timing, or the real emulator. Drive `_pump` directly
+where a test needs determinism rather than starting the thread. Cover exactly these:
+
+1. `latest()` is `(None, None)` before anything has been captured.
+2. The age comes from before the capture call: a capture whose fake clock advances 0.25 s during
+   the call reports an age of at least 0.25 s, not near zero.
+3. A frame older than `STALE_AFTER` reports `(None, None)`.
+4. One capture failure does not set `error`, and the next success clears the count.
+5. Three consecutive failures set `error` to a string naming the count, and the pump returns.
+6. Once `error` is set, `latest()` is `(None, None)` even with a stored frame.
+7. `start()` twice runs one thread.
+8. `stop()` before `start()` does not raise, and `stop()` twice does not raise.
+9. The pump paces itself: with a capture that takes no time and `min_interval=0.2`, the fake
+   sleep is asked for about 0.2 s each round.
+10. `frames` counts successful captures only.
+11. The default `capture` is `adb.screencap` (assert the attribute, do not call it).
+
+- [ ] **Step 2: run them and watch them fail**
+
+`uv --directory <worktree> run pytest tests/test_play_capture.py -q`
+
+- [ ] **Step 3: write `capture.py` as given above, then make the tests pass**
+
+- [ ] **Step 4: full gate**, then commit
+
+```
+feat(play): the detector's frames come from screencaps, not the stream
+```
+
+### Task 9: the session pulls from the new source
+
+**Files:**
+- Modify: `brawlfarm/play/session.py`
+- Modify: `tests/test_play_session.py`
+
+**Interfaces:**
+- Consumes: `capture.ScreencapSource` from Task 8.
+- Produces: the constructor keyword `source_factory` (was `stream_factory`) and the fallback
+  reasons `source_start` and `source_error` (were `stream_start` and `stream_error`).
+
+The seam does not change shape, only its names, so that nothing in the file claims a stream where
+there is none. The web panel does not key on these strings (a grep of `brawlfarm/web/src` finds
+none) and this pull request has never been pushed, so the rename costs nothing outside the branch.
+
+- [ ] **Step 1**: grep the repository for `stream_factory`, `stream_start`, `stream_error`,
+  `_stop_stream`, `_default_stream` and `_stream` across `brawlfarm`, `tests`, `tools`, `docs` and
+  `README.md`, and change every hit that belongs to the session: `stream_factory` to
+  `source_factory`, `_stream_factory` to `_source_factory`, `_stream` to `_source`, `_stop_stream`
+  to `_stop_source`, `_default_stream` to `_default_source`, and the two reason strings. Leave every
+  hit that belongs to `brawlfarm/play/stream.py`, `brawlfarm/play/matchrec.py` or
+  `tools/play/stream_check.py` alone: those really are the stream.
+- [ ] **Step 2**: `_default_source` returns `capture.ScreencapSource()`:
+
+```python
+def _default_source() -> Any:
+    from brawlfarm.play import capture  # kept lazy so the module stays cheap to import
+
+    return capture.ScreencapSource()
+```
+
+- [ ] **Step 3**: update the module docstring (session.py line 4 says the thread starts the stream)
+  and the `PlaySession` class docstring to say the source is the emulator's screen captures, and
+  that a frame is 0.2 to 0.3 s old by the time the model sees it. `RATE_HZ`, `STALE_LIMIT`,
+  `MAX_SECONDS`, `KEEP_FILES` and `JOIN_TIMEOUT` keep their values; add to `RATE_HZ`'s comment that
+  a capture costs 180 to 280 ms, so the real rate is about 5 per second and the throttle rarely
+  binds.
+- [ ] **Step 4**: in `tests/test_play_session.py`, rename through the same list, fix any wording
+  that says stream, and add one test: the default factory builds a `ScreencapSource` and does not
+  call adb (patch `brawlfarm.play.capture.adb.screencap` with something that raises if called).
+  The existing `FakeStream` shape still fits; rename it `FakeSource`.
+- [ ] **Step 5**: full gate, then commit
+
+```
+refactor(play): the shadow session pulls frames from the capture source
+```
+
+### Task 10: the stream modules say what they cost
+
+**Files:**
+- Modify: `brawlfarm/play/stream.py` (module docstring only)
+- Modify: `brawlfarm/play/matchrec.py` (one log line and one feed field)
+
+- [ ] **Step 1**: add to the top of `stream.py`'s module docstring, in its own paragraph:
+
+```
+Known defect: running this stream while a match is in progress makes the game show its
+disconnect modal, 31 times across 16 matches on the reference instance, at every bit rate,
+frame rate and frame size tried. See the open defect in
+docs/superpowers/specs/2026-09-18-play-mode.md, section 2. Shadow mode no longer uses this
+module; the observe-mode match recorder still does, and a match it records may disconnect.
+```
+
+- [ ] **Step 2**: in `matchrec.py`, find where the recorder starts a stream for a match (grep for
+  `Stream(`), and log one line before it starts, at warning level:
+  `"match recording uses the play stream, which can disconnect the match (spec section 2)"`.
+  Add the field `stream_warning=True` to the feed event the recorder already emits when it starts
+  (find it by grepping the file for `event(` or the queue it uses). If it emits no start event, add
+  only the log line and say so in your report. Change nothing else in the file: its own on/off flag
+  stays the gate.
+- [ ] **Step 3**: extend the matchrec test file that covers the start path with one assertion for
+  the new field, or for the log line if there is no event. Do not add a new test file.
+- [ ] **Step 4**: full gate, then commit
+
+```
+docs(play): the stream modules name the disconnect defect they carry
+```
+
+### Task 11: the documents describe the design that exists
+
+**Files:**
+- Modify: `docs/superpowers/specs/2026-09-18-play-mode.md`
+- Modify: `README.md`
+
+Prose rules: no em-dashes, no emoji, lines at most 100 columns. A user-global formatter hook
+rewraps Markdown at 80 columns whenever the Edit or Write tool touches a `.md` file, so apply every
+Markdown edit with a small Python script run through Bash (read bytes, replace, write bytes, keep
+the file's newline style) and then check `git diff --stat` shows only your lines.
+
+- [ ] **Step 1**: spec section 2 keeps its open-defect subsection exactly as written. Add one
+  sentence at the end of that subsection saying the detector no longer uses the stream, and that
+  section 3 now names the source. Do not soften or re-run the numbers.
+- [ ] **Step 2**: spec section 3 (detector): say the frames come from `brawlfarm/play/capture.py`,
+  about 5 per second, each 0.2 to 0.3 s old when the model sees it, and that the capture thread
+  costs the farm loop about 46 ms of busy time per tick (measured).
+- [ ] **Step 3**: spec section 4 (the pull request 6 rules policy). Add a paragraph: at 5 frames a
+  second with a 0.4 to 0.6 s end-to-end delay, gas avoidance, power cubes, boxes and the late bush
+  hide all survive; treating an enemy as a repulsor survives; aiming at a moving enemy, duelling and
+  dodging do not, so the policy never tries them and keeps attacking on the existing timer. Keep the
+  anti-AFK rule already written there and add that anti-AFK input must never wait on a fresh frame.
+- [ ] **Step 4**: spec section 5 and the build order: say shadow mode reads screen captures, and
+  that the stream survives only for the observe-mode recorder and `tools/play/stream_check.py`.
+- [ ] **Step 5**: `README.md` line 68: replace `stream_start` and `stream_error` with `source_start`
+  and `source_error` in the reason list. Line 70 says the stream takes about 60 percent of one
+  BlueStacks core while a match runs, which is now false for shadow mode: replace it with one
+  sentence saying shadow mode captures the screen about 5 times a second and costs the farm loop
+  about 46 ms a tick. Check line 51 and the rest of the play section for any other sentence the
+  change makes false, and fix only those.
+- [ ] **Step 6**: `uv run python tools/scrub_check.py` prints `0 hit(s)`, `ruff format --check .`
+  passes, then commit
+
+```
+docs(play): shadow mode reads screen captures
+```
+
+### Then Task 6 (unchanged in shape)
+
+Whole-branch review on sonnet, one fix round, one scoped re-review, full gate, and a live pass of
+five matches with shadow on. The live pass passes only if: zero disconnect modals, the farm tick in
+a match stays within 10 percent of the shadow-off baseline (p50 1.379 s, p95 2.021 s), the session
+reports at least 3.5 frames per second, `stale_ticks` stays near zero, and the adb error count is
+unchanged. Then push and open the pull request. Do not merge.
