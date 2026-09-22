@@ -61,13 +61,13 @@ Shadow mode runs the detector beside the farm loop while a match plays and logs 
 
 To turn it on, set `shadow = true` under `[behavior]` in `config.toml` under `%LOCALAPPDATA%\brawlfarm`, then restart the instance. There is no switch in the panel yet.
 
-It needs the `play` extra above, plus a model: `models\play.onnx` and `models\play.json` under `%LOCALAPPDATA%\brawlfarm`. No model ships yet; without one, shadow mode says so once in the feed and does nothing.
+It needs a model: `models\play.onnx` and `models\play.json` under `%LOCALAPPDATA%\brawlfarm`. Nothing else: `onnxruntime` is already a core dependency, so a plain install can run shadow mode. No model ships yet; without one, shadow mode says `model_missing` once in the feed and does nothing.
 
 Shadow files land under `instances\<name>\shadow\`, one JSON lines file per match, with boxes and timings only. The newest 50 files are kept.
 
-Three feed rows carry shadow mode: `play_on` when a session starts, `play_summary` once the match ends, and `play_fallback` when a session gives up, with a reason such as `extra_missing`, `model_missing`, `model_invalid`, `stream_start`, `stream_error`, `stale`, `detector_error` or `session_error`.
+Three feed rows carry shadow mode: `play_on` when a session starts, `play_summary` once the match ends, and `play_fallback` when a session gives up, with a reason such as `model_missing`, `model_invalid`, `source_start`, `source_error`, `stale`, `detector_error` or `session_error`.
 
-The stream takes about 60 percent of one BlueStacks core while a match runs.
+Shadow mode captures the instance screen about 5 times a second, which costs the farm loop about 46 ms a tick.
 
 The commands below assume the checkout and say `uv run brawlfarm`; with a tool install the command is just `brawlfarm`. `docs/setup.md` is the step by step walkthrough and `docs/release.md` is how a release ships.
 
@@ -106,7 +106,7 @@ uv run brawlfarm --window        # a desktop window and a tray icon instead of t
 
 `--window` needs the optional desktop extras, which `uv sync --group desktop` installs in a checkout and `uv tool install "brawlfarm[desktop]"` installs from PyPI; without them brawlfarm says so and opens the browser as usual. Closing the window only hides it to the tray icon, whose menu has Open panel and Quit.
 
-The play extras add a 30 fps video feed of the instance for the in-match play mode that is being built (spec in docs/superpowers/specs/2026-09-18-play-mode.md). In observe mode, with the recorder on, each match is also saved as `match-N.h264` in the session folder. `uv sync --group play` installs it in a checkout.
+The play extras add a 30 fps video feed of the instance, which the observe-mode match recorder uses (spec in docs/superpowers/specs/2026-09-18-play-mode.md). In observe mode, with the recorder on, each match is also saved as `match-N.h264` in the session folder. A match recorded that way can show the game's disconnect modal, so the recorder says so in the log when it starts. `uv sync --group play` installs it in a checkout.
 
 Turning recordings and video into a labelled training set for the play mode detector is its own kit under `tools/play/`; see `docs/play-training.md`.
 
