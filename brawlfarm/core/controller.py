@@ -145,7 +145,7 @@ class Controller:
         )
         # Shadow play session (the model watching the farm play): built on the first tick
         # that needs it, so a worker with `shadow` off never imports the play package.
-        # Observation only — it never taps. _play_off latches on the first failure.
+        # Observation only: it never taps. _play_off latches on the first failure.
         self.play = None
         self._play_off = False
         # Network-stuck tracker (see RESULTS_STUCK_TAPS):
@@ -1556,7 +1556,7 @@ class Controller:
     def _play_observe(self, state: State) -> None:
         """One shadow tick, on the same frame the farm just acted on. Builds the session
         on first use (the import lives here so shadow off costs nothing), then writes the
-        rows it returns — feed rows only ever leave this thread. The session swallows its
+        rows it returns: feed rows only ever leave this thread. The session swallows its
         own errors; anything that still escapes turns shadow off for the rest of the
         process after one log line, because the farm is not allowed to care. Shadow off
         returns before it reads an attribute, so a controller built without __init__ (the
