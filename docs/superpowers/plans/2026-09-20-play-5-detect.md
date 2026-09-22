@@ -564,3 +564,38 @@ onnxruntime, which rapidocr-onnxruntime already requires, so a plain install can
 ```
 fix(play): shadow mode no longer needs the play extra
 ```
+
+### Task 13: the whole-branch review findings
+
+Written after the whole-branch review, so it records what was fixed rather than what to do.
+
+**Files:**
+- Modify: `brawlfarm/play/session.py`
+- Modify: `tests/test_play_session.py`
+- Modify: `brawlfarm/core/controller.py`
+
+**Finding 1, severe.** `PlaySession._end()` runs on the controller thread. It joined the session
+thread for up to `JOIN_TIMEOUT` of 3.0 s and then, through `_stop_source()`, joined the screencap
+pump thread for another 3.0 s, so the end of every match could hold the farm loop for six seconds.
+The global constraint says nothing the session does may block a controller tick for longer than a
+lock hand-off, and a multi-second join is not that. An `adb.screencap()` that hangs is the case
+that makes it bite. No test bounded it.
+
+Fixed in `d94abec`. `_end()` signals and returns: it sets the stop flag, `_running = False` and
+`_await_stop = True`. The session's own thread tears itself down from a `finally` in `_run()`,
+which is where the pump thread's join now happens, and it queues the summary for the controller to
+drain on a later tick, so feed rows still leave only the controller's thread. `_teardown()` runs
+once per session under a `_torn_down` flag reset in `_start()` under the counters' lock.
+`_winding_down()` keeps a second thread from starting under a live one and reaps the handle when
+it is gone. The one surviving join is in `_finish()`, reached only from `close()`, which the
+controller calls from its `finally` at process shutdown, where there is no tick left to hold.
+
+Two tests were added that bound what the controller thread does against a source whose capture
+hangs, and both fail against the pre-fix file at 3.0 s against a 1.0 s bound.
+
+**Finding 2, trivial.** Two em-dashes this branch added to `brawlfarm/core/controller.py`, at line
+148 and in the `_play_observe` docstring. Both are colons now, fixed in `a1f4dc6`. A byte scan over
+the branch diff for U+2012 to U+2015 found no others. `controller.py` carries about 90 older
+em-dashes that predate the merge base; none were touched, because that file holds never-tap logic,
+verify-then-act, the 1600x900 assertion, tap coordinates and OCR needles that change only in an
+owner-approved calibration pull request.
