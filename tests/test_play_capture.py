@@ -6,6 +6,8 @@ are deterministic: the fake clock only moves when a test or a fake capture moves
 
 from __future__ import annotations
 
+import time
+
 import numpy as np
 import pytest
 
@@ -149,6 +151,21 @@ def test_start_twice_runs_one_thread() -> None:
     assert thread is not None and thread.daemon
     h.source.stop()
     assert not thread.is_alive() and h.calls == 1
+
+
+def test_a_stopped_source_captures_again_when_it_is_started_again() -> None:
+    source = capture.ScreencapSource(capture=lambda: a_frame(1), sleep=lambda _: None)
+    source.start()
+    source.stop()
+    before = source.frames  # whatever the first run managed before it was stopped
+    source.start()
+    try:
+        deadline = time.monotonic() + 3.0
+        while source.frames == before and time.monotonic() < deadline:
+            time.sleep(0.01)
+        assert source.frames > before, "the restarted source captured nothing"
+    finally:
+        source.stop()
 
 
 def test_stop_is_safe_before_start_and_twice() -> None:

@@ -57,9 +57,13 @@ class ScreencapSource:
     # -- lifetime ----------------------------------------------------------------
 
     def start(self) -> None:
-        """Begin capturing. Calling it twice is a no-op, never a second thread."""
+        """Begin capturing. Calling it twice is a no-op, never a second thread.
+
+        A source that was stopped starts again: without clearing the flag the new thread
+        would see a set stop event and return at once, capturing nothing and saying nothing."""
         if self._thread is not None:
             return
+        self._stop.clear()
         self._thread = threading.Thread(target=self._pump, name="play-capture", daemon=True)
         self._thread.start()
 
