@@ -22,6 +22,9 @@ from brawlfarm import play
 from brawlfarm.core.states import State
 from brawlfarm.play import capture, detect, session
 
+HUNG_LIMIT = 10.0  # seconds a hung fake capture waits before it gives up on the test
+TICK_BOUND = 1.0  # seconds: what a controller tick may cost, well under one JOIN_TIMEOUT
+
 HEADER_KEYS = {
     "model",
     "training_set_hash",
@@ -81,7 +84,7 @@ class FakeDetector:
 class Harness:
     """A session and the doubles behind it, plus the fake clock the tests move."""
 
-    def __init__(self, folder: Path, *, threaded: bool = False, sleep=None) -> None:
+    def __init__(self, folder: Path, *, threaded: bool = False, sleep=None, source=None) -> None:
         self.sources: list[FakeSource] = []
         self.detector = FakeDetector()
         self.detector_calls = 0
@@ -90,7 +93,7 @@ class Harness:
         self.now = [100.0]
         self.session = session.PlaySession(
             folder=folder,
-            source_factory=self._source,
+            source_factory=source or self._source,
             detector_factory=self._detector,
             clock=lambda: self.now[0],
             sleep=sleep or (lambda seconds: None),
@@ -129,6 +132,48 @@ def reasons(events) -> list[str]:
 
 def kinds(events) -> list[str]:
     return [kind for kind, _ in events]
+
+
+def drain_for(h: Harness, kind: str, events: list) -> list:
+    """Keep ticking the controller until the winding-down thread's row is drained."""
+    for _ in range(500):
+        if kind in kinds(events):
+            break
+        time.sleep(0.01)
+        events = events + h.session.observe(State.RESULTS, "playing")
+    return events
+
+
+class HungCapture:
+    """One frame, then a capture that hangs: what a stuck adb.screencap() does to a source.
+
+    It is handed to the real ScreencapSource, so stopping that source joins a pump thread
+    that will not return until the test lets go.
+    """
+
+    def __init__(self) -> None:
+        self.held = threading.Event()
+        self.calls = 0
+        self.sources: list[capture.ScreencapSource] = []
+
+    def __call__(self) -> np.ndarray:
+        self.calls += 1
+        if self.calls > 1:
+            self.held.wait(HUNG_LIMIT)
+        return np.zeros((900, 1600, 3), dtype=np.uint8)
+
+    def source(self) -> capture.ScreencapSource:
+        made = capture.ScreencapSource(capture=self, min_interval=0.0)
+        self.sources.append(made)
+        return made
+
+
+def wait_for_a_frame(h: Harness) -> None:
+    for _ in range(500):
+        if h.detector.calls >= 1:
+            return
+        time.sleep(0.01)
+    raise AssertionError("the session never read a frame")
 
 
 # -- starting and stopping ---------------------------------------------------------
@@ -410,7 +455,7 @@ def test_close_without_a_session_says_nothing(h: Harness) -> None:
 # -- the real thread ---------------------------------------------------------------
 
 
-def test_a_threaded_session_runs_and_is_gone_when_the_match_ends(tmp_path: Path, monkeypatch):
+def test_a_threaded_session_runs_and_ends_itself_when_the_match_ends(tmp_path: Path, monkeypatch):
     monkeypatch.setattr(session, "RATE_HZ", 500.0)  # no real waiting in the test
     h = Harness(tmp_path, threaded=True, sleep=time.sleep)
 
@@ -420,12 +465,61 @@ def test_a_threaded_session_runs_and_is_gone_when_the_match_ends(tmp_path: Path,
             break
         time.sleep(0.01)
 
-    events = h.session.observe(State.RESULTS, "playing")
+    events = drain_for(h, "play_summary", h.session.observe(State.RESULTS, "playing"))
+    h.session.close()  # shutdown: the one place that waits for the thread
 
     assert kinds(events) == ["play_on", "play_summary"]
     assert dict(events)["play_summary"]["frames"] >= 1
     assert h.sources[0].stopped
     assert [t for t in threading.enumerate() if t.name == "play-shadow"] == []
+
+
+def test_the_end_of_a_match_does_not_wait_for_a_hung_source(tmp_path: Path, monkeypatch):
+    """The tick that ends a match joined the session thread and then the source's pump
+    thread, up to JOIN_TIMEOUT each. It now signals and leaves, and the summary it used to
+    queue itself arrives on a later tick."""
+    monkeypatch.setattr(session, "RATE_HZ", 500.0)
+    hung = HungCapture()
+    h = Harness(tmp_path, threaded=True, sleep=time.sleep, source=hung.source)
+    h.session.observe(State.IN_MATCH, "playing")
+    wait_for_a_frame(h)
+
+    began = time.monotonic()
+    events = h.session.observe(State.RESULTS, "playing")
+    ending = time.monotonic() - began
+    began = time.monotonic()
+    h.session.observe(State.IN_MATCH, "playing")  # the next match, with the last thread alive
+    starting = time.monotonic() - began
+    alive = [t for t in threading.enumerate() if t.name == "play-shadow"]
+    hung.held.set()
+    events = drain_for(h, "play_summary", events)
+    h.session.close()
+
+    assert ending < TICK_BOUND and starting < TICK_BOUND
+    assert len(alive) == 1  # no second session under the one that is still winding down
+    assert kinds(events) == ["play_on", "play_summary"]
+    assert dict(events)["play_summary"]["frames"] >= 1
+    assert hung.sources[0].frames >= 1  # it captured, and the thread that owned it
+    assert [t for t in threading.enumerate() if t.name == "play-capture"] == []  # stopped it
+
+
+def test_close_waits_for_a_hung_thread_but_only_once(tmp_path: Path, monkeypatch):
+    """Shutdown is the one place a wait is allowed, and it is bounded by JOIN_TIMEOUT."""
+    monkeypatch.setattr(session, "RATE_HZ", 500.0)
+    monkeypatch.setattr(session, "JOIN_TIMEOUT", 0.25)
+    hung = HungCapture()
+    h = Harness(tmp_path, threaded=True, sleep=time.sleep, source=hung.source)
+    h.session.observe(State.IN_MATCH, "playing")
+    wait_for_a_frame(h)
+
+    began = time.monotonic()
+    events = h.session.close()
+    closing = time.monotonic() - began
+    hung.held.set()
+
+    assert closing < TICK_BOUND
+    assert kinds(events) == ["play_on"]  # the summary belongs to the thread still in its stop
+    assert not h.session.active and h.session.close() == []
 
 
 # -- rails -------------------------------------------------------------------------

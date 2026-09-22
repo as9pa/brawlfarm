@@ -6,6 +6,10 @@ thread behind it starts the frame source, loads the detector, reads the newest f
 sends no input, it never touches the datalog, and it never raises into the loop: the thread hands
 its events to a list under a lock and the controller thread drains them from ``observe()``.
 
+The controller never waits for that thread either. The end of a match sets the stop flag and
+returns; the thread stops the source, closes the file and queues its summary on its way out, and
+the controller drains that row on a later tick. Only ``close()``, at process shutdown, joins.
+
 The source is the emulator's own screen captures (``brawlfarm.play.capture``), not a live video
 stream: one capture costs 180 to 280 ms, so a frame is 0.2 to 0.3 s old by the time the model
 sees it.
@@ -36,7 +40,7 @@ RATE_HZ = 5.0  # most inferences per second; a farm tick is about 0.75 s
 STALE_LIMIT = 5.0  # seconds without a fresh frame before the session gives up
 MAX_SECONDS = 360.0  # as matchrec: a backstop, not the rule
 KEEP_FILES = 50  # newest shadow files kept per instance
-JOIN_TIMEOUT = 3.0  # seconds close() waits for the thread
+JOIN_TIMEOUT = 3.0  # seconds close() waits for the thread; no other caller waits at all
 
 Event = tuple[str, dict]
 
@@ -107,6 +111,7 @@ class PlaySession:
         self._closed = False
         self._off = False  # latched for the life of the process: no usable model
         self._await_stop = False  # a failed session waits for the match to be over
+        self._torn_down = True  # no session in flight, so there is nothing to tear down
         self._thread: threading.Thread | None = None
         self._stop_flag = threading.Event()
         self._source: Any = None
@@ -132,13 +137,18 @@ class PlaySession:
         return self._drain()
 
     def close(self) -> list[Event]:
-        """End a live session and drain. Closing twice is a no-op returning []."""
+        """End a live session and drain. Closing twice is a no-op returning [].
+
+        Shutdown is the one place that may wait: the controller calls this from its finally,
+        where there is no tick left to hold up.
+        """
         if self._closed:
             return []
         self._closed = True
         try:
             if self._running:
                 self._end()
+            self._finish()
         except Exception as exc:
             log.warning("shadow session did not close cleanly: %s", exc)
             self._queue("play_fallback", reason="session_error", detail=repr(exc))
@@ -163,6 +173,8 @@ class PlaySession:
             return
         if not playing or state != State.IN_MATCH:
             return
+        if self._winding_down():
+            return  # the last thread is still ending; this tick does not wait for it
         self._start()
 
     def _start(self) -> None:
@@ -172,6 +184,7 @@ class PlaySession:
             self._ms = []
             self._stale_ticks = 0
             self._counts = {}
+            self._torn_down = False
         self._started_at = self._clock()
         self._last_fresh = self._started_at
         self._stop_flag.clear()
@@ -181,17 +194,47 @@ class PlaySession:
             self._thread.start()
 
     def _end(self) -> None:
-        """Stop the thread, stop the source, close the file and queue the summary."""
+        """Signal the session and leave. The thread tears its own session down.
+
+        A join here would hold a controller tick for seconds, twice over: the thread may be
+        inside a capture, and stopping the source joins its pump thread as well. So the
+        controller only sets the flag and marks the session done. Whichever thread owns the
+        session stops the source, closes the file and queues the summary, and the controller
+        drains that row on a later tick.
+        """
         self._stop_flag.set()
+        self._running = False
+        self._await_stop = True
+        if self._winding_down():
+            return
+        self._teardown()
+
+    def _finish(self) -> None:
+        """Shutdown only: wait a bounded time for the thread, then tear down what is left.
+
+        ``close()`` is the one caller, and the controller calls it from its own finally, with
+        no tick left to hold up. Nothing inside ``observe()`` reaches this.
+        """
         thread, self._thread = self._thread, None
         if thread is not None and thread is not threading.current_thread():
             thread.join(JOIN_TIMEOUT)
             if thread.is_alive():  # the source is stopped under it on purpose
                 log.warning("the shadow thread is still running after %.0f s", JOIN_TIMEOUT)
+        self._teardown()
+
+    def _teardown(self) -> None:
+        """Stop the source, close the file, queue the summary. Once per session.
+
+        It runs on whichever thread gets there first: the session thread on its way out, or
+        the controller when there is no thread to do it (``close()``, or ``threaded=False``).
+        Every row is flushed as it is written, so a file this never closes is still readable.
+        """
+        with self._lock:
+            if self._torn_down:
+                return
+            self._torn_down = True
         self._stop_source()
         self._close_file()
-        self._running = False
-        self._await_stop = True
         with self._lock:
             frames, ms, stale = self._frames, list(self._ms), self._stale_ticks
             counts, name, failed = dict(self._counts), self._file_name, self._failed
@@ -228,6 +271,11 @@ class PlaySession:
         except Exception as exc:  # the thread dies quietly, the loop never hears about it
             log.warning("the shadow thread stopped: %s", exc)
             self._fail("session_error", repr(exc))
+        finally:
+            try:  # the thread owns the teardown: the controller signalled and left
+                self._teardown()
+            except Exception as exc:
+                log.warning("the shadow thread did not end cleanly: %s", exc)
 
     def _begin(self) -> None:
         """Detector, source, file, header: what the thread does before its first frame.
@@ -375,6 +423,16 @@ class PlaySession:
             log.debug("shadow file not closed cleanly: %s", exc)
 
     # -- shared bits -------------------------------------------------------------
+
+    def _winding_down(self) -> bool:
+        """True while a session thread is still ending. Reaps a finished one, never waits."""
+        thread = self._thread
+        if thread is None or thread is threading.current_thread():
+            return False
+        if thread.is_alive():
+            return True
+        self._thread = None
+        return False
 
     def _stop_source(self) -> None:
         source, self._source = self._source, None
