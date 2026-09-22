@@ -492,3 +492,75 @@ five matches with shadow on. The live pass passes only if: zero disconnect modal
 a match stays within 10 percent of the shadow-off baseline (p50 1.379 s, p95 2.021 s), the session
 reports at least 3.5 frames per second, `stale_ticks` stays near zero, and the adb error count is
 unchanged. Then push and open the pull request. Do not merge.
+
+### Task 12: shadow mode stops asking for a library it does not use
+
+**Files:**
+- Modify: `brawlfarm/play/session.py`
+- Modify: `tests/test_play_session.py`
+
+**Why this task exists:** `play.available()` is true only when PyAV imports, and PyAV is the whole
+content of the `play` extra. That gate was right when the session read frames from the scrcpy
+stream, because the stream decodes H.264 with PyAV. The session now reads `adb.screencap()` and
+decodes nothing, so it needs numpy and cv2 and onnxruntime, all three of which are core
+dependencies: `rapidocr-onnxruntime` requires `onnxruntime>=1.7.0`, so onnxruntime is installed on
+every brawlfarm. Leaving the gate in place means a user who sets `shadow = true` on a plain install
+gets one feed row saying an extra is missing, and nothing else, for a dependency the code never
+touches.
+
+**Interfaces:**
+- Consumes: nothing new.
+- Produces: the `play_fallback` reason `extra_missing` is no longer emitted by `PlaySession`. The
+  reasons it can still emit are `model_missing`, `model_invalid`, `source_start`, `source_error`,
+  `stale`, `detector_error` and `session_error`. Task 11 writes that list into `README.md`.
+
+**Not in scope, do not touch:**
+- `brawlfarm/play/__init__.py`. `available()` keeps its meaning, which is "PyAV imports".
+- `brawlfarm/play/matchrec.py:86`. The observe-mode recorder really does decode a stream, so its
+  own `available()` gate and its "match recording off" log line stay exactly as they are.
+- `brawlfarm/api/app.py:180`. The `play_available` field keeps reporting `play.available()`. No
+  panel code reads it (a grep of `brawlfarm/web/src` for `play_available` and `playAvailable`
+  finds nothing), so its meaning is not load bearing, and changing an API field in this pull
+  request would be a UI change without a review page.
+
+- [ ] **Step 1**: in `brawlfarm/play/session.py`, delete the five-line block that reads
+
+```python
+        if not play.available():
+            if not self._said_extra:
+                self._said_extra = True
+                self._off = True
+                log.info("shadow mode off: the play extra is not installed")
+                self._queue("play_fallback", reason="extra_missing")
+            return
+```
+
+so the tick falls straight through to `self._start()`.
+
+- [ ] **Step 2**: delete the `self._said_extra` attribute where it is initialised, and delete the
+  `play` import from `session.py` if nothing else in the file uses it. Run
+  `uv run ruff check .` to catch the unused import either way.
+
+- [ ] **Step 3**: in `session.py`, put one sentence in the class docstring next to the model
+  paragraph:
+
+```
+Shadow mode needs no optional extra. It captures the screen through adb and runs the model on
+onnxruntime, which rapidocr-onnxruntime already requires, so a plain install can run it.
+```
+
+- [ ] **Step 4**: in `tests/test_play_session.py`, find the test that asserts the
+  `extra_missing` fallback (grep for `extra_missing`) and replace it with one that proves the
+  opposite: with `play.available()` patched to return `False`, a tick in a match still starts a
+  session and emits `play_on`, and no `play_fallback` row carries `extra_missing`. Keep the test
+  name honest about what it checks, for example
+  `test_a_missing_play_extra_no_longer_stops_shadow_mode`. Do not delete any other test.
+
+- [ ] **Step 5**: grep the whole tree for `extra_missing` and report every remaining hit. Leave
+  `README.md` and the spec alone: Task 11 owns them.
+
+- [ ] **Step 6**: full gate, then commit
+
+```
+fix(play): shadow mode no longer needs the play extra
+```
