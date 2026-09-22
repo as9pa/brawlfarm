@@ -53,7 +53,7 @@ uv tool install "brawlfarm[play-gpu]" # the same, plus onnxruntime on CUDA for t
 uvx brawlfarm                         # run it once without installing it
 ```
 
-The `play-gpu` extra downloads NVIDIA's CUDA and cuDNN runtime wheels (well over a gigabyte) and needs only the NVIDIA display driver on the machine. Nothing uses it yet; the detector that does arrives in a later release. One known catch: `onnxruntime` (which the text reader needs) and `onnxruntime-gpu` install into the same folder, and which one wins depends on install order. To check, run `python -c "import onnxruntime as o; print(o.get_available_providers())"` in the environment; if `CUDAExecutionProvider` is missing, run `uv pip install --reinstall-package onnxruntime-gpu onnxruntime-gpu` there. The GPU package also carries the CPU provider, so the text reader keeps working.
+The `play-gpu` extra downloads NVIDIA's CUDA and cuDNN runtime wheels (well over a gigabyte) and needs only the NVIDIA display driver on the machine. Shadow mode's detector uses it when it is present: it picks the CUDA execution provider then, and the CPU one otherwise. No model ships yet, so nothing exercises it until you supply one. One known catch: `onnxruntime` (which the text reader needs) and `onnxruntime-gpu` install into the same folder, and which one wins depends on install order. To check, run `python -c "import onnxruntime as o; print(o.get_available_providers())"` in the environment; if `CUDAExecutionProvider` is missing, run `uv pip install --reinstall-package onnxruntime-gpu onnxruntime-gpu` there. The GPU package also carries the CPU provider, so the text reader keeps working.
 
 ### Shadow mode
 
