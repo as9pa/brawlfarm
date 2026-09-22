@@ -19,7 +19,7 @@ import numpy as np
 import pytest
 
 from brawlfarm.core.states import State
-from brawlfarm.play import detect, session
+from brawlfarm.play import capture, detect, session
 
 HEADER_KEYS = {
     "model",
@@ -32,7 +32,7 @@ HEADER_KEYS = {
 }
 
 
-class FakeStream:
+class FakeSource:
     def __init__(self, *, fail: bool = False) -> None:
         self.fail = fail
         self.started = False
@@ -43,7 +43,7 @@ class FakeStream:
 
     def start(self) -> None:
         if self.fail:
-            raise RuntimeError("no encoder")
+            raise RuntimeError("no device")
         self.started = True
 
     def latest(self):
@@ -81,15 +81,15 @@ class Harness:
     """A session and the doubles behind it, plus the fake clock the tests move."""
 
     def __init__(self, folder: Path, *, threaded: bool = False, sleep=None) -> None:
-        self.streams: list[FakeStream] = []
+        self.sources: list[FakeSource] = []
         self.detector = FakeDetector()
         self.detector_calls = 0
-        self.stream_fails = False
+        self.source_fails = False
         self.factory_error: Exception | None = None
         self.now = [100.0]
         self.session = session.PlaySession(
             folder=folder,
-            stream_factory=self._stream,
+            source_factory=self._source,
             detector_factory=self._detector,
             clock=lambda: self.now[0],
             sleep=sleep or (lambda seconds: None),
@@ -97,11 +97,11 @@ class Harness:
             now=lambda: datetime(2026, 9, 20, 10, 11, 12),
         )
 
-    def _stream(self) -> FakeStream:
+    def _source(self) -> FakeSource:
         if self.factory_error is not None and isinstance(self.factory_error, RuntimeError):
             raise self.factory_error
-        made = FakeStream(fail=self.stream_fails)
-        self.streams.append(made)
+        made = FakeSource(fail=self.source_fails)
+        self.sources.append(made)
         return made
 
     def _detector(self) -> FakeDetector:
@@ -132,6 +132,18 @@ def kinds(events) -> list[str]:
 
 
 # -- starting and stopping ---------------------------------------------------------
+
+
+def test_the_default_source_is_a_screencap_source_and_captures_nothing_yet(monkeypatch) -> None:
+    def never() -> np.ndarray:
+        raise AssertionError("building the source must not capture")
+
+    monkeypatch.setattr(capture.adb, "screencap", never)
+
+    made = session._default_source()
+
+    assert isinstance(made, capture.ScreencapSource)
+    assert made.frames == 0 and made.error is None
 
 
 def test_a_session_starts_only_on_a_match_in_the_playing_phase(h: Harness) -> None:
@@ -178,7 +190,7 @@ def test_the_happy_path_writes_a_file_and_reports_on_and_a_summary(h: Harness, t
     assert lines[0]["classes"] == ["enemy", "bush"] and lines[0]["rate_hz"] == session.RATE_HZ
     assert set(lines[1]) == {"t", "age", "ms", "boxes"}
     assert lines[1]["boxes"] == [["enemy", 0.912, 10, 20, 30, 40], ["bush", 0.555, 1, 2, 3, 4]]
-    assert h.streams[0].stopped and not h.session.active
+    assert h.sources[0].stopped and not h.session.active
 
 
 @pytest.mark.parametrize(
@@ -197,7 +209,7 @@ def test_every_way_out_of_a_match_ends_the_session(h: Harness, state, phase) -> 
     events = h.session.observe(state, phase)
 
     assert kinds(events) == ["play_on", "play_summary"]
-    assert not h.session.active and h.streams[0].stopped
+    assert not h.session.active and h.sources[0].stopped
 
 
 def test_the_time_cap_ends_the_session(h: Harness) -> None:
@@ -208,7 +220,7 @@ def test_the_time_cap_ends_the_session(h: Harness) -> None:
     events = h.session.observe(State.IN_MATCH, "playing")
 
     assert kinds(events) == ["play_on", "play_summary"]
-    assert not h.session.active and h.streams[0].stopped
+    assert not h.session.active and h.sources[0].stopped
 
 
 def test_unknown_and_popup_inside_the_match_keep_the_session_open(h: Harness) -> None:
@@ -223,46 +235,46 @@ def test_unknown_and_popup_inside_the_match_keep_the_session_open(h: Harness) ->
 # -- the ways it gives up ----------------------------------------------------------
 
 
-def test_a_stream_factory_that_raises_gives_one_fallback(h: Harness) -> None:
+def test_a_source_factory_that_raises_gives_one_fallback(h: Harness) -> None:
     h.factory_error = RuntimeError("no adb")
     h.session.observe(State.IN_MATCH, "playing")
     h.session._begin()
 
     events = h.session.observe(State.IN_MATCH, "playing")
 
-    assert reasons(events) == ["stream_start"]
+    assert reasons(events) == ["source_start"]
     assert kinds(events) == ["play_fallback"]  # nothing was inferred, so no summary
     assert not h.session.active
 
 
-def test_a_stream_that_will_not_start_gives_one_fallback(h: Harness) -> None:
-    h.stream_fails = True
+def test_a_source_that_will_not_start_gives_one_fallback(h: Harness) -> None:
+    h.source_fails = True
     h.session.observe(State.IN_MATCH, "playing")
     h.session._begin()
 
     events = h.session.observe(State.IN_MATCH, "playing")
 
-    assert reasons(events) == ["stream_start"] and not h.session.active
+    assert reasons(events) == ["source_start"] and not h.session.active
 
 
-def test_a_stream_error_inside_the_match_gives_one_fallback_and_a_summary(h: Harness) -> None:
+def test_a_source_error_inside_the_match_gives_one_fallback_and_a_summary(h: Harness) -> None:
     h.session.observe(State.IN_MATCH, "playing")
     h.run(ticks=1)
-    h.streams[0].error = "server gone"
+    h.sources[0].error = "server gone"
     assert h.session._tick() is False
     assert h.session._tick() is False  # the thread may tick again; still one row
 
     events = h.session.observe(State.IN_MATCH, "playing")
 
-    assert reasons(events) == ["stream_error"]
+    assert reasons(events) == ["source_error"]
     assert kinds(events) == ["play_on", "play_fallback", "play_summary"]
-    assert h.streams[0].stopped
+    assert h.sources[0].stopped
 
 
-def test_a_stale_stream_gives_up_only_after_the_limit(h: Harness) -> None:
+def test_a_stale_source_gives_up_only_after_the_limit(h: Harness) -> None:
     h.session.observe(State.IN_MATCH, "playing")
     h.run(ticks=1)
-    h.streams[0].frame = None
+    h.sources[0].frame = None
     h.now[0] += session.STALE_LIMIT - 1.0
     assert h.session._tick() is True
     h.now[0] += 1.0
@@ -294,7 +306,7 @@ def test_a_missing_model_is_one_quiet_fallback_and_no_session_ever_again(h: Harn
 
     events = h.session.observe(State.IN_MATCH, "playing")
     assert events == [("play_fallback", {"reason": "model_missing", "shadow": True})]
-    assert h.streams == []  # the stream never starts when the model is not there
+    assert h.sources == []  # the source never starts when the model is not there
 
     assert h.session.observe(State.RESULTS, "playing") == []
     assert h.session.observe(State.IN_MATCH, "playing") == []
@@ -331,7 +343,7 @@ def test_the_play_extra_missing_is_one_fallback_for_the_life_of_the_process(
 def test_a_mid_match_failure_waits_for_the_match_to_end_before_trying_again(h: Harness) -> None:
     h.session.observe(State.IN_MATCH, "playing")
     h.run(ticks=1)
-    h.streams[0].error = "server gone"
+    h.sources[0].error = "server gone"
     h.session._tick()
     h.session.observe(State.IN_MATCH, "playing")
 
@@ -342,7 +354,7 @@ def test_a_mid_match_failure_waits_for_the_match_to_end_before_trying_again(h: H
     h.session.observe(State.IN_MATCH, "playing")
     assert h.session.active
     h.run(ticks=1)
-    assert len(h.streams) == 2 and h.streams[1].started
+    assert len(h.sources) == 2 and h.sources[1].started
 
 
 def test_the_detector_is_loaded_once_across_two_matches(h: Harness) -> None:
@@ -353,7 +365,7 @@ def test_the_detector_is_loaded_once_across_two_matches(h: Harness) -> None:
     h.run(ticks=1)
     h.session.observe(State.RESULTS, "playing")
 
-    assert h.detector_calls == 1 and len(h.streams) == 2
+    assert h.detector_calls == 1 and len(h.sources) == 2
 
 
 def test_old_shadow_files_are_pruned_to_the_cap(h: Harness, tmp_path: Path) -> None:
@@ -387,7 +399,7 @@ def test_close_ends_a_live_session_and_a_second_close_says_nothing(h: Harness) -
     events = h.session.close()
 
     assert kinds(events) == ["play_on", "play_summary"]
-    assert h.streams[0].stopped and not h.session.active
+    assert h.sources[0].stopped and not h.session.active
     assert h.session.close() == []
 
 
@@ -413,7 +425,7 @@ def test_a_threaded_session_runs_and_is_gone_when_the_match_ends(tmp_path: Path,
 
     assert kinds(events) == ["play_on", "play_summary"]
     assert dict(events)["play_summary"]["frames"] >= 1
-    assert h.streams[0].stopped
+    assert h.sources[0].stopped
     assert [t for t in threading.enumerate() if t.name == "play-shadow"] == []
 
 

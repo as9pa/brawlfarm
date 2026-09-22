@@ -1,10 +1,14 @@
 """Shadow mode: the detector watches a match the farm loop is already playing.
 
 ``PlaySession`` is driven once per controller tick, the way ``MatchRecorder`` is. A daemon
-thread behind it starts the stream, loads the detector, reads the newest frame at ``RATE_HZ``
-at most and writes one JSON line per inference under the instance's data folder. It sends no
-input, it never touches the datalog, and it never raises into the loop: the thread hands its
-events to a list under a lock and the controller thread drains them from ``observe()``.
+thread behind it starts the frame source, loads the detector, reads the newest frame at
+``RATE_HZ`` at most and writes one JSON line per inference under the instance's data folder. It
+sends no input, it never touches the datalog, and it never raises into the loop: the thread hands
+its events to a list under a lock and the controller thread drains them from ``observe()``.
+
+The source is the emulator's own screen captures (``brawlfarm.play.capture``), not a live video
+stream: one capture costs 180 to 280 ms, so a frame is 0.2 to 0.3 s old by the time the model
+sees it.
 
 Spec: docs/superpowers/specs/2026-09-18-play-mode.md sections 1 and 5.
 """
@@ -28,6 +32,7 @@ from brawlfarm.play import matchrec
 
 log = logging.getLogger("brawlfarm.play.session")
 
+# RATE_HZ rarely binds: a capture costs 180 to 280 ms, so the real rate is about 5 a second
 RATE_HZ = 5.0  # most inferences per second; a farm tick is about 0.75 s
 STALE_LIMIT = 5.0  # seconds without a fresh frame before the session gives up
 MAX_SECONDS = 360.0  # as matchrec: a backstop, not the rule
@@ -37,10 +42,10 @@ JOIN_TIMEOUT = 3.0  # seconds close() waits for the thread
 Event = tuple[str, dict]
 
 
-def _default_stream() -> Any:
-    from brawlfarm.play import stream  # PyAV lives behind the play extra
+def _default_source() -> Any:
+    from brawlfarm.play import capture  # kept lazy so the module stays cheap to import
 
-    return stream.Stream()
+    return capture.ScreencapSource()
 
 
 def _default_detector() -> Any:
@@ -62,13 +67,16 @@ class PlaySession:
     run on the session thread (or are called by a test with ``threaded=False``). The event
     queue, the failure reason and the counters the summary reads are the only shared state and
     one lock guards all of them.
+
+    Frames come from the emulator's screen captures, so a frame is 0.2 to 0.3 s old by the time
+    the model sees it.
     """
 
     def __init__(
         self,
         *,
         folder: Path | None = None,
-        stream_factory: Callable[[], Any] | None = None,
+        source_factory: Callable[[], Any] | None = None,
         detector_factory: Callable[[], Any] | None = None,
         clock: Callable[[], float] = time.monotonic,
         sleep: Callable[[float], None] = time.sleep,
@@ -76,7 +84,7 @@ class PlaySession:
         now: Callable[[], datetime] = datetime.now,
     ) -> None:
         self._folder = Path(folder) if folder is not None else None
-        self._stream_factory = stream_factory or _default_stream
+        self._source_factory = source_factory or _default_source
         self._detector_factory = detector_factory or _default_detector
         self._clock = clock
         self._sleep = sleep
@@ -100,7 +108,7 @@ class PlaySession:
         self._said_extra = False
         self._thread: threading.Thread | None = None
         self._stop_flag = threading.Event()
-        self._stream: Any = None
+        self._source: Any = None
         self._detector: Any = None  # loaded once and kept across matches
         self._started_at = 0.0
         self._last_fresh = 0.0
@@ -179,14 +187,14 @@ class PlaySession:
             self._thread.start()
 
     def _end(self) -> None:
-        """Stop the thread, stop the stream, close the file and queue the summary."""
+        """Stop the thread, stop the source, close the file and queue the summary."""
         self._stop_flag.set()
         thread, self._thread = self._thread, None
         if thread is not None and thread is not threading.current_thread():
             thread.join(JOIN_TIMEOUT)
-            if thread.is_alive():  # the stream is stopped under it on purpose
+            if thread.is_alive():  # the source is stopped under it on purpose
                 log.warning("the shadow thread is still running after %.0f s", JOIN_TIMEOUT)
-        self._stop_stream()
+        self._stop_source()
         self._close_file()
         self._running = False
         self._await_stop = True
@@ -228,10 +236,10 @@ class PlaySession:
             self._fail("session_error", repr(exc))
 
     def _begin(self) -> None:
-        """Detector, stream, file, header: what the thread does before its first frame.
+        """Detector, source, file, header: what the thread does before its first frame.
 
         The detector comes first so that a worker with no model in its models folder never
-        starts a stream it is about to throw away.
+        starts a source it is about to throw away.
         """
         from brawlfarm.play import detect
 
@@ -251,15 +259,15 @@ class PlaySession:
                 self._fail("detector_error", repr(exc))
                 return
         try:
-            stream = self._stream_factory()
-            stream.start()
+            source = self._source_factory()
+            source.start()
         except Exception as exc:
-            self._fail("stream_start", repr(exc))
+            self._fail("source_start", repr(exc))
             return
-        self._stream = stream
+        self._source = source
         if self._stop_flag.is_set():
-            # the match ended while the stream was starting: hand the stream back, say nothing
-            self._stop_stream()
+            # the match ended while the source was starting: hand the source back, say nothing
+            self._stop_source()
             return
         try:
             self._open_file()
@@ -277,14 +285,14 @@ class PlaySession:
 
     def _tick(self) -> bool:
         """One frame through the model. False when the session is over."""
-        stream = self._stream  # a local: the controller may stop and drop it mid-tick
-        if stream is None or self._stop_flag.is_set():
+        source = self._source  # a local: the controller may stop and drop it mid-tick
+        if source is None or self._stop_flag.is_set():
             return False
-        error = getattr(stream, "error", None)
+        error = getattr(source, "error", None)
         if error is not None:
-            self._fail("stream_error", str(error))
+            self._fail("source_error", str(error))
             return False
-        frame, age = stream.latest()
+        frame, age = source.latest()
         if frame is None or age is None:
             with self._lock:
                 self._stale_ticks += 1
@@ -374,14 +382,14 @@ class PlaySession:
 
     # -- shared bits -------------------------------------------------------------
 
-    def _stop_stream(self) -> None:
-        stream, self._stream = self._stream, None
-        if stream is None:
+    def _stop_source(self) -> None:
+        source, self._source = self._source, None
+        if source is None:
             return
         try:
-            stream.stop()
+            source.stop()
         except Exception as exc:
-            log.warning("the play stream did not stop cleanly: %s", exc)
+            log.warning("the play source did not stop cleanly: %s", exc)
 
     def _fail(self, reason: str, detail: str | None = None) -> None:
         """Give up on this session: one fallback row, then wait for the match to end."""
@@ -391,7 +399,7 @@ class PlaySession:
             self._failed = reason
         log.warning("shadow session gave up: %s%s", reason, f" ({detail})" if detail else "")
         self._stop_flag.set()
-        self._stop_stream()
+        self._stop_source()
         self._close_file()
         fields = {"reason": reason}
         if detail is not None:
