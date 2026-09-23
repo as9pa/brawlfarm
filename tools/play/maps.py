@@ -11,8 +11,11 @@ from __future__ import annotations
 
 import argparse
 import csv
+import hashlib
 import json
+import os
 import sys
+import urllib.request
 from pathlib import Path
 
 PINNED_COMMIT = "cc307ff"
@@ -211,8 +214,61 @@ def build(src: Path, out: Path) -> dict:
     return doc
 
 
-def _fetch_main(home, force):
-    raise NotImplementedError
+RAW_BASE = f"https://raw.githubusercontent.com/tailsjs/brawl-stars-assets/{PINNED_COMMIT}/{PINNED_VERSION}/"
+_OPENER = urllib.request.urlopen
+
+
+class FetchError(Exception):
+    """A download failed; fetch exits 2 with the URL in the message."""
+
+
+def _sha(path: Path) -> str:
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def _cached(cache: Path) -> bool:
+    try:
+        meta = json.loads((cache / "SOURCE.json").read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return False
+    if meta.get("commit") != PINNED_COMMIT:
+        return False
+    files = meta.get("files", {})
+    return all((cache / rel).is_file() and files.get(rel) == _sha(cache / rel) for rel in FILES)
+
+
+def fetch(cache: Path, *, force: bool = False, opener=None) -> bool:
+    opener = opener or _OPENER
+    if not force and _cached(cache):
+        return False
+    hashes = {}
+    for rel in FILES:
+        url = RAW_BASE + rel
+        dest = cache / rel
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        part = dest.with_name(dest.name + ".part")
+        try:
+            with opener(url, timeout=60) as resp:
+                part.write_bytes(resp.read())
+        except (OSError, ValueError) as exc:
+            part.unlink(missing_ok=True)
+            raise FetchError(f"{url}: {exc}") from exc
+        os.replace(part, dest)
+        hashes[rel] = _sha(dest)
+    meta = {"commit": PINNED_COMMIT, "version": PINNED_VERSION, "files": hashes}
+    (cache / "SOURCE.json").write_bytes(render(meta))
+    return True
+
+
+def _fetch_main(home: Path, force: bool) -> int:
+    cache = cache_dir(home)
+    try:
+        downloaded = fetch(cache, force=force)
+    except FetchError as exc:
+        print(f"fetch failed: {exc}", file=sys.stderr)
+        return 2
+    print(f"fetched into {cache}" if downloaded else f"cached: {cache}")
+    return 0
 
 
 def main(argv: list[str] | None = None) -> int:

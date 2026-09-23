@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+import hashlib
+import io
 import json
+import urllib.error
 from pathlib import Path
 
 import pytest
@@ -142,3 +145,46 @@ def test_build_exits_1_when_source_json_disagrees(tmp_path: Path, capsys) -> Non
     )
     assert tool.main(["build", "--src", str(src), "--out", str(tmp_path / "o.json")]) == 1
     assert "SOURCE.json" in capsys.readouterr().err
+
+
+class LocalOpener:
+    def __init__(self) -> None:
+        self.calls: list[str] = []
+
+    def __call__(self, url: str, timeout: float | None = None):
+        self.calls.append(url)
+        rel = url.split(f"/{tool.PINNED_VERSION}/", 1)[1]
+        return io.BytesIO((FIX / rel).read_bytes())
+
+
+def test_fetch_writes_source_json_and_a_second_run_does_nothing(tmp_path: Path) -> None:
+    opener = LocalOpener()
+    assert tool.fetch(tmp_path, opener=opener) is True
+    assert len(opener.calls) == 4
+    assert opener.calls[0] == tool.RAW_BASE + "csv_logic/maps.csv"
+    meta = json.loads((tmp_path / "SOURCE.json").read_text(encoding="utf-8"))
+    assert meta["commit"] == "cc307ff" and meta["version"] == "69.230"
+    for rel in tool.FILES:
+        assert meta["files"][rel] == hashlib.sha256((FIX / rel).read_bytes()).hexdigest()
+    assert not list(tmp_path.rglob("*.part"))
+    assert tool.fetch(tmp_path, opener=opener) is False
+    assert len(opener.calls) == 4
+    assert tool.fetch(tmp_path, force=True, opener=opener) is True
+    assert len(opener.calls) == 8
+
+
+def test_fetch_refetches_a_changed_file(tmp_path: Path) -> None:
+    opener = LocalOpener()
+    tool.fetch(tmp_path, opener=opener)
+    (tmp_path / "csv_logic" / "tiles.csv").write_text("tampered", encoding="utf-8")
+    assert tool.fetch(tmp_path, opener=opener) is True
+
+
+def test_a_network_error_exits_2_with_the_url(tmp_path: Path, capsys, monkeypatch) -> None:
+    def offline(url, timeout=None):
+        raise urllib.error.URLError("offline")
+
+    monkeypatch.setattr(tool, "_OPENER", offline)
+    assert tool.main(["fetch", "--home", str(tmp_path)]) == 2
+    assert tool.RAW_BASE in capsys.readouterr().err
+    assert not list(tmp_path.rglob("*.part")) and not list(tmp_path.rglob("*.csv"))
