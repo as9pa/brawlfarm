@@ -10,15 +10,16 @@ from __future__ import annotations
 import difflib
 import functools
 import json
+import math
 import re
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from importlib import resources
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Literal
 
 if TYPE_CHECKING:
-    from brawlfarm.play.detect import Box  # noqa: F401  (used in annotations, Task 7)
+    from brawlfarm.play.detect import Box
 
 Cell = tuple[int, int]
 
@@ -228,3 +229,62 @@ def current_map_name(
         if len(trio) == 1:
             return match_name(str(trio[0].get("map") or ""), index)
     return None
+
+
+# Placeholders: every value below is unmeasured. The gas schedule measurement PR (spec
+# section 8) measures them from the owner recorder sessions and replaces them in one PR.
+GAS_START_S = 20.0  # unmeasured, spec section 8; measured by the gas schedule measurement PR
+GAS_END_S = 160.0  # unmeasured, spec section 8; measured by the gas schedule measurement PR
+GAS_FINAL_HALF = 3.0  # unmeasured, spec section 8, tiles; measured by the gas schedule PR
+BUSH_GAS_MARGIN_TILES = 4.0  # unmeasured, spec section 9; measured by the gas schedule PR
+
+
+def safe_half_extent(m: ShowdownMap, seconds: float) -> float:
+    full = max(m.rows, m.cols) / 2
+    if seconds <= GAS_START_S:
+        return full
+    if seconds >= GAS_END_S:
+        return GAS_FINAL_HALF
+    frac = (seconds - GAS_START_S) / (GAS_END_S - GAS_START_S)
+    return full + (GAS_FINAL_HALF - full) * frac
+
+
+def in_safe_area(
+    m: ShowdownMap, row: float, col: float, seconds: float, margin: float = 0.0
+) -> bool:
+    cr, cc = m.center()
+    return max(abs(row - cr), abs(col - cc)) <= safe_half_extent(m, seconds) - margin
+
+
+@dataclass(frozen=True)
+class BushTarget:
+    row: float  # tile units (grid) or frame pixels (frame)
+    col: float
+    source: Literal["grid", "frame"]
+    box: Box | None
+
+
+def choose_bush(
+    m: ShowdownMap | None,
+    self_pos: tuple[float, float] | None,
+    seconds: float,
+    bush_boxes: Sequence[Box] = (),
+    margin: float = BUSH_GAS_MARGIN_TILES,
+) -> BushTarget | None:
+    """Pure: no I/O, no clock, no randomness (spec section 9)."""
+    if m is not None and self_pos is not None:
+        cr, cc = m.center()
+        best = None
+        for cluster in m.bush_clusters():
+            r = sum(c[0] + 0.5 for c in cluster) / len(cluster)
+            c = sum(c[1] + 0.5 for c in cluster) / len(cluster)
+            if not in_safe_area(m, r, c, seconds, margin):
+                continue
+            key = (math.hypot(r - cr, c - cc), math.hypot(r - self_pos[0], c - self_pos[1]), r, c)
+            if best is None or key < best:
+                best = key
+        return None if best is None else BushTarget(best[2], best[3], "grid", None)
+    if not bush_boxes:
+        return None
+    box = max(bush_boxes, key=lambda b: b.w * b.h)
+    return BushTarget(box.y + box.h / 2, box.x + box.w / 2, "frame", box)

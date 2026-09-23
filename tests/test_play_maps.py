@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass as _dc
 from pathlib import Path
 
 import pytest
@@ -122,3 +123,68 @@ def test_parse_refresh() -> None:
     assert maps.parse_refresh("45s") == 45
     assert maps.parse_refresh("1d 2h") == 93600
     assert maps.parse_refresh("New map in:") is None
+
+
+TILES = {
+    ".": {"name": "Open", "forest": False, "blocks_movement": False},
+    "F": {"name": "Forest", "forest": True, "blocks_movement": False},
+}
+
+
+def grid_map(*lines: str) -> maps.ShowdownMap:
+    return maps.ShowdownMap(
+        "T_1", "L", "T", "TID", "X", tuple(lines), len(lines), len(lines[0]), TILES, {}
+    )
+
+
+@_dc(frozen=True)
+class FakeBox:
+    cls: str
+    score: float
+    x: float
+    y: float
+    w: float
+    h: float
+
+
+def test_safe_half_extent_endpoints() -> None:
+    m = grid_map("." * 10, *["." * 10] * 7)  # 8 rows x 10 cols
+    assert maps.safe_half_extent(m, 0) == 5.0
+    assert maps.safe_half_extent(m, maps.GAS_START_S) == 5.0
+    assert maps.safe_half_extent(m, maps.GAS_END_S) == maps.GAS_FINAL_HALF
+    assert maps.safe_half_extent(m, 10_000) == maps.GAS_FINAL_HALF
+    mid = (maps.GAS_START_S + maps.GAS_END_S) / 2
+    assert maps.safe_half_extent(m, mid) == pytest.approx((5.0 + maps.GAS_FINAL_HALF) / 2)
+
+
+def test_in_safe_area_uses_chebyshev_and_margin() -> None:
+    m = grid_map(*["....."] * 4)  # center (2.0, 2.5), half 2.5
+    assert maps.in_safe_area(m, 0.5, 0.5, 0)
+    assert not maps.in_safe_area(m, 0.5, 0.5, 0, margin=1.0)
+
+
+def test_choose_bush_grid_prefers_nearest_center() -> None:
+    m = grid_map("F......", ".......", "...F...", ".......", ".......")
+    t = maps.choose_bush(m, (0.5, 0.5), 0, margin=0.0)
+    assert t == maps.BushTarget(2.5, 3.5, "grid", None)
+
+
+def test_choose_bush_grid_tie_goes_to_self_then_smallest() -> None:
+    m = grid_map("F...F", ".....", ".....", "F...F")
+    assert maps.choose_bush(m, (3.5, 4.5), 0, margin=0.0) == maps.BushTarget(3.5, 4.5, "grid", None)
+    assert maps.choose_bush(m, (2.0, 2.5), 0, margin=0.0) == maps.BushTarget(0.5, 0.5, "grid", None)
+
+
+def test_choose_bush_grid_none_when_gas_covers_every_bush() -> None:
+    m = grid_map("F...F", ".....", ".....", "F...F")
+    assert maps.choose_bush(m, (2.0, 2.5), 0) is None  # default margin 4 > half 2.5
+    assert maps.choose_bush(grid_map("....."), (0.5, 0.5), 0, margin=0.0) is None
+
+
+def test_choose_bush_frame_path() -> None:
+    small, big = FakeBox("bush", 0.9, 10, 20, 30, 40), FakeBox("bush", 0.8, 100, 200, 60, 50)
+    m = grid_map("F....")
+    t = maps.choose_bush(m, None, 0, [small, big])
+    assert t == maps.BushTarget(225.0, 130.0, "frame", big)
+    assert maps.choose_bush(None, (1.0, 1.0), 0, [small]).source == "frame"
+    assert maps.choose_bush(None, None, 0, []) is None
