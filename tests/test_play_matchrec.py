@@ -1,48 +1,66 @@
-"""Per-match recording in observe mode: a stream opens on IN_MATCH, stays open through
-UNKNOWN and POPUP, closes on a menu-side state, a closed session or the time cap, and one
-stream failure switches match recording off for the rest of the session."""
+"""Per-match recording in observe mode: a screencap source opens on IN_MATCH, stays open
+through UNKNOWN and POPUP, closes on a menu-side state, a closed session or the time cap, and
+one source failure switches match recording off for the rest of the session. Each new capture
+becomes a JPEG in ``match-N/`` with one line in its ``frames.jsonl``."""
 
 from __future__ import annotations
 
+import json
 import logging
 from pathlib import Path
 
+import cv2
+import numpy as np
 import pytest
 
 from brawlfarm.core.states import State
 from brawlfarm.play import matchrec
 
 
-class FakeStream:
-    def __init__(self, path: Path, *, fail: bool = False) -> None:
-        self.path = path
+class FakeSource:
+    def __init__(self, *, fail: bool = False) -> None:
         self.fail = fail
         self.started = False
         self.stopped = False
         self.error: str | None = None
+        self.frame: np.ndarray | None = None
+        self.age: float | None = None
 
     def start(self) -> None:
         if self.fail:
-            raise RuntimeError("no encoder")
+            raise RuntimeError("adb is gone")
         self.started = True
 
     def stop(self) -> None:
         self.stopped = True
 
+    def latest(self):
+        return self.frame, self.age
+
+    def capture(self, value: int = 0, age: float = 0.1) -> None:
+        self.frame = np.full((900, 1600, 3), value, np.uint8)
+        self.age = age
+
 
 @pytest.fixture()
-def rec(monkeypatch):
-    made: list[FakeStream] = []
+def rec():
+    made: list[FakeSource] = []
 
-    def factory(path: Path) -> FakeStream:
-        s = FakeStream(path)
+    def factory() -> FakeSource:
+        s = FakeSource()
         made.append(s)
         return s
 
-    monkeypatch.setattr(matchrec.play, "available", lambda: True)
     now = [0.0]
-    r = matchrec.MatchRecorder(factory=factory, clock=lambda: now[0])
+    r = matchrec.MatchRecorder(factory=factory, clock=lambda: now[0], wall=lambda: 1000.0 + now[0])
     return r, made, now
+
+
+def _lines(folder: Path) -> list[dict]:
+    path = folder / "frames.jsonl"
+    if not path.exists():
+        return []
+    return [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines()]
 
 
 def test_a_match_opens_one_recording_and_a_results_screen_closes_it(rec, tmp_path: Path) -> None:
@@ -51,8 +69,8 @@ def test_a_match_opens_one_recording_and_a_results_screen_closes_it(rec, tmp_pat
     assert made == []
     r.observe(State.IN_MATCH, tmp_path)
     assert len(made) == 1 and made[0].started
-    assert made[0].path == tmp_path / "match-1.h264"
-    assert r.recording == tmp_path / "match-1.h264"
+    assert r.recording == tmp_path / "match-1"
+    assert (tmp_path / "match-1").is_dir()
     r.observe(State.UNKNOWN, tmp_path)
     r.observe(State.POPUP, tmp_path)
     r.observe(State.IN_MATCH, tmp_path)
@@ -60,24 +78,62 @@ def test_a_match_opens_one_recording_and_a_results_screen_closes_it(rec, tmp_pat
     r.observe(State.RESULTS, tmp_path)
     assert made[0].stopped and r.recording is None
     r.observe(State.IN_MATCH, tmp_path)
-    assert made[1].path == tmp_path / "match-2.h264"
+    assert r.recording == tmp_path / "match-2"
 
 
-def test_starting_a_recording_warns_that_the_stream_can_disconnect_the_match(
-    rec, tmp_path: Path, caplog
-) -> None:
+def test_each_new_capture_is_written_once_with_a_frames_line(rec, tmp_path: Path) -> None:
     r, made, now = rec
-    with caplog.at_level(logging.WARNING, logger="brawlfarm.play.matchrec"):
+    r.observe(State.IN_MATCH, tmp_path)
+    folder = tmp_path / "match-1"
+    r.observe(State.IN_MATCH, tmp_path)
+    assert list(folder.glob("*.jpg")) == [], "no frame yet, nothing written"
+    made[0].capture(10, age=0.12)
+    now[0] += 0.25
+    r.observe(State.IN_MATCH, tmp_path)
+    now[0] += 0.25
+    r.observe(State.UNKNOWN, tmp_path)  # the same capture again: never written twice
+    made[0].capture(20, age=0.05)
+    now[0] += 0.25
+    r.observe(State.UNKNOWN, tmp_path)
+    assert sorted(p.name for p in folder.glob("*.jpg")) == ["0000.jpg", "0001.jpg"]
+    assert _lines(folder) == [
+        {"i": 0, "t": 1000.25, "age": 0.12, "state": "IN_MATCH"},
+        {"i": 1, "t": 1000.75, "age": 0.05, "state": "UNKNOWN"},
+    ]
+    frame = cv2.imread(str(folder / "0000.jpg"))
+    assert frame.shape == (900, 1600, 3), "full size, the size training needs"
+
+
+def test_writes_are_capped_at_the_rate(rec, tmp_path: Path) -> None:
+    r, made, now = rec
+    assert matchrec.RATE_HZ == 5.0
+    r.observe(State.IN_MATCH, tmp_path)
+    for i in range(16):
+        made[0].capture(i)
+        now[0] += 0.0625
         r.observe(State.IN_MATCH, tmp_path)
-    assert sum("can disconnect the match" in message for message in caplog.messages) == 1
+    # one second of ticks at 16 a second, a fresh capture each: writes at 0.0625, 0.3125,
+    # 0.5625 and 0.8125, never closer than 1 / RATE_HZ
+    assert len(_lines(tmp_path / "match-1")) == 4
 
 
-def test_numbering_continues_from_files_already_in_the_session(rec, tmp_path: Path) -> None:
+def test_starting_a_recording_logs_the_folder_once(rec, tmp_path: Path, caplog) -> None:
+    r, made, now = rec
+    with caplog.at_level(logging.INFO, logger="brawlfarm.play.matchrec"):
+        r.observe(State.IN_MATCH, tmp_path)
+        r.observe(State.IN_MATCH, tmp_path)
+    assert not any("disconnect" in m for m in caplog.messages)
+    assert sum(str(tmp_path / "match-1") in m for m in caplog.messages) == 1
+    assert all(record.levelno == logging.INFO for record in caplog.records)
+
+
+def test_numbering_continues_from_folders_and_old_clips(rec, tmp_path: Path) -> None:
     r, made, now = rec
     (tmp_path / "match-1.h264").write_bytes(b"")
-    (tmp_path / "match-2.h264").write_bytes(b"")
+    (tmp_path / "match-2").mkdir()
+    (tmp_path / "match-3.h264").write_bytes(b"")
     r.observe(State.IN_MATCH, tmp_path)
-    assert made[0].path == tmp_path / "match-3.h264"
+    assert r.recording == tmp_path / "match-4"
 
 
 def test_a_closed_session_and_the_time_cap_stop_the_recording(rec, tmp_path: Path) -> None:
@@ -91,12 +147,11 @@ def test_a_closed_session_and_the_time_cap_stop_the_recording(rec, tmp_path: Pat
     assert made[1].stopped
 
 
-def test_a_stream_failure_disables_recording_for_the_session(monkeypatch, tmp_path: Path) -> None:
-    monkeypatch.setattr(matchrec.play, "available", lambda: True)
-    made: list[FakeStream] = []
+def test_a_source_failure_disables_recording_for_the_session(tmp_path: Path) -> None:
+    made: list[FakeSource] = []
 
-    def factory(path: Path) -> FakeStream:
-        s = FakeStream(path, fail=True)
+    def factory() -> FakeSource:
+        s = FakeSource(fail=True)
         made.append(s)
         return s
 
@@ -112,12 +167,19 @@ def test_a_stream_failure_disables_recording_for_the_session(monkeypatch, tmp_pa
     assert len(made) == 2, "a new session gets a fresh chance"
 
 
-def test_without_the_play_extra_nothing_is_recorded(monkeypatch, tmp_path: Path) -> None:
-    monkeypatch.setattr(matchrec.play, "available", lambda: False)
-    calls = []
-    r = matchrec.MatchRecorder(factory=lambda path: calls.append(path))
+def test_recording_needs_no_play_extra(monkeypatch, rec, tmp_path: Path) -> None:
+    from brawlfarm import play
+
+    monkeypatch.setattr(play, "available", lambda: False)
+    r, made, now = rec
     r.observe(State.IN_MATCH, tmp_path)
-    assert calls == [] and r.recording is None
+    assert len(made) == 1 and r.recording is not None
+
+
+def test_the_default_source_is_the_screencap_source() -> None:
+    from brawlfarm.play.capture import ScreencapSource
+
+    assert isinstance(matchrec._default_factory(), ScreencapSource)
 
 
 def test_close_stops_an_open_recording(rec, tmp_path: Path) -> None:
@@ -140,30 +202,49 @@ def test_a_session_folder_that_cannot_be_listed_disables_recording(
     assert made == [] and r.recording is None
 
 
-def test_a_stream_that_dies_mid_match_is_released_and_logged(rec, tmp_path: Path, caplog) -> None:
+def test_a_frame_that_cannot_be_written_ends_recording_for_the_session(
+    rec, tmp_path: Path, monkeypatch
+) -> None:
     r, made, now = rec
     r.observe(State.IN_MATCH, tmp_path)
-    made[0].error = "stream ended"
+    made[0].capture(5)
+
+    def broken(*args, **kwargs):
+        raise OSError("disk full")
+
+    monkeypatch.setattr(matchrec.preview, "encode", broken)
+    now[0] += 1
+    r.observe(State.IN_MATCH, tmp_path)
+    assert made[0].stopped and r.recording is None
+    r.observe(State.RESULTS, tmp_path)
+    r.observe(State.IN_MATCH, tmp_path)
+    assert len(made) == 1
+
+
+def test_a_source_that_dies_mid_match_is_released_and_logged(rec, tmp_path: Path, caplog) -> None:
+    r, made, now = rec
+    r.observe(State.IN_MATCH, tmp_path)
+    made[0].error = "3 captures failed"
     with caplog.at_level(logging.WARNING, logger="brawlfarm.play.matchrec"):
         r.observe(State.UNKNOWN, tmp_path)
     assert made[0].stopped and r.recording is None
     assert sum("ended early" in message for message in caplog.messages) == 1
     r.observe(State.IN_MATCH, tmp_path)
-    assert len(made) == 1, "the same match never starts a second stream"
+    assert len(made) == 1, "the same match never starts a second source"
     r.observe(State.RESULTS, tmp_path)
     r.observe(State.IN_MATCH, tmp_path)
     assert len(made) == 2, "the next match records again"
 
 
-def test_a_new_session_records_at_once_after_a_stream_died(rec, tmp_path: Path) -> None:
+def test_a_new_session_records_at_once_after_a_source_died(rec, tmp_path: Path) -> None:
     r, made, now = rec
     first, second = tmp_path / "a", tmp_path / "b"
     first.mkdir()
     second.mkdir()
     r.observe(State.IN_MATCH, first)
-    made[0].error = "stream ended"
+    made[0].error = "3 captures failed"
     r.observe(State.IN_MATCH, first)
     r.observe(State.IN_MATCH, first)
     assert len(made) == 1, "the dead match stays unrecorded in its own session"
     r.observe(State.IN_MATCH, second)
-    assert len(made) == 2, "the latch belongs to the session the stream died in"
+    assert len(made) == 2, "the latch belongs to the session the source died in"

@@ -3,7 +3,7 @@
 Known defect: running this stream while a match is in progress makes the game show its
 disconnect modal, 31 times across 16 matches on the reference instance, at every bit rate,
 frame rate and frame size tried. The cause is unknown. Shadow mode no longer uses this
-module; the observe-mode match recorder still does, and a match it records may disconnect.
+module, and nothing in the package uses it during a match any more.
 
 Transport: the bundled scrcpy server jar is pushed over adb, started with control off, and
 its raw H.264 comes back through an adb port forward. A thread decodes it and keeps only the
