@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass as _dc
 from pathlib import Path
 
@@ -182,29 +183,49 @@ def test_choose_bush_grid_none_when_gas_covers_every_bush() -> None:
 
 
 def test_choose_bush_grid_partly_shrunk_prefers_inside_nearest_center() -> None:
+    # choose_bush's sort key is (euclidean distance to centre, ...), while in_safe_area is
+    # Chebyshev. The outside bush sits on an axis (Chebyshev == Euclidean there) just past
+    # safe_half, so its Euclidean centre distance is *smaller* than the inside/diagonal bush's:
+    # the in_safe_area filter is what excludes it, not the sort key.
     n = 40
     seconds = (maps.GAS_START_S + maps.GAS_END_S) / 2  # partly shrunk: between start and end
     blank = grid_map(*(["." * n] * n))
     safe_half = maps.safe_half_extent(blank, seconds)
     center_r = center_c = n // 2
 
-    out_c = center_c + int(safe_half) + 3  # outside the shrunk safe area, nearest to self
-    far_c = center_c - (int(safe_half) - 1)  # inside, farther from the centre
-    near_r = center_r - 2  # inside, nearest to the centre
+    k = int(safe_half) - 1  # diagonal offset, inside: nearest-centre bush
+    off = int(safe_half) + 1  # axial offset just past safe_half: outside bush
+    fk = int(safe_half)  # diagonal offset, inside but farther than k: inside-but-farther bush
+
+    near_row, near_col = center_r - k, center_c - k
+    out_row, out_col = center_r, center_c + off
+    far_row, far_col = center_r + fk, center_c - fk
 
     grid = [["."] * n for _ in range(n)]
-    grid[center_r][out_c] = "F"
-    grid[near_r][center_c] = "F"
-    grid[center_r][far_c] = "F"
+    grid[near_row][near_col] = "F"
+    grid[out_row][out_col] = "F"
+    grid[far_row][far_col] = "F"
     m = grid_map(*("".join(row) for row in grid))
-    self_pos = (center_r + 0.5, out_c - 1.0)  # right next to the outside bush
+    self_pos = (out_row + 0.5, out_col - 1.0)  # right next to the outside bush
 
-    assert maps.in_safe_area(m, center_r + 0.5, out_c + 0.5, seconds, margin=0.0) is False
-    assert maps.in_safe_area(m, near_r + 0.5, center_c + 0.5, seconds, margin=0.0) is True
-    assert maps.in_safe_area(m, center_r + 0.5, far_c + 0.5, seconds, margin=0.0) is True
+    near, outb, far = (
+        (near_row + 0.5, near_col + 0.5),
+        (out_row + 0.5, out_col + 0.5),
+        (
+            far_row + 0.5,
+            far_col + 0.5,
+        ),
+    )
+    assert maps.in_safe_area(m, *near, seconds, margin=0.0) is True
+    assert maps.in_safe_area(m, *outb, seconds, margin=0.0) is False
+    assert maps.in_safe_area(m, *far, seconds, margin=0.0) is True
+    near_euclid = math.hypot(near[0] - center_r, near[1] - center_c)
+    out_euclid = math.hypot(outb[0] - center_r, outb[1] - center_c)
+    far_euclid = math.hypot(far[0] - center_r, far[1] - center_c)
+    assert out_euclid < near_euclid < far_euclid  # the outside bush would win without the filter
 
     chosen = maps.choose_bush(m, self_pos, seconds, margin=0.0)
-    assert chosen == maps.BushTarget(near_r + 0.5, center_c + 0.5, "grid", None)
+    assert chosen == maps.BushTarget(*near, "grid", None)
 
     # raising the margin so the shrunk safe area no longer covers any bush
     assert maps.choose_bush(m, self_pos, seconds, margin=safe_half) is None
