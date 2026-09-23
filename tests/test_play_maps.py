@@ -181,6 +181,35 @@ def test_choose_bush_grid_none_when_gas_covers_every_bush() -> None:
     assert maps.choose_bush(grid_map("....."), (0.5, 0.5), 0, margin=0.0) is None
 
 
+def test_choose_bush_grid_partly_shrunk_prefers_inside_nearest_center() -> None:
+    n = 40
+    seconds = (maps.GAS_START_S + maps.GAS_END_S) / 2  # partly shrunk: between start and end
+    blank = grid_map(*(["." * n] * n))
+    safe_half = maps.safe_half_extent(blank, seconds)
+    center_r = center_c = n // 2
+
+    out_c = center_c + int(safe_half) + 3  # outside the shrunk safe area, nearest to self
+    far_c = center_c - (int(safe_half) - 1)  # inside, farther from the centre
+    near_r = center_r - 2  # inside, nearest to the centre
+
+    grid = [["."] * n for _ in range(n)]
+    grid[center_r][out_c] = "F"
+    grid[near_r][center_c] = "F"
+    grid[center_r][far_c] = "F"
+    m = grid_map(*("".join(row) for row in grid))
+    self_pos = (center_r + 0.5, out_c - 1.0)  # right next to the outside bush
+
+    assert maps.in_safe_area(m, center_r + 0.5, out_c + 0.5, seconds, margin=0.0) is False
+    assert maps.in_safe_area(m, near_r + 0.5, center_c + 0.5, seconds, margin=0.0) is True
+    assert maps.in_safe_area(m, center_r + 0.5, far_c + 0.5, seconds, margin=0.0) is True
+
+    chosen = maps.choose_bush(m, self_pos, seconds, margin=0.0)
+    assert chosen == maps.BushTarget(near_r + 0.5, center_c + 0.5, "grid", None)
+
+    # raising the margin so the shrunk safe area no longer covers any bush
+    assert maps.choose_bush(m, self_pos, seconds, margin=safe_half) is None
+
+
 def test_choose_bush_frame_path() -> None:
     small, big = FakeBox("bush", 0.9, 10, 20, 30, 40), FakeBox("bush", 0.8, 100, 200, 60, 50)
     m = grid_map("F....")
