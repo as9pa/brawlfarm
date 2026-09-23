@@ -1,4 +1,5 @@
-"""Pull training frames out of recorder sessions, raw match files and container videos.
+"""Pull training frames out of recorder sessions (with their match-N folders), raw match files and
+container videos.
 
 Every source is sampled at FPS_OUT, fitted to 1600 x 900, deduped against the whole index and
 written into the dataset folder with one index line each. Read-only against the source files;
@@ -262,9 +263,14 @@ def main(argv: list[str] | None = None) -> int:
             jobs.append((source, "session", lambda: iter_session(target)))
             # A session keeps its match recordings beside its screenshots; they are the only
             # in-game footage it has, so take them too rather than asking for a second run.
-            for clip in sorted(target.glob("match-*.h264")):
-                name = dataset.check_source(f"{source}-{clip.stem}")
-                jobs.append((name, "match", lambda clip=clip: iter_h264(clip)))
+            # A match is a match-N/ folder of JPEGs now; older sessions hold match-N.h264 clips.
+            for match in sorted(target.glob("match-*")):
+                if match.is_dir():
+                    name = dataset.check_source(f"{source}-{match.name}")
+                    jobs.append((name, "match", lambda match=match: iter_session(match)))
+                elif match.suffix == ".h264":
+                    name = dataset.check_source(f"{source}-{match.stem}")
+                    jobs.append((name, "match", lambda match=match: iter_h264(match)))
         elif args.match:
             jobs.append((source, "match", lambda: iter_h264(target)))
         else:
