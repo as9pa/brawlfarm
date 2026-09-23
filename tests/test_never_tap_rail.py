@@ -1,6 +1,6 @@
 """The NEVER-TAP safety rail, source-enforced (r10 hardening).
 
-Project rule (CLAUDE.md, absolute — real accounts, real-money surfaces): never
+Project rule (CONTRIBUTING.md, absolute — real accounts, real-money surfaces): never
 tap ACCEPT on a team invite, GET/Upgrade, EQUIP NOW, shop buy buttons, the pass
 VAULT, anything Gems-priced, or SCID_LOG_OUT. Until now zero tests enforced any
 of it. This parses every brawlfarm/core/*.py and fails if a forbidden surface is
@@ -147,7 +147,7 @@ def test_no_core_code_taps_a_forbidden_surface():
         for lineno, what in find_violations(tree, names, coords):
             offenders.append(f"{py.name}:{lineno}: taps forbidden surface {what}")
     assert not offenders, (
-        "NEVER-TAP rail violated (CLAUDE.md safety rails — real-money surfaces):\n"
+        "NEVER-TAP rail violated (CONTRIBUTING.md safety rails — real-money surfaces):\n"
         + "\n".join(offenders)
     )
 

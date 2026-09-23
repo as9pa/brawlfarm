@@ -3,7 +3,7 @@
 While the frame recorder has a session open, every match the classifier sees becomes one
 ``match-N.h264`` in that session folder: the play stream's raw bytes, no re-encode. The
 farm worker gets the same through its play session in a later pull request. Spec:
-docs/superpowers/specs/2026-09-18-play-mode.md section 10.
+the play mode design notes section 10.
 """
 
 from __future__ import annotations

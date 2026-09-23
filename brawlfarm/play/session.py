@@ -14,7 +14,7 @@ The source is the emulator's own screen captures (``brawlfarm.play.capture``), n
 stream: one capture costs 180 to 280 ms, so a frame is 0.2 to 0.3 s old by the time the model
 sees it.
 
-Spec: docs/superpowers/specs/2026-09-18-play-mode.md sections 1 and 5.
+Spec: the play mode design notes sections 1 and 5.
 """
 
 from __future__ import annotations

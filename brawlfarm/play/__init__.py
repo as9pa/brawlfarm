@@ -1,4 +1,4 @@
-"""Play mode: the opt-in in-match brain. Spec: docs/superpowers/specs/2026-09-18-play-mode.md.
+"""Play mode: the opt-in in-match brain. Spec: the play mode design notes.
 
 Nothing in this file imports PyAV or onnxruntime. The core loop and the API import this
 package to ask ``available()`` and must keep working when the play extra is absent.

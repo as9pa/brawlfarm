@@ -23,3 +23,7 @@ brawlfarm/web/dist/
 
 # Worktrees created by isolated Claude Code agents
 .claude/worktrees/
+# maintainer-only notes, never shipped
+CLAUDE.md
+docs/superpowers/
+docs/PLAN.md
