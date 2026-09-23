@@ -2,8 +2,7 @@
 
 This is the worker's own copy of the pre-processing and decoding in tools/play/thresholds.py,
 kept here because the tools are not in the wheel, and pinned to them by the parity test in
-tests/test_play_detect.py. Change one side and that test fails, which is the point. Spec:
-docs/superpowers/specs/2026-09-18-play-mode.md section 3.
+tests/test_play_detect.py. Change one side and that test fails, which is the point.
 
 Nothing here can send input, and onnxruntime and cv2 are imported inside the bodies that need
 them, so a worker with shadow mode off pays nothing for this module existing.

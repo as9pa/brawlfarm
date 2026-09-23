@@ -181,7 +181,7 @@ def is_skin_popup(screen: np.ndarray) -> bool:
 #
 # These are CLASSIFIED BY COLOR/STRUCTURE, not templates: the ceremony screens use
 # stylized banner text that OCR mangles ("CHOOSE A BRAWLER" -> "ER"; "LET'S GO" /
-# "GOT IT" unreadable), so the house rule (CLAUDE.md) says prefer a color/structure
+# "GOT IT" unreadable), so the house rule (CONTRIBUTING.md) says prefer a color/structure
 # gate. The reliable signal across every ceremony frame is the distinct GREEN call-
 # to-action button (LET'S GO / GOT IT / CHOOSE) in the bottom band — a flat green
 # H≈61, S/V high — that does NOT appear on the menu (PLAY is a different green),
