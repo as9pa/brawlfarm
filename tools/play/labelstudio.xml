@@ -16,5 +16,6 @@
     <Label value="proceed_button"/>
     <Label value="exit_button"/>
     <Label value="close_x"/>
+    <Label value="gas"/>
   </RectangleLabels>
 </View>

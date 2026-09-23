@@ -118,8 +118,8 @@ def test_preprocess_matches_the_tools():
 def test_decode_matches_the_tools():
     rng = np.random.default_rng(626)
     dets = rng.random((300, 4))
-    logits = rng.normal(0.0, 3.0, size=(300, 16))
     names = classes.CLASSES
+    logits = rng.normal(0.0, 3.0, size=(300, len(names) + 1))
     bars = {name: 0.30 + 0.04 * index for index, name in enumerate(names)}
 
     mine = detect.decode(dets, logits, 1600, 900, names, bars)

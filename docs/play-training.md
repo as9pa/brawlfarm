@@ -142,7 +142,7 @@ uv run python tools/play/prelabel.py
 `--root` picks the dataset root, and `--source` restricts pre-labelling to one source (repeat
 the flag for more). Pre-labelling covers only `showdown_card`, `play_button`,
 `play_again_button`, `proceed_button`, `exit_button` and `close_x`. Everything that happens
-inside a match (`self`, `enemy`, `teammate`, `power_cube`, `box`, `bush`) and `skull_star`,
+inside a match (`self`, `enemy`, `teammate`, `power_cube`, `box`, `bush`, `gas`) and `skull_star`,
 `team_up_panel`, `event_tab` have no template behind them and are labelled by hand. Pre-labelling
 2815 frames took about 9.5 minutes.
 
@@ -185,6 +185,8 @@ What each class means:
 - `proceed_button`: the Proceed button, such as after a reward screen.
 - `exit_button`: an Exit button.
 - `close_x`: a close (X) control on a dialog or banner.
+- `gas`: the Showdown poison cloud. Box the visible cloud area, edge to edge, one box per
+  connected area; the policy uses the box's near edge to know where the safe ground ends.
 
 Labelling rules:
 
