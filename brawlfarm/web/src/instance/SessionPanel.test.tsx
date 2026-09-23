@@ -36,10 +36,10 @@ const farming = makeInstance({
 
 describe("SessionPanel", () => {
   it("shows the six figures of a live session", () => {
-    render(<SessionPanel inst={farming} avgRank={3.42} interrupts={4} stopAt={null} />);
+    render(<SessionPanel inst={farming} avgPlacement={3.42} interrupts={4} stopAt={null} />);
     expect(screen.getByText("12")).toBeInTheDocument(); // Games
     expect(screen.getByText("+86")).toBeInTheDocument(); // Trophies
-    expect(screen.getByText("3.4")).toBeInTheDocument(); // Avg rank
+    expect(screen.getByText("3.4")).toBeInTheDocument(); // Avg placement
     expect(screen.getByText("1")).toBeInTheDocument(); // Disconnects
     expect(screen.getByText("1 h 12 min")).toBeInTheDocument(); // Duration
     expect(screen.getByText("4")).toBeInTheDocument(); // Interrupts
@@ -50,12 +50,12 @@ describe("SessionPanel", () => {
     render(
       <SessionPanel
         inst={makeInstance({ name: "Pie64", state: "starting", games_played: null, session: null })}
-        avgRank={null}
+        avgPlacement={null}
         interrupts={0}
         stopAt={null}
       />,
     );
-    expect(figure("Avg rank")).toHaveTextContent("No games yet");
+    expect(figure("Avg placement")).toHaveTextContent("No games yet");
     expect(figure("Trophies")).toHaveTextContent("Not yet");
     expect(screen.queryByText("none")).not.toBeInTheDocument();
     expect(screen.getByText("0 min")).toBeInTheDocument(); // Duration
@@ -64,7 +64,7 @@ describe("SessionPanel", () => {
 
   it("keeps the last live figures and captions the end of the session", () => {
     const { rerender } = render(
-      <SessionPanel inst={farming} avgRank={3.42} interrupts={4} stopAt={null} />,
+      <SessionPanel inst={farming} avgPlacement={3.42} interrupts={4} stopAt={null} />,
     );
     expect(screen.getByText("12")).toBeInTheDocument();
     rerender(
@@ -75,7 +75,7 @@ describe("SessionPanel", () => {
           games_played: null,
           session: null,
         })}
-        avgRank={null}
+        avgPlacement={null}
         interrupts={0}
         stopAt="2026-09-11T14:15:40"
       />,
@@ -93,14 +93,14 @@ describe("SessionPanel", () => {
       session: null,
     });
     const { rerender } = render(
-      <SessionPanel inst={stopped} avgRank={null} interrupts={0} stopAt={null} />,
+      <SessionPanel inst={stopped} avgPlacement={null} interrupts={0} stopAt={null} />,
     );
     // Nothing has said when it stopped yet, so the caption is the moment the panel
     // noticed. The feed's own stop line arrives a poll later and is the better answer.
     expect(screen.getByText(/^Session ended \w\w\w \d+, \d\d:\d\d$/)).toBeInTheDocument();
 
     rerender(
-      <SessionPanel inst={stopped} avgRank={null} interrupts={0} stopAt="2026-09-11T14:15:40" />,
+      <SessionPanel inst={stopped} avgPlacement={null} interrupts={0} stopAt="2026-09-11T14:15:40" />,
     );
     expect(screen.getByText("Session ended Sep 11, 14:15")).toBeInTheDocument();
   });
@@ -114,7 +114,7 @@ describe("SessionPanel", () => {
           session: null,
           last_session: makeLastSession(),
         })}
-        avgRank={null}
+        avgPlacement={null}
         interrupts={0}
         stopAt={null}
       />,
@@ -123,7 +123,7 @@ describe("SessionPanel", () => {
     expect(heading().textContent).toBe("Last session");
     expect(figure("Games")).toHaveTextContent("12");
     expect(figure("Trophies")).toHaveTextContent("+86");
-    expect(figure("Avg rank")).toHaveTextContent("3.4");
+    expect(figure("Avg placement")).toHaveTextContent("3.4");
     expect(figure("Disconnects")).toHaveTextContent("1");
     expect(figure("Duration")).toHaveTextContent("1 h 14 min");
     expect(figure("Interrupts")).toHaveTextContent("2");
@@ -138,14 +138,14 @@ describe("SessionPanel", () => {
           session: null,
           last_session: null,
         })}
-        avgRank={null}
+        avgPlacement={null}
         interrupts={0}
         stopAt={null}
       />,
     );
     expect(figure("Games")).toHaveTextContent("0");
     expect(figure("Trophies")).toHaveTextContent("Not yet");
-    expect(figure("Avg rank")).toHaveTextContent("No games yet");
+    expect(figure("Avg placement")).toHaveTextContent("No games yet");
     expect(figure("Duration")).toHaveTextContent("0 min");
   });
 
@@ -156,13 +156,13 @@ describe("SessionPanel", () => {
       last_session: makeLastSession({ games: 99 }),
     });
     const { rerender } = renderWithProviders(
-      <SessionPanel inst={live} avgRank={2.5} interrupts={1} stopAt={null} />,
+      <SessionPanel inst={live} avgPlacement={2.5} interrupts={1} stopAt={null} />,
     );
     expect(figure("Games")).toHaveTextContent("4");
     rerender(
       <SessionPanel
         inst={{ ...live, state: "stopped" }}
-        avgRank={2.5}
+        avgPlacement={2.5}
         interrupts={1}
         stopAt="2026-09-12T23:05:00"
       />,
@@ -180,7 +180,7 @@ describe("SessionPanel", () => {
           games_played: 3,
           session: { ...SESSION, last_trophies: null },
         })}
-        avgRank={2.5}
+        avgPlacement={2.5}
         interrupts={0}
         stopAt={null}
       />,
@@ -197,27 +197,27 @@ describe("SessionPanel", () => {
           games_played: 1234,
           session: SESSION,
         })}
-        avgRank={null}
+        avgPlacement={null}
         interrupts={0}
         stopAt={null}
       />,
     );
     expect(figure("Games")).toHaveTextContent("1,234");
     expect(figure("Games").className).toContain("font-mono");
-    const rank = figure("Avg rank");
-    expect(rank).toHaveTextContent("No games yet");
-    expect(rank.className).not.toContain("font-mono");
-    expect(rank.className).toContain("text-muted");
+    const placement = figure("Avg placement");
+    expect(placement).toHaveTextContent("No games yet");
+    expect(placement.className).not.toContain("font-mono");
+    expect(placement.className).toContain("text-muted");
   });
   it("names the session while it runs and calls it the last one once it is over", () => {
     const { rerender } = render(
-      <SessionPanel inst={farming} avgRank={3.42} interrupts={4} stopAt={null} />,
+      <SessionPanel inst={farming} avgPlacement={3.42} interrupts={4} stopAt={null} />,
     );
     expect(heading().textContent).toBe("Session");
     rerender(
       <SessionPanel
         inst={makeInstance({ name: "Pie64", state: "stopped", games_played: null, session: null })}
-        avgRank={null}
+        avgPlacement={null}
         interrupts={0}
         stopAt="2026-09-11T14:15:40"
       />,
@@ -226,7 +226,7 @@ describe("SessionPanel", () => {
   });
 
   it("announces a changed figure without reading the whole panel out", () => {
-    render(<SessionPanel inst={farming} avgRank={3.42} interrupts={4} stopAt={null} />);
+    render(<SessionPanel inst={farming} avgPlacement={3.42} interrupts={4} stopAt={null} />);
     const figures = screen.getByText("Games").closest("dl") as HTMLElement;
     expect(figures).toHaveAttribute("aria-live", "polite");
     expect(figures).toHaveAttribute("aria-atomic", "false");

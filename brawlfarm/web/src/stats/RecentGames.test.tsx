@@ -12,7 +12,7 @@ function game(overrides: Partial<StatsGame> = {}): StatsGame {
     instance: "Pie64",
     t: "2026-09-12T22:00:00",
     brawler: "NORI",
-    rank: 1,
+    placement: 1,
     trophy_change: 17,
     map: "Feast or Famine",
     mode: "soloShowdown",
@@ -30,14 +30,14 @@ describe("RecentGames", () => {
       "Brawler",
       "Mode",
       "Map",
-      "Rank",
+      "Placement",
       "Trophies",
     ]);
   });
 
   it("keeps the API's order, newest first, for twenty rows", () => {
     const rows = Array.from({ length: 20 }, (_, i) =>
-      game({ t: `2026-09-12T22:${String(59 - i).padStart(2, "0")}:00`, rank: (i % 10) + 1 }),
+      game({ t: `2026-09-12T22:${String(59 - i).padStart(2, "0")}:00`, placement: (i % 10) + 1 }),
     );
     renderWithProviders(<RecentGames rows={rows} range="today" />);
     const body = screen.getAllByRole("row").slice(1);
@@ -56,7 +56,7 @@ describe("RecentGames", () => {
   it("says Not recorded for a null mode, a null map and a null brawler", () => {
     renderWithProviders(
       <RecentGames
-        rows={[game({ mode: null, map: null, brawler: null, rank: null })]}
+        rows={[game({ mode: null, map: null, brawler: null, placement: null })]}
         range="today"
       />,
     );
@@ -67,8 +67,25 @@ describe("RecentGames", () => {
     // A missing mode is muted like a missing map, not set as if it were a mode name.
     expect(cells[3].querySelector("span")).toHaveClass("text-muted");
     expect(cells[4].querySelector("span")).toHaveClass("text-muted");
-    expect(cells[5]).toHaveTextContent("Not recorded");
+    // A missing placement is the one blank cell.
+    expect(cells[5].textContent).toBe("");
     expect(screen.queryByText("none")).not.toBeInTheDocument();
+  });
+
+  it("names each placement as an ordinal", () => {
+    const rows = [1, 2, 3, 4, 5, 10].map((placement, i) =>
+      game({ placement, t: `2026-09-12T22:0${9 - i}:00` }),
+    );
+    renderWithProviders(<RecentGames rows={rows} range="today" />);
+    const body = screen.getAllByRole("row").slice(1);
+    expect(body.map((row) => row.querySelectorAll("td")[5].textContent)).toEqual([
+      "1st",
+      "2nd",
+      "3rd",
+      "4th",
+      "5th",
+      "10th",
+    ]);
   });
 
   it("names the mode the way the game does", () => {

@@ -7,8 +7,8 @@
  * of" question; the second toggles. Ties break on name ascending, which is the order the
  * API already returns.
  *
- * A null average rank or top-4 rate sorts last in both directions: an unranked brawler is
- * missing a number, not holding the worst one.
+ * A null average placement or win rate sorts last in both directions: a brawler with no
+ * recorded placement is missing a number, not holding the worst one.
  */
 import { useState } from "react";
 
@@ -22,7 +22,7 @@ export interface BrawlerTableProps {
   rows: StatsBrawler[];
 }
 
-type SortKey = "name" | "games" | "net" | "avg_rank" | "top4_rate";
+type SortKey = "name" | "games" | "net" | "avg_placement" | "win_rate";
 
 const EMPTY = "No games in this range.";
 
@@ -76,18 +76,19 @@ export function BrawlerTable({ rows }: BrawlerTableProps) {
       ),
     },
     {
-      key: "avg_rank",
-      label: "Avg rank",
+      key: "avg_placement",
+      label: "Avg placement",
       mono: true,
       sortable: true,
-      render: (row) => (row.avg_rank === null ? NOT_RECORDED : row.avg_rank.toFixed(1)),
+      render: (row) =>
+        row.avg_placement === null ? NOT_RECORDED : row.avg_placement.toFixed(1),
     },
     {
-      key: "top4_rate",
-      label: "Top 4",
+      key: "win_rate",
+      label: "Wins",
       mono: true,
       sortable: true,
-      render: (row) => (row.top4_rate === null ? NOT_RECORDED : `${Math.round(row.top4_rate)}%`),
+      render: (row) => (row.win_rate === null ? NOT_RECORDED : `${Math.round(row.win_rate)}%`),
     },
   ];
 

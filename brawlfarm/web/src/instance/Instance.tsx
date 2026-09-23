@@ -223,7 +223,7 @@ export function Instance() {
           <div id="session" className="scroll-mt-12">
             <SessionPanel
               inst={inst}
-              avgRank={stats.data?.summary.avg_rank ?? null}
+              avgPlacement={stats.data?.summary.avg_placement ?? null}
               interrupts={interrupts}
               stopAt={stopAt}
             />

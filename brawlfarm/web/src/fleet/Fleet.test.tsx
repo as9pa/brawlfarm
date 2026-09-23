@@ -47,8 +47,8 @@ function stubFleet(instances = FLEET, alerts: ReturnType<typeof makeAlert>[] = [
           games: 16,
           trophies: 74,
           trophies_per_hour: null,
-          avg_rank: 3.4,
-          top4_rate: null,
+          avg_placement: 3.4,
+          win_rate: null,
           hours_farmed: 3.6667,
         },
       });
@@ -184,8 +184,8 @@ describe("Fleet", () => {
           games: 0,
           trophies: 0,
           trophies_per_hour: null,
-          avg_rank: null,
-          top4_rate: null,
+          avg_placement: null,
+          win_rate: null,
           hours_farmed: 0,
         },
       });
@@ -216,8 +216,8 @@ describe("Fleet", () => {
           games: 0,
           trophies: 0,
           trophies_per_hour: null,
-          avg_rank: null,
-          top4_rate: null,
+          avg_placement: null,
+          win_rate: null,
           hours_farmed: 0,
         },
       });

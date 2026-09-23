@@ -9,9 +9,9 @@ import type { StatsBrawler } from "../api/types";
 import { renderWithProviders } from "../test/renderWithProviders";
 
 const ROWS: StatsBrawler[] = [
-  { name: "NORI", games: 3, net: 29, avg_rank: 2.7, top4_rate: 100 },
-  { name: "SHELLY", games: 1, net: -8, avg_rank: 5, top4_rate: 0 },
-  { name: "COLT", games: 3, net: 4, avg_rank: 4.5, top4_rate: 50 },
+  { name: "NORI", games: 3, net: 29, avg_placement: 2.7, win_rate: 100 },
+  { name: "SHELLY", games: 1, net: -8, avg_placement: 5, win_rate: 0 },
+  { name: "COLT", games: 3, net: 4, avg_placement: 4.5, win_rate: 50 },
 ];
 
 function names(): string[] {
@@ -29,8 +29,8 @@ describe("BrawlerTable", () => {
       "Brawler",
       "Games",
       "Net",
-      "Avg rank",
-      "Top 4",
+      "Avg placement",
+      "Wins",
     ]);
   });
 
@@ -69,20 +69,20 @@ describe("BrawlerTable", () => {
     expect(names()).toEqual(["SHELLY", "NORI", "COLT"]);
   });
 
-  it("puts a null avg rank and a null top-4 rate last, whichever way it is sorted", async () => {
+  it("puts a null avg placement and a null win rate last, whichever way it is sorted", async () => {
     renderWithProviders(
       <BrawlerTable
         rows={[
-          { name: "NORI", games: 1, net: 3, avg_rank: null, top4_rate: null },
-          { name: "COLT", games: 1, net: 3, avg_rank: 2, top4_rate: 50 },
+          { name: "NORI", games: 1, net: 3, avg_placement: null, win_rate: null },
+          { name: "COLT", games: 1, net: 3, avg_placement: 2, win_rate: 50 },
         ]}
       />,
     );
     // Both of NORI's empty cells read Not recorded, never the word none.
     expect(screen.getAllByText("Not recorded")).toHaveLength(2);
-    await userEvent.click(screen.getByRole("button", { name: /Avg rank/ }));
+    await userEvent.click(screen.getByRole("button", { name: /Avg placement/ }));
     expect(names()).toEqual(["COLT", "NORI"]);
-    await userEvent.click(screen.getByRole("button", { name: /Avg rank/ }));
+    await userEvent.click(screen.getByRole("button", { name: /Avg placement/ }));
     expect(names()).toEqual(["COLT", "NORI"]);
   });
 

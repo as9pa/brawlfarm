@@ -10,7 +10,7 @@
  */
 import { describe, expect, it } from "vitest";
 
-import { clock, dateTime, monthDay, num, plural, signed } from "./format";
+import { clock, dateTime, monthDay, num, ordinal, plural, signed, signedOne } from "./format";
 
 describe("num", () => {
   it("groups the thousands and leaves zero and a negative readable", () => {
@@ -70,5 +70,17 @@ describe("plural", () => {
     expect(plural(1, "game")).toBe("1 game");
     expect(plural(3, "game")).toBe("3 games");
     expect(plural(0, "skin")).toBe("0 skins");
+  });
+
+  it("signs an average to one decimal and leaves zero unsigned", () => {
+    expect(signedOne(11.74)).toBe("+11.7");
+    expect(signedOne(-3.6)).toBe("-3.6");
+    expect(signedOne(0)).toBe("0.0");
+  });
+
+  it("names a placement as an ordinal", () => {
+    expect([1, 2, 3, 4, 5, 10, 11, 12, 13, 21, 22, 23].map(ordinal)).toEqual([
+      "1st", "2nd", "3rd", "4th", "5th", "10th", "11th", "12th", "13th", "21st", "22nd", "23rd",
+    ]);
   });
 });

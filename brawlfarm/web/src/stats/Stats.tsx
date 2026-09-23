@@ -17,9 +17,10 @@ import { useSearchParams } from "react-router";
 import { BrawlerTable } from "./BrawlerTable";
 import { ConnectionStrip } from "./ConnectionStrip";
 import { MetricsRow } from "./MetricsRow";
-import { RankBars } from "./RankBars";
+import { PlacementBars } from "./PlacementBars";
 import { RecentGames } from "./RecentGames";
 import { StatsToolbar } from "./StatsToolbar";
+import { TrophiesByPlacement } from "./TrophiesByPlacement";
 import { type StatsView, TrophyChart } from "./TrophyChart";
 import { getConnection } from "../api/connection";
 import { queryKeys } from "../api/queries";
@@ -181,7 +182,7 @@ export function Stats() {
       ) : (
         <>
           <div data-testid="metrics-row">
-            <MetricsRow summary={stats.data.summary} />
+            <MetricsRow summary={stats.data.summary} placements={stats.data.placements} />
           </div>
           <TrophyChart
             series={stats.data.series}
@@ -195,7 +196,10 @@ export function Stats() {
               <h2 className="text-[13px] font-semibold">Brawlers</h2>
               <BrawlerTable rows={stats.data.brawlers} />
             </section>
-            <RankBars rows={stats.data.ranks} />
+            <div className="flex flex-col gap-3">
+              <PlacementBars rows={stats.data.placements} />
+              <TrophiesByPlacement rows={stats.data.summary.trophies_by_placement} />
+            </div>
           </div>
           <RecentGames rows={stats.data.recent} range={range} />
         </>

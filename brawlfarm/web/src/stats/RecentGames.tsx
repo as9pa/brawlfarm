@@ -2,20 +2,21 @@
  * The last twenty games the workers logged, newest first.
  *
  * The API already orders them, so this never sorts: the list is a log, and a log that
- * reorders itself is a different thing. A null mode, map, brawler or rank reads
- * "Not recorded" rather than blank, so an empty cell always means the column is empty and
- * never that something failed to render.
+ * reorders itself is a different thing. A null mode, map or brawler reads "Not recorded"
+ * rather than blank, so an empty cell always means the column is empty and never that
+ * something failed to render. A null placement is the one blank cell: the placement is
+ * read off the end screen, and a game whose end screen was missed has no finish to name.
  *
  * Seven columns do not fit a phone, and none of them is droppable, so the table keeps a
  * minimum width of 720 px and scrolls sideways inside its own box rather than squeezing Map,
- * Rank and Trophies into nothing. No cell wraps either: "Not recorded" over two lines makes
+ * Placement and Trophies into nothing. No cell wraps either: "Not recorded" over two lines makes
  * its row twice the height of the rows around it.
  */
 import type { StatsGame, StatsRange } from "../api/types";
 import { BrawlerIcon } from "../components/ui/BrawlerIcon";
 import { Table, type Column } from "../components/ui/Table";
 import { modeName, NOT_RECORDED } from "../lib/copy";
-import { signed } from "../lib/format";
+import { ordinal, signed } from "../lib/format";
 import { formatMoment } from "./format";
 
 export interface RecentGamesProps {
@@ -78,16 +79,11 @@ function columnsFor(range: StatsRange): Column<StatsGame>[] {
     },
     { key: "map", label: "Map", render: (row) => muted(row.map) },
     {
-      key: "rank",
-      label: "Rank",
+      key: "placement",
+      label: "Placement",
       mono: true,
-      width: "60px",
-      render: (row) =>
-        row.rank === null ? (
-          <span className="text-muted">{NOT_RECORDED}</span>
-        ) : (
-          String(row.rank)
-        ),
+      width: "84px",
+      render: (row) => (row.placement === null ? "" : ordinal(row.placement)),
     },
     {
       key: "trophy_change",
