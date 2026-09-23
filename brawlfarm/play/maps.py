@@ -7,10 +7,11 @@ Row 0 is taken as the top of the map; that is unverified (spec Q1).
 
 from __future__ import annotations
 
+import difflib
 import functools
 import json
 import re
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from importlib import resources
 from pathlib import Path
@@ -170,3 +171,60 @@ def load(path: Path | None = None) -> MapIndex:
     if not isinstance(doc, dict):
         raise MapsDataError("map data is not an object")
     return MapIndex(doc)
+
+
+NAME_MATCH_RATIO = 0.85
+MODE_TEXT = "TRIO SHOWDOWN"
+TRIO_MODES = frozenset({"trioShowdown"})  # assumed rotation event.mode string (spec Q5)
+_UNITS = {"d": 86400, "h": 3600, "m": 60, "s": 1}
+
+
+def _best(text: str, index: MapIndex) -> tuple[float, str | None]:
+    key = fold(text)
+    if not key:
+        return (0.0, None)
+    best = (0.0, None)
+    for name in index.names():
+        ratio = 1.0 if fold(name) == key else difflib.SequenceMatcher(None, key, fold(name)).ratio()
+        if ratio > best[0]:
+            best = (ratio, name)
+    return best
+
+
+def match_name(text: str, index: MapIndex) -> str | None:
+    ratio, name = _best(text, index)
+    return name if ratio >= NAME_MATCH_RATIO else None
+
+
+def _is_mode_line(line: str) -> bool:
+    return difflib.SequenceMatcher(None, fold(line), fold(MODE_TEXT)).ratio() >= NAME_MATCH_RATIO
+
+
+def parse_refresh(text: str) -> int | None:
+    parts = re.findall(r"(\d+)\s*([dhms])(?![a-z])", text or "", flags=re.IGNORECASE)
+    return sum(int(n) * _UNITS[u.lower()] for n, u in parts) if parts else None
+
+
+def current_map_name(
+    ocr_lines: Sequence[str] | None,
+    rotation: Sequence[Mapping] | None = None,
+    index: MapIndex | None = None,
+) -> str | None:
+    index = index or load()
+    lines = [str(line) for line in ocr_lines or ()]
+    if any(_is_mode_line(line) for line in lines):
+        others = [ln for ln in lines if not _is_mode_line(ln) and parse_refresh(ln) is None]
+        ratio, name = max(
+            (_best(ln, index) for ln in others), default=(0.0, None), key=lambda b: b[0]
+        )
+        if name is not None and ratio >= NAME_MATCH_RATIO:
+            return name
+    if rotation:
+        trio = []
+        for entry in rotation:
+            event = entry.get("event") if isinstance(entry, Mapping) else None
+            if isinstance(event, Mapping) and event.get("mode") in TRIO_MODES:
+                trio.append(event)
+        if len(trio) == 1:
+            return match_name(str(trio[0].get("map") or ""), index)
+    return None

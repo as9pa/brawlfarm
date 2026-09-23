@@ -81,3 +81,44 @@ def test_broken_json_raises(tmp_path: Path) -> None:
         maps.load(bad)
     with pytest.raises(maps.MapsDataError):
         maps.load(tmp_path / "missing.json")
+
+
+def test_match_name_with_ocr_noise(index) -> None:
+    assert maps.match_name("TWIN PEAKS", index) == "Twin Peaks"
+    assert maps.match_name("Twln Peaks.", index) == "Twin Peaks"
+    assert maps.match_name("Tw1n Pe", index) is None
+    assert maps.match_name("", index) is None
+
+
+def test_current_map_name_by_ocr(index) -> None:
+    lines = ["TRIO SHOWDOWN", "Twin Peaks", "New map in: 1h 27m"]
+    assert maps.current_map_name(lines, index=index) == "Twin Peaks"
+    assert maps.current_map_name(["TRI0 SHOWDOWN", "Test Flat5"], index=index) == "Test Flats"
+
+
+def test_current_map_name_rotation_fallback(index) -> None:
+    rot = [
+        {"event": {"mode": "trioShowdown", "map": "Test Flats"}},
+        {"event": {"mode": "gemGrab", "map": "Hard Rock Mine"}},
+    ]
+    assert maps.current_map_name(["SOLO SHOWDOWN"], rot, index) == "Test Flats"
+    assert maps.current_map_name(None, rot, index) == "Test Flats"
+    assert maps.current_map_name(["TRIO SHOWDOWN", "??"], rot, index) == "Test Flats"
+
+
+def test_current_map_name_none(index) -> None:
+    two = [
+        {"event": {"mode": "trioShowdown", "map": "Test Flats"}},
+        {"event": {"mode": "trioShowdown", "map": "Twin Peaks"}},
+    ]
+    assert maps.current_map_name(None, two, index) is None
+    assert maps.current_map_name([], None, index) is None
+    assert maps.current_map_name(None, [{"event": None}], index) is None
+
+
+def test_parse_refresh() -> None:
+    assert maps.parse_refresh("New map in: 1h 27m") == 5220
+    assert maps.parse_refresh("27m") == 1620
+    assert maps.parse_refresh("45s") == 45
+    assert maps.parse_refresh("1d 2h") == 93600
+    assert maps.parse_refresh("New map in:") is None
