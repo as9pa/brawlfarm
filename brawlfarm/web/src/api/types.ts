@@ -163,9 +163,18 @@ export interface StatsSummary {
   games: number;
   trophies: number;
   trophies_per_hour: number | null;
-  avg_rank: number | null;
-  top4_rate: number | null;
+  avg_placement: number | null;
+  /** Percent of placed games that finished first. */
+  win_rate: number | null;
   hours_farmed: number;
+  /** Exactly four entries, placements 1 to 4. */
+  trophies_by_placement: StatsTrophiesByPlacement[];
+}
+
+export interface StatsTrophiesByPlacement {
+  placement: number;
+  games: number;
+  avg: number | null;
 }
 
 export type StatsRange = "today" | "7d" | "30d" | "all";
@@ -184,12 +193,12 @@ export interface StatsBrawler {
   name: string;
   games: number;
   net: number;
-  avg_rank: number | null;
-  top4_rate: number | null;
+  avg_placement: number | null;
+  win_rate: number | null;
 }
 
-export interface StatsRank {
-  rank: number;
+export interface StatsPlacement {
+  placement: number;
   games: number;
 }
 
@@ -197,7 +206,7 @@ export interface StatsGame {
   instance: string | null;
   t: string;
   brawler: string | null;
-  rank: number | null;
+  placement: number | null;
   trophy_change: number | null;
   map: string | null;
   mode: string | null;
@@ -210,7 +219,8 @@ export interface StatsResponse {
   summary: StatsSummary;
   series: StatsSeries[];
   brawlers: StatsBrawler[];
-  ranks: StatsRank[];
+  /** Every placement in the data, ascending, 5 and above included. */
+  placements: StatsPlacement[];
   recent: StatsGame[];
 }
 
@@ -226,7 +236,7 @@ export interface ConnectionCheck {
 export interface LastSession {
   games: number;
   trophies: number;
-  avg_rank: number | null;
+  avg_placement: number | null;
   disconnects: number;
   duration_s: number;
   interrupts: number;

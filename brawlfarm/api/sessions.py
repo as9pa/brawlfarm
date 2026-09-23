@@ -3,8 +3,8 @@
 The API stops reporting status.json's session block the moment a worker stops, so a
 stopped instance reads as zeros on a cold load. This joins the two files that survive the
 stop: the session log narrates (its filename is the start, its last line is the end, its
-kinds are the interrupts and the disconnects) and games.csv carries the only rank and
-trophy change anyone wrote down.
+kinds are the interrupts and the disconnects) and games.csv carries the only placement
+(its `rank` column) and trophy change anyone wrote down.
 
 It lives beside the other route-side readers rather than in the supervisor: a tick must
 not grow a per-status disk walk, and instances.py is already where games.csv and
@@ -88,7 +88,7 @@ def _float_or_none(value: object) -> float | None:
 
 
 def _games_window(path: Path, started: datetime, ended: datetime) -> tuple[int, int, float | None]:
-    """(games, net trophies, mean rank) for the rows whose logged_at falls inside the
+    """(games, net trophies, mean placement) for the rows whose logged_at falls inside the
     session, ends included. An unreadable file is zeros."""
     games = 0
     trophies = 0
@@ -106,8 +106,8 @@ def _games_window(path: Path, started: datetime, ended: datetime) -> tuple[int, 
                     ranks.append(rank)
     except (OSError, csv.Error, UnicodeDecodeError, ValueError):
         return 0, 0, None
-    avg_rank = round(sum(ranks) / len(ranks), 1) if ranks else None
-    return games, trophies, avg_rank
+    avg_placement = round(sum(ranks) / len(ranks), 1) if ranks else None
+    return games, trophies, avg_placement
 
 
 def _read(session_path: Path, games_path: Path, filename: str) -> dict | None:
@@ -140,11 +140,11 @@ def _read(session_path: Path, games_path: Path, filename: str) -> dict | None:
                     ended = moment
     except (OSError, UnicodeDecodeError):
         return None
-    games, trophies, avg_rank = _games_window(games_path, started, ended)
+    games, trophies, avg_placement = _games_window(games_path, started, ended)
     return {
         "games": games,
         "trophies": trophies,
-        "avg_rank": avg_rank,
+        "avg_placement": avg_placement,
         "disconnects": disconnects,
         "duration_s": max(0, int((ended - started).total_seconds())),
         "interrupts": interrupts,

@@ -80,10 +80,10 @@ def summarize(games: pd.DataFrame, trophies: pd.DataFrame) -> dict:
             s["net_trophies_games"] = int(tc.sum())
             s["avg_trophy_change"] = round(float(tc.mean()), 2)
         rank = games["rank"].dropna() if "rank" in games else pd.Series(dtype=float)
-        if len(rank):
-            s["avg_rank"] = round(float(rank.mean()), 2)
-            s["good_finishes"] = int((rank <= 4).sum())  # showdown: top-4
-            s["good_finish_rate"] = round(float((rank <= 4).mean()) * 100, 1)
+        if len(rank):  # placed games only: other modes log no placement
+            s["avg_placement"] = round(float(rank.mean()), 2)
+            s["wins"] = int((rank == 1).sum())  # showdown: first place
+            s["win_rate"] = round(float((rank == 1).mean()) * 100, 1)
         dur = games["duration_s"].dropna() if "duration_s" in games else pd.Series(dtype=float)
         if len(dur):
             s["avg_duration_s"] = round(float(dur.mean()), 1)
@@ -118,7 +118,7 @@ def summarize(games: pd.DataFrame, trophies: pd.DataFrame) -> dict:
 
 
 def per_brawler(games: pd.DataFrame) -> pd.DataFrame:
-    """Games played, net trophy change, and average rank per brawler. Only
+    """Games played, net trophy change, and average placement per brawler. Only
     aggregates columns that are actually present, so partial data never raises."""
     if games.empty or "brawler" not in games:
         return pd.DataFrame()
@@ -126,12 +126,12 @@ def per_brawler(games: pd.DataFrame) -> pd.DataFrame:
     if "trophyChange" in games:
         aggs["net_trophies"] = ("trophyChange", "sum")
     if "rank" in games:
-        aggs["avg_rank"] = ("rank", "mean")
+        aggs["avg_placement"] = ("rank", "mean")
     return games.groupby("brawler").agg(**aggs).round(2).sort_values("games", ascending=False)
 
 
-def rank_distribution(games: pd.DataFrame) -> pd.Series:
-    """Count of finishes by rank (showdown placement 1..10)."""
+def placement_distribution(games: pd.DataFrame) -> pd.Series:
+    """Count of finishes by showdown placement (1..10), read from the `rank` column."""
     if games.empty or "rank" not in games:
         return pd.Series(dtype=int)
     return games["rank"].dropna().astype(int).value_counts().sort_index()

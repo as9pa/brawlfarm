@@ -1,6 +1,6 @@
 """Stats aggregation over fixture games.csv files: local-time range filtering, the
 30-minute session-gap rule behind "time farmed", the summary row, the per-instance
-cumulative series, the per-brawler and rank tables, the recent list, the CSV export, and
+cumulative series, the per-brawler and placement tables, the recent list, the CSV export, and
 the two routes with their 404 and 422 answers. No NaN ever reaches the JSON."""
 
 from __future__ import annotations
@@ -106,16 +106,22 @@ def test_today_summary_across_two_instances(tmp_path: Path) -> None:
     out = aggregate(tmp_path, ["alpha", "bravo"], "today", NOW)
     assert out["range"] == "today"
     assert out["instances"] == ["alpha", "bravo"]
-    # 5 games today (yesterday's is excluded); 7+3+9-3+5 = 21 trophies; ranks 2,4,1,8,3;
+    # 5 games today (yesterday's is excluded); 7+3+9-3+5 = 21 trophies; placements 2,4,1,8,3;
     # sessions 16:00-16:10 (+150 s), 17:40 alone, bravo 17:00 alone = 17.5 min = 0.29 h,
     # which is below MIN_HOURS, so trophies per hour is null.
     assert out["summary"] == {
         "games": 5,
         "trophies": 21,
         "trophies_per_hour": None,
-        "avg_rank": 3.6,
-        "top4_rate": 80.0,
+        "avg_placement": 3.6,
+        "win_rate": 20.0,
         "hours_farmed": 0.29,
+        "trophies_by_placement": [
+            {"placement": 1, "games": 1, "avg": 9.0},
+            {"placement": 2, "games": 1, "avg": 7.0},
+            {"placement": 3, "games": 1, "avg": 5.0},
+            {"placement": 4, "games": 1, "avg": 3.0},
+        ],
     }
 
 
@@ -124,11 +130,11 @@ def test_seven_days_reaches_back_past_midnight(tmp_path: Path) -> None:
     summary = aggregate(tmp_path, ["alpha"], "7d", NOW)["summary"]
     assert summary["games"] == 5
     assert summary["trophies"] == 12
-    assert summary["avg_rank"] == 4.8
-    assert summary["top4_rate"] == 60.0
+    assert summary["avg_placement"] == 4.8
+    assert summary["win_rate"] == 20.0
 
 
-def test_series_brawlers_ranks_and_recent(tmp_path: Path) -> None:
+def test_series_brawlers_placements_and_recent(tmp_path: Path) -> None:
     _fixture(tmp_path)
     out = aggregate(tmp_path, ["alpha", "bravo"], "today", NOW)
     series = {s["instance"]: [p["cum"] for p in s["points"]] for s in out["series"]}
@@ -136,21 +142,22 @@ def test_series_brawlers_ranks_and_recent(tmp_path: Path) -> None:
     assert series["bravo"] == [5]
     assert out["series"][0]["points"][0]["t"].startswith("2026-09-10T")
     assert out["brawlers"] == [
-        {"name": "COLT", "games": 2, "net": 0, "avg_rank": 6.0, "top4_rate": 50.0},
-        {"name": "SHELLY", "games": 2, "net": 16, "avg_rank": 1.5, "top4_rate": 100.0},
-        {"name": "NITA", "games": 1, "net": 5, "avg_rank": 3.0, "top4_rate": 100.0},
+        {"name": "COLT", "games": 2, "net": 0, "avg_placement": 6.0, "win_rate": 0.0},
+        {"name": "SHELLY", "games": 2, "net": 16, "avg_placement": 1.5, "win_rate": 50.0},
+        {"name": "NITA", "games": 1, "net": 5, "avg_placement": 3.0, "win_rate": 0.0},
     ]
-    assert out["ranks"] == [
-        {"rank": 1, "games": 1},
-        {"rank": 2, "games": 1},
-        {"rank": 3, "games": 1},
-        {"rank": 4, "games": 1},
-        {"rank": 8, "games": 1},
+    assert out["placements"] == [
+        {"placement": 1, "games": 1},
+        {"placement": 2, "games": 1},
+        {"placement": 3, "games": 1},
+        {"placement": 4, "games": 1},
+        {"placement": 8, "games": 1},
     ]
     assert len(out["recent"]) == 5
     assert out["recent"][0]["instance"] == "alpha"
     assert out["recent"][0]["brawler"] == "COLT"
-    assert out["recent"][0]["rank"] == 8
+    assert out["recent"][0]["placement"] == 8
+    assert "rank" not in out["recent"][0]
     assert out["recent"][0]["trophy_change"] == -3
     assert out["recent"][0]["map"] == "Feast or Famine"
     assert out["recent"][0]["mode"] == "soloShowdown"
@@ -162,13 +169,66 @@ def test_empty_data_is_zeroed_and_json_safe(tmp_path: Path) -> None:
         "games": 0,
         "trophies": 0,
         "trophies_per_hour": None,
-        "avg_rank": None,
-        "top4_rate": None,
+        "avg_placement": None,
+        "win_rate": None,
         "hours_farmed": 0.0,
+        "trophies_by_placement": [{"placement": p, "games": 0, "avg": None} for p in (1, 2, 3, 4)],
     }
     assert out["series"] == [{"instance": "charlie", "points": []}]
-    assert out["brawlers"] == [] and out["ranks"] == [] and out["recent"] == []
+    assert out["brawlers"] == [] and out["placements"] == [] and out["recent"] == []
     json.dumps(out, allow_nan=False)  # NaN would make the browser's JSON.parse fail
+
+
+def _placement_fixture(home: Path) -> None:
+    """111 games: 88 placed (17 firsts, 18 seconds, 28 thirds, 23 fourths, 2 sixths) and 23
+    from other modes with no placement. One first and two thirds have no trophy change."""
+    rows: list[dict] = []
+
+    def add(rank: int | str, change: int | str) -> None:
+        row = _game(len(rows) * 3, "SHELLY", 1, 0)
+        row["rank"], row["trophyChange"] = rank, change
+        if rank == "":
+            row["event_mode"] = row["battle_mode"] = "gemGrab"
+            row["is_showdown"] = False
+        rows.append(row)
+
+    for i in range(17):
+        add(1, "" if i == 0 else 10)
+    for i in range(18):
+        add(2, 9 if i == 0 else 8)  # 145 / 18 = 8.0556
+    for i in range(28):
+        add(3, "" if i < 2 else (6 if i % 2 else 7))  # 13 sixes, 13 sevens
+    for _ in range(23):
+        add(4, 3)
+    for _ in range(2):
+        add(6, -2)
+    for _ in range(23):
+        add("", 1)
+    _write_games(home, "alpha", rows)
+
+
+def test_win_rate_is_first_places_over_placed_games_only(tmp_path: Path) -> None:
+    _placement_fixture(tmp_path)
+    out = aggregate(tmp_path, ["alpha"], "all", NOW)
+    summary = out["summary"]
+    assert summary["games"] == 111
+    assert summary["win_rate"] == 19.3  # 17 / 88, the 23 unplaced games stay out of the base
+    assert summary["avg_placement"] == 2.7  # 241 / 88
+    assert summary["trophies_by_placement"] == [
+        {"placement": 1, "games": 16, "avg": 10.0},
+        {"placement": 2, "games": 18, "avg": 8.06},
+        {"placement": 3, "games": 26, "avg": 6.5},
+        {"placement": 4, "games": 23, "avg": 3.0},
+    ]
+    assert out["placements"] == [
+        {"placement": 1, "games": 17},
+        {"placement": 2, "games": 18},
+        {"placement": 3, "games": 28},
+        {"placement": 4, "games": 23},
+        {"placement": 6, "games": 2},
+    ]
+    assert out["brawlers"][0]["win_rate"] == 19.3
+    json.dumps(out, allow_nan=False)
 
 
 def test_sessions_hours_splits_on_a_thirty_minute_gap(tmp_path: Path) -> None:

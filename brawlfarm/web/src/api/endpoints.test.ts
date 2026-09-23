@@ -128,7 +128,7 @@ describe("feed, alerts, stats and settings", () => {
 
   it("scopes today's stats to one instance when asked", async () => {
     const { calls } = stubFetch(() =>
-      jsonResponse({ range: "today", instances: ["Pie64"], summary: { avg_rank: 3.4 } }),
+      jsonResponse({ range: "today", instances: ["Pie64"], summary: { avg_placement: 3.4 } }),
     );
     await getStatsToday();
     await getStatsToday("Pie64");

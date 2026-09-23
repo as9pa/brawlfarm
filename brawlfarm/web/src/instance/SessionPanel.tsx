@@ -22,7 +22,7 @@ type Figure = { value: string; prose: boolean };
 type Figures = {
   Games: Figure;
   Trophies: Figure;
-  "Avg rank": Figure;
+  "Avg placement": Figure;
   Disconnects: Figure;
   Duration: Figure;
   Interrupts: Figure;
@@ -36,7 +36,7 @@ function words(value: string): Figure {
   return { value, prose: true };
 }
 
-function figuresOf(inst: InstancePayload, avgRank: number | null, interrupts: number): Figures {
+function figuresOf(inst: InstancePayload, avgPlacement: number | null, interrupts: number): Figures {
   const session = inst.session;
   const start = session?.start_trophies ?? null;
   const last = session?.last_trophies ?? null;
@@ -45,8 +45,8 @@ function figuresOf(inst: InstancePayload, avgRank: number | null, interrupts: nu
     // One null end of the pair makes the difference meaningless, so it says so rather
     // than claiming a round zero.
     Trophies: start === null || last === null ? words(NOT_YET) : num(signed(last - start)),
-    // Rank lives in games.csv, not the feed, so it comes from the stats route for today.
-    "Avg rank": avgRank === null ? words(NO_GAMES_YET) : num(avgRank.toFixed(1)),
+    // Placement lives in games.csv, not the feed, so it comes from the stats route for today.
+    "Avg placement": avgPlacement === null ? words(NO_GAMES_YET) : num(avgPlacement.toFixed(1)),
     Disconnects: num(count(session?.disconnect_count ?? 0)),
     Duration: num(duration(session?.minutes_elapsed ?? 0)),
     Interrupts: num(count(interrupts)),
@@ -58,7 +58,7 @@ function figuresOfLast(last: LastSession): Figures {
   return {
     Games: num(count(last.games)),
     Trophies: num(signed(last.trophies)),
-    "Avg rank": last.avg_rank === null ? words(NO_GAMES_YET) : num(last.avg_rank.toFixed(1)),
+    "Avg placement": last.avg_placement === null ? words(NO_GAMES_YET) : num(last.avg_placement.toFixed(1)),
     Disconnects: num(count(last.disconnects)),
     Duration: num(duration(Math.floor(last.duration_s / 60))),
     Interrupts: num(count(last.interrupts)),
@@ -78,12 +78,12 @@ function figuresOfLast(last: LastSession): Figures {
  */
 export function SessionPanel({
   inst,
-  avgRank,
+  avgPlacement,
   interrupts,
   stopAt,
 }: {
   inst: InstancePayload;
-  avgRank: number | null;
+  avgPlacement: number | null;
   interrupts: number;
   stopAt: string | null;
 }) {
@@ -92,16 +92,16 @@ export function SessionPanel({
   const lastLive = useRef<Figures>(
     cold && inst.last_session !== null
       ? figuresOfLast(inst.last_session)
-      : figuresOf(inst, avgRank, interrupts),
+      : figuresOf(inst, avgPlacement, interrupts),
   );
   const [endedAt, setEndedAt] = useState<string | null>(
     cold && inst.last_session !== null ? inst.last_session.ended_at : null,
   );
-  const shown = live ? figuresOf(inst, avgRank, interrupts) : lastLive.current;
+  const shown = live ? figuresOf(inst, avgPlacement, interrupts) : lastLive.current;
 
   useEffect(() => {
     if (live) {
-      lastLive.current = figuresOf(inst, avgRank, interrupts);
+      lastLive.current = figuresOf(inst, avgPlacement, interrupts);
       setEndedAt(null);
       return;
     }

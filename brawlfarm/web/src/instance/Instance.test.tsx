@@ -58,9 +58,9 @@ function stubPage(instances: ReturnType<typeof makeInstance>[]): FetchCall[] {
   return stubFetch((url) => {
     if (url === "/api/instances") return jsonResponse({ instances });
     if (url.endsWith("preview.jpg")) return jpegResponse();
-    // Only summary.avg_rank is read, so the rest of the stats body is left out.
+    // Only summary.avg_placement is read, so the rest of the stats body is left out.
     if (url.startsWith("/api/stats")) {
-      return jsonResponse({ range: "today", instances: ["Pie64"], summary: { avg_rank: 3.4 } });
+      return jsonResponse({ range: "today", instances: ["Pie64"], summary: { avg_placement: 3.4 } });
     }
     if (url.startsWith("/api/instances/Pie64/feed")) return EMPTY_FEED();
     if (url === "/api/instances/Pie64/plan") return PLAN();
@@ -77,7 +77,7 @@ function stubFailingPage(detail: string): FetchCall[] {
     }
     if (url.endsWith("preview.jpg")) return jpegResponse();
     if (url.startsWith("/api/stats")) {
-      return jsonResponse({ range: "today", instances: ["Pie64"], summary: { avg_rank: 3.4 } });
+      return jsonResponse({ range: "today", instances: ["Pie64"], summary: { avg_placement: 3.4 } });
     }
     if (url.startsWith("/api/instances/Pie64/feed")) return EMPTY_FEED();
     if (url === "/api/instances/Pie64/plan") return PLAN();

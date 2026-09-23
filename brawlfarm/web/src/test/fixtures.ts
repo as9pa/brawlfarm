@@ -173,9 +173,15 @@ export function makeStats(overrides: Partial<StatsResponse> = {}): StatsResponse
       games: 4,
       trophies: 37,
       trophies_per_hour: 24.7,
-      avg_rank: 3.3,
-      top4_rate: 75,
+      avg_placement: 3,
+      win_rate: 25,
       hours_farmed: 1.5,
+      trophies_by_placement: [
+        { placement: 1, games: 1, avg: 17 },
+        { placement: 2, games: 1, avg: 11 },
+        { placement: 3, games: 0, avg: null },
+        { placement: 4, games: 1, avg: 2 },
+      ],
     },
     series: [
       {
@@ -195,21 +201,21 @@ export function makeStats(overrides: Partial<StatsResponse> = {}): StatsResponse
       },
     ],
     brawlers: [
-      { name: "NORI", games: 3, net: 29, avg_rank: 2.7, top4_rate: 100 },
-      { name: "SHELLY", games: 1, net: 8, avg_rank: 5, top4_rate: 0 },
+      { name: "NORI", games: 3, net: 29, avg_placement: 2.3, win_rate: 33.3 },
+      { name: "SHELLY", games: 1, net: 8, avg_placement: 5, win_rate: 0 },
     ],
-    ranks: [
-      { rank: 1, games: 1 },
-      { rank: 2, games: 1 },
-      { rank: 4, games: 1 },
-      { rank: 5, games: 1 },
+    placements: [
+      { placement: 1, games: 1 },
+      { placement: 2, games: 1 },
+      { placement: 4, games: 1 },
+      { placement: 5, games: 1 },
     ],
     recent: [
       {
         instance: "Pie64",
         t: "2026-09-12T22:00:00",
         brawler: "NORI",
-        rank: 1,
+        placement: 1,
         trophy_change: 17,
         map: "Feast or Famine",
         mode: "soloShowdown",
@@ -218,7 +224,7 @@ export function makeStats(overrides: Partial<StatsResponse> = {}): StatsResponse
         instance: "Pie64_1",
         t: "2026-09-12T21:10:00",
         brawler: "SHELLY",
-        rank: 5,
+        placement: 5,
         trophy_change: -3,
         map: null,
         mode: null,
@@ -236,7 +242,7 @@ export function makeLastSession(overrides: Partial<LastSession> = {}): LastSessi
   return {
     games: 12,
     trophies: 86,
-    avg_rank: 3.4,
+    avg_placement: 3.4,
     disconnects: 1,
     duration_s: 4447,
     interrupts: 2,

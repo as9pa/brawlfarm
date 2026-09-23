@@ -3,9 +3,14 @@
 core/stats.py reads one instance's games.csv; this module reads several, filters them to a
 range in LOCAL time (the owner thinks in local days, the API stamps battleTime in UTC) and
 shapes the numbers the screen draws: the summary row, one cumulative-trophy series per
-instance, the per-brawler table, the rank distribution and the recent games list. Every
+instance, the per-brawler table, the placement distribution and the recent games list. Every
 number is rounded for display and NaN is turned into None, because json.dumps would happily
 write NaN and the browser's JSON.parse would then reject the whole response.
+
+A Showdown finish is a "placement" everywhere in this JSON; games.csv and the CSV export
+keep the column name `rank`. Placement figures count placed games only (rows with a rank):
+other modes log none and stay out of the base, so a win rate is first places over placed
+games.
 
 "Time farmed" is an approximation (ruling 9): games are grouped per instance into sessions
 split wherever more than 30 minutes passed since the previous game, and each session counts
@@ -157,13 +162,14 @@ def aggregate(home: Path, names: Sequence[str], range_: str, now: datetime) -> d
             "games": int(len(games)),
             "trophies": net,
             "trophies_per_hour": _num(net / hours) if hours >= MIN_HOURS else None,
-            "avg_rank": _num(ranks.mean()) if len(ranks) else None,
-            "top4_rate": _num(float((ranks <= 4).mean()) * 100) if len(ranks) else None,
+            "avg_placement": _num(ranks.mean()) if len(ranks) else None,
+            "win_rate": _win_rate(ranks),
             "hours_farmed": _num(hours, 2),
+            "trophies_by_placement": _trophies_by_placement(games),
         },
         "series": _series(games, names),
         "brawlers": _brawlers(games),
-        "ranks": _ranks(ranks),
+        "placements": _placements(ranks),
         "recent": _recent(games),
     }
 
@@ -202,19 +208,45 @@ def _brawlers(games: pd.DataFrame) -> list[dict]:
                 "name": str(brawler),
                 "games": int(len(part)),
                 "net": int(changes.sum()) if len(changes) else 0,
-                "avg_rank": _num(ranks.mean()) if len(ranks) else None,
-                "top4_rate": _num(float((ranks <= 4).mean()) * 100) if len(ranks) else None,
+                "avg_placement": _num(ranks.mean()) if len(ranks) else None,
+                "win_rate": _win_rate(ranks),
             }
         )
     out.sort(key=lambda row: (-row["games"], row["name"]))  # name breaks ties, so it is stable
     return out
 
 
-def _ranks(ranks: pd.Series) -> list[dict]:
+def _win_rate(ranks: pd.Series) -> float | None:
+    """Percent of placed games finished first; None when nothing was placed."""
+    return _num(float((ranks == 1).mean()) * 100) if len(ranks) else None
+
+
+def _trophies_by_placement(games: pd.DataFrame) -> list[dict]:
+    """Mean trophy change for placements 1 to 4, always four entries. A game counts only
+    when it has both a placement and a recorded trophy change; placements above 4 are left
+    out here (the distribution still has them)."""
+    out: list[dict] = []
+    for placement in range(1, 5):
+        if "rank" in games and "trophyChange" in games:
+            changes = games.loc[games["rank"] == placement, "trophyChange"].dropna()
+        else:
+            changes = pd.Series(dtype=float)
+        out.append(
+            {
+                "placement": placement,
+                "games": int(len(changes)),
+                "avg": _num(changes.mean(), 2) if len(changes) else None,
+            }
+        )
+    return out
+
+
+def _placements(ranks: pd.Series) -> list[dict]:
+    """Games per placement, ascending, every placement in the data (5 and up included)."""
     if not len(ranks):
         return []
     counts = ranks.astype(int).value_counts().sort_index()
-    return [{"rank": int(rank), "games": int(n)} for rank, n in counts.items()]
+    return [{"placement": int(placement), "games": int(n)} for placement, n in counts.items()]
 
 
 def _recent(games: pd.DataFrame) -> list[dict]:
@@ -226,14 +258,14 @@ def _recent(games: pd.DataFrame) -> list[dict]:
         moment = row.get("battleTime")
         if pd.isna(moment):  # no column at all, or a time core/stats.py could not read
             continue
-        rank = _num(row.get("rank"), 0)
+        placement = _num(row.get("rank"), 0)
         change = _num(row.get("trophyChange"), 0)
         out.append(
             {
                 "instance": _text(row.get("instance")),
                 "t": moment.to_pydatetime().isoformat(timespec="seconds"),
                 "brawler": _text(row.get("brawler")),
-                "rank": int(rank) if rank is not None else None,
+                "placement": int(placement) if placement is not None else None,
                 "trophy_change": int(change) if change is not None else None,
                 "map": _text(row.get("map")),
                 "mode": _text(row.get("event_mode")),

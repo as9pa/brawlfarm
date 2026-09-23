@@ -8,22 +8,28 @@
  *
  * Two placeholders stand in for numbers that would be a lie: "After 30 min" while the
  * range is too short for a rate to mean anything, and "Not yet" when there is nothing at
- * all to average.
+ * all to average. The two placement figures go muted while fewer than ten games have a
+ * placement, since an average over a handful of finishes is noise dressed as a figure.
  *
  * No value breaks between its number and its unit: "1 h 51 min" over two lines reads as two
  * figures. That is whitespace-nowrap here rather than a non-breaking space in hoursText,
  * which other screens share.
  */
-import type { StatsSummary } from "../api/types";
+import type { StatsPlacement, StatsSummary } from "../api/types";
 import { NOT_YET } from "../lib/copy";
 import { num, signed } from "../lib/format";
 import { hoursText } from "../lib/time";
 
 export interface MetricsRowProps {
   summary: StatsSummary;
+  /** The placement counts; their sum is the number of placed games. */
+  placements: StatsPlacement[];
 }
 
 const TOO_SHORT = "After 30 min";
+
+/** Under this many placed games the placement figures read muted. */
+const FEW_PLACED = 10;
 
 function trophyTone(trophies: number): string {
   if (trophies > 0) return "text-accent";
@@ -36,7 +42,21 @@ function rateText(summary: StatsSummary): string {
   return summary.games > 0 ? TOO_SHORT : NOT_YET;
 }
 
-function Figure({ label, value, tone }: { label: string; value: string; tone?: string }) {
+function winRateText(winRate: number | null): string {
+  return winRate === null ? NOT_YET : `${Math.round(winRate)}%`;
+}
+
+function Figure({
+  label,
+  value,
+  tone,
+  note,
+}: {
+  label: string;
+  value: string;
+  tone?: string;
+  note?: string;
+}) {
   return (
     <div
       data-testid={`metric-${label}`}
@@ -48,14 +68,23 @@ function Figure({ label, value, tone }: { label: string; value: string; tone?: s
       >
         {value}
       </span>
-      <span data-label="" className="text-[11px] text-muted">
-        {label}
+      <span className="flex flex-wrap items-baseline gap-x-1">
+        <span data-label="" className="text-[11px] text-muted">
+          {label}
+        </span>
+        {note && (
+          <span data-note="" className="text-[10px] text-muted">
+            {note}
+          </span>
+        )}
       </span>
     </div>
   );
 }
 
-export function MetricsRow({ summary }: MetricsRowProps) {
+export function MetricsRow({ summary, placements }: MetricsRowProps) {
+  const placed = placements.reduce((sum, row) => sum + row.games, 0);
+  const placedTone = placed < FEW_PLACED ? "text-muted" : undefined;
   return (
     <div className="flex flex-wrap items-start rounded-[10px] border border-line bg-panel px-3 py-2">
       <Figure label="Games" value={num(summary.games)} />
@@ -66,12 +95,15 @@ export function MetricsRow({ summary }: MetricsRowProps) {
       />
       <Figure label="Trophies per hour" value={rateText(summary)} />
       <Figure
-        label="Average rank"
-        value={summary.avg_rank === null ? NOT_YET : summary.avg_rank.toFixed(1)}
+        label="Average placement"
+        value={summary.avg_placement === null ? NOT_YET : summary.avg_placement.toFixed(1)}
+        tone={placedTone}
       />
       <Figure
-        label="Top-4 rate"
-        value={summary.top4_rate === null ? NOT_YET : `${Math.round(summary.top4_rate)}%`}
+        label="Win rate"
+        note="first place"
+        value={winRateText(summary.win_rate)}
+        tone={placedTone}
       />
       <Figure label="Time farmed" value={hoursText(summary.hours_farmed)} />
     </div>

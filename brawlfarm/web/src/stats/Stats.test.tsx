@@ -138,7 +138,7 @@ describe("Stats", () => {
     expect(toastMessages()).toEqual([]);
   });
 
-  it("lets the panels beside the ranks size to their own rows", async () => {
+  it("lets the panels beside the placements size to their own rows", async () => {
     server();
     mount();
     const heading = await screen.findByRole("heading", { name: "Brawlers" });
@@ -187,13 +187,14 @@ describe("Stats", () => {
           games: 0,
           trophies: 0,
           trophies_per_hour: null,
-          avg_rank: null,
-          top4_rate: null,
+          avg_placement: null,
+          win_rate: null,
           hours_farmed: 0,
+          trophies_by_placement: [],
         },
         series: [],
         brawlers: [],
-        ranks: [],
+        placements: [],
         recent: [],
       }),
     });
@@ -291,14 +292,22 @@ describe("Stats", () => {
     expect(screen.getByTestId("search").textContent).not.toContain("view");
   });
 
-  it("shows the brawler table, the rank bars and the recent games", async () => {
+  it("shows the brawler table, the placement cards and the recent games", async () => {
     server();
     mount();
     expect(await screen.findByRole("heading", { name: "Brawlers" })).toBeInTheDocument();
     expect(screen.getAllByRole("heading", { level: 1 }).map((h) => h.textContent)).toEqual([
       "Stats",
     ]);
-    expect(screen.getByRole("heading", { name: "Rank distribution" })).toBeInTheDocument();
+    const placement = screen.getByRole("heading", { name: "Placement" });
+    const trophies = screen.getByRole("heading", { name: "Trophies by placement" });
+    // Trophies by placement sits under the Placement card, in the same column.
+    expect(trophies.closest("section")?.parentElement).toBe(
+      placement.closest("section")?.parentElement,
+    );
+    expect(
+      placement.closest("section")?.compareDocumentPosition(trophies.closest("section") as Node),
+    ).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
     expect(screen.getByRole("heading", { name: "Recent games" })).toBeInTheDocument();
     expect(screen.getAllByRole("row", { name: /NORI/ }).length).toBeGreaterThan(0);
   });

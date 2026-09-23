@@ -24,8 +24,27 @@ const CLOCK = new Intl.DateTimeFormat("en-US", {
   hourCycle: "h23",
 });
 
+/** The same sign rule held to one decimal, for averages: "+11.7", "-3.6". */
+const SIGNED_ONE = new Intl.NumberFormat("en-US", {
+  signDisplay: "exceptZero",
+  minimumFractionDigits: 1,
+  maximumFractionDigits: 1,
+});
+
 export function signed(n: number): string {
   return SIGNED.format(n);
+}
+
+export function signedOne(n: number): string {
+  return SIGNED_ONE.format(n);
+}
+
+/** A finishing place as it is said: 1st, 2nd, 3rd, 4th, 11th, 12th, 13th, 21st. */
+export function ordinal(n: number): string {
+  const teen = n % 100;
+  if (teen >= 11 && teen <= 13) return `${n}th`;
+  const suffix = ["th", "st", "nd", "rd"][n % 10] ?? "th";
+  return `${n}${suffix}`;
 }
 
 /** Local wall-clock time; the API's stamps have no timezone and mean local already. An
