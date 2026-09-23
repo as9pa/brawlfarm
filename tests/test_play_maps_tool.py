@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 import pytest
@@ -98,3 +99,46 @@ def test_missing_map_or_text_is_a_build_error() -> None:
     locs[0]["Map"] = "M"
     with pytest.raises(tool.BuildError, match="T"):
         tool.select_trio(locs, [], {"M": ["."]})
+
+
+def test_build_twice_gives_identical_bytes(tmp_path: Path) -> None:
+    a, b = tmp_path / "a.json", tmp_path / "b.json"
+    assert tool.main(["build", "--src", str(FIX), "--out", str(a)]) == 0
+    assert tool.main(["build", "--src", str(FIX), "--out", str(b)]) == 0
+    assert a.read_bytes() == b.read_bytes()
+    assert a.read_bytes().endswith(b"}\n") and b"\r\n" not in a.read_bytes()
+    assert json.loads(a.read_text(encoding="utf-8"))["disclaimer"] == tool.DISCLAIMER
+
+
+def test_build_prints_a_summary(tmp_path: Path, capsys) -> None:
+    tool.main(["build", "--src", str(FIX), "--out", str(tmp_path / "o.json")])
+    out = capsys.readouterr().out
+    assert "maps: 3" in out and "names: 2" in out and "Twin Peaks" in out and "Survival_7: P" in out
+
+
+def _copy_fixture(tmp_path: Path) -> Path:
+    import shutil
+
+    src = tmp_path / "src"
+    shutil.copytree(FIX, src)
+    return src
+
+
+def test_build_exits_1_on_a_ragged_grid(tmp_path: Path, capsys) -> None:
+    src = _copy_fixture(tmp_path)
+    p = src / "csv_logic" / "maps.csv"
+    p.write_text(
+        p.read_text(encoding="utf-8").replace('"","F..MW",""', '"","F..M",""'), encoding="utf-8"
+    )
+    assert tool.main(["build", "--src", str(src), "--out", str(tmp_path / "o.json")]) == 1
+    assert "ragged" in capsys.readouterr().err
+    assert not (tmp_path / "o.json").exists()
+
+
+def test_build_exits_1_when_source_json_disagrees(tmp_path: Path, capsys) -> None:
+    src = _copy_fixture(tmp_path)
+    (src / "SOURCE.json").write_text(
+        '{"commit": "abc1234", "files": {}, "version": "69.230"}', encoding="utf-8"
+    )
+    assert tool.main(["build", "--src", str(src), "--out", str(tmp_path / "o.json")]) == 1
+    assert "SOURCE.json" in capsys.readouterr().err

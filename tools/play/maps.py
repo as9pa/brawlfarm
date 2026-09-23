@@ -9,7 +9,10 @@ only the derived JSON is committed. See docs/play-maps.md.
 
 from __future__ import annotations
 
+import argparse
 import csv
+import json
+import sys
 from pathlib import Path
 
 PINNED_COMMIT = "cc307ff"
@@ -153,3 +156,86 @@ def build_document(tiles: dict[str, dict], selected: list[dict]) -> dict:
         "maps": maps,
         "names": names,
     }
+
+
+def cache_dir(home: Path) -> Path:
+    return home / "assets" / PINNED_VERSION
+
+
+def render(doc: dict) -> bytes:
+    return (json.dumps(doc, indent=1, sort_keys=True, ensure_ascii=False) + "\n").encode("utf-8")
+
+
+def _check_source(src: Path) -> None:
+    try:
+        meta = json.loads((src / "SOURCE.json").read_text(encoding="utf-8"))
+    except (OSError, ValueError) as exc:
+        raise BuildError(f"SOURCE.json unreadable in {src}: {exc}") from exc
+    if meta.get("commit") != PINNED_COMMIT or meta.get("version") != PINNED_VERSION:
+        raise BuildError(
+            f"SOURCE.json names {meta.get('commit')} {meta.get('version')}, pins are {PINNED_COMMIT} {PINNED_VERSION}"
+        )
+
+
+def build(src: Path, out: Path) -> dict:
+    _check_source(src)
+    doc = build_document(
+        parse_tiles(read_rows(src / "csv_logic/tiles.csv")),
+        select_trio(
+            records(read_rows(src / "csv_logic/locations.csv")),
+            records(read_rows(src / "localization/texts.csv")),
+            parse_maps(read_rows(src / "csv_logic/maps.csv")),
+        ),
+    )
+    before: set[str] = set()
+    if out.exists():
+        try:
+            before = set(json.loads(out.read_text(encoding="utf-8")).get("names", {}))
+        except ValueError:
+            before = set()
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_bytes(render(doc))
+    names = set(doc["names"])
+    print(f"maps: {len(doc['maps'])}")
+    print(f"names: {len(names)}")
+    for n, ids in doc["names"].items():
+        if len(ids) > 1:
+            print(f"shared: {n}: {', '.join(ids)}")
+    for m in doc["maps"]:
+        if m["unknown_codes"]:
+            print(f"unknown: {m['map_id']}: {' '.join(m['unknown_codes'])}")
+    if before:
+        print(f"names added: {', '.join(sorted(names - before)) or 'none'}")
+        print(f"names removed: {', '.join(sorted(before - names)) or 'none'}")
+    print(f"wrote: {out}")
+    return doc
+
+
+def _fetch_main(home, force):
+    raise NotImplementedError
+
+
+def main(argv: list[str] | None = None) -> int:
+    from brawlfarm.settings import default_home
+
+    ap = argparse.ArgumentParser(prog="python -m tools.play.maps")
+    sub = ap.add_subparsers(dest="cmd", required=True)
+    f = sub.add_parser("fetch")
+    f.add_argument("--home", type=Path, default=None)
+    f.add_argument("--force", action="store_true")
+    b = sub.add_parser("build")
+    b.add_argument("--src", type=Path, default=None)
+    b.add_argument("--out", type=Path, default=DEFAULT_OUT)
+    args = ap.parse_args(argv)
+    if args.cmd == "build":
+        try:
+            build(args.src or cache_dir(default_home()), args.out)
+        except BuildError as exc:
+            print(f"build failed: {exc}", file=sys.stderr)
+            return 1
+        return 0
+    return _fetch_main(args.home or default_home(), args.force)
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
