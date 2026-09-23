@@ -41,8 +41,16 @@ at full size (1600 x 900) are usable; a session recorded at half size has nothin
 uv run python tools/play/frames.py --session "$env:LOCALAPPDATA\brawlfarm\calibration\recordings\Pie64\20260918-101112"
 ```
 
-A session's `match-N.h264` files are their own sources, worth extracting separately because
-they cover in-match play that the menu frames do not:
+In observe mode each match the classifier sees is also saved in the session folder as a
+`match-N/` folder: the emulator's own screen captures as full-size JPEGs (`0000.jpg`,
+`0001.jpg`, ...), at most 5 a second, plus a `frames.jsonl` with one line per frame (`i`, the
+frame number; `t`, the wall-clock time it was written; `age`, how old the capture was then, in
+seconds; `state`, what the classifier saw). Recording a match needs no extra. `--session`
+picks up every `match-N/` folder beside the screenshots and ingests each as its own source,
+worth having because they cover in-match play that the menu frames do not.
+
+Sessions recorded before this change hold `match-N.h264` clips instead. `--session` still
+picks those up, and one clip can be extracted on its own (this path needs the play extra):
 
 ```
 uv run python tools/play/frames.py --match match-1.h264 --source pie64-match-1
