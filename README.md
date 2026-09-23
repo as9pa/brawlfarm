@@ -67,7 +67,7 @@ Shadow files land under `instances\<name>\shadow\`, one JSON lines file per matc
 
 Three feed rows carry shadow mode: `play_on` when a session starts, `play_summary` once the match ends, and `play_fallback` when a session gives up, with a reason such as `model_missing`, `model_invalid`, `source_start`, `source_error`, `stale`, `detector_error` or `session_error`.
 
-Shadow mode captures the instance screen about 5 times a second, which costs the farm loop about 46 ms a tick.
+Shadow mode captures the instance screen about 5 times a second. Measured against a run with it off on the same night, it costs the in-match farm loop about 8 percent at the median tick and about 13 percent at the ninety-fifth.
 
 The commands below assume the checkout and say `uv run brawlfarm`; with a tool install the command is just `brawlfarm`. `docs/setup.md` is the step by step walkthrough and `docs/release.md` is how a release ships.
 
