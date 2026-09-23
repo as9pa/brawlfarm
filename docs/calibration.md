@@ -53,7 +53,7 @@ Two caps stop a recording from filling the disk. A session closes at 2000 frames
 
 The recorder never deletes anything. Clearing space is your job: delete the session folders you are done with from the calibration folder.
 
-When the play extra is installed, observe mode also saves each match the classifier sees as `match-N.h264` in the session folder: the instance's own video, 1600 x 900 at 30 fps, as a raw H.264 stream. ffmpeg, PyAV and VLC open it; `ffmpeg -i match-1.h264 -c copy match-1.mp4` wraps it in a container. Those files count toward the session's size cap.
+Observe mode also saves each match the classifier sees as a `match-N/` folder in the session folder: the emulator's own screen captures at 1600 x 900, at most 5 a second, as `0000.jpg`, `0001.jpg` and so on, with one line per frame in `frames.jsonl`. No extra is needed. Sessions from older versions hold `match-N.h264` clips instead, a raw H.264 stream that ffmpeg, PyAV and VLC open. Those files count toward the session's size cap.
 
 ## Record while I play
 

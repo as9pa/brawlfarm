@@ -106,7 +106,7 @@ uv run brawlfarm --window        # a desktop window and a tray icon instead of t
 
 `--window` needs the optional desktop extras, which `uv sync --group desktop` installs in a checkout and `uv tool install "brawlfarm[desktop]"` installs from PyPI; without them brawlfarm says so and opens the browser as usual. Closing the window only hides it to the tray icon, whose menu has Open panel and Quit.
 
-The play extras add a 30 fps video feed of the instance, which the observe-mode match recorder uses (see `docs/play-training.md`). In observe mode, with the recorder on, each match is also saved as `match-N.h264` in the session folder. A match recorded that way can show the game's disconnect modal, so the recorder says so in the log when it starts. `uv sync --group play` installs it in a checkout.
+The play extras add PyAV, which decodes the scrcpy play stream and old `match-N.h264` recordings (see `docs/play-training.md`). In observe mode, with the recorder on, each match is also saved as a `match-N/` folder of screen captures in the session folder; that needs no extra. `uv sync --group play` installs it in a checkout.
 
 Turning recordings and video into a labelled training set for the play mode detector is its own kit under `tools/play/`; see `docs/play-training.md`.
 

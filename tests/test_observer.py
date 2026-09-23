@@ -99,24 +99,29 @@ def test_a_match_frame_opens_a_match_recording_in_the_session(
     from brawlfarm.core.states import State
     from brawlfarm.play import matchrec
 
-    opened: list[Path] = []
+    opened: list[object] = []
 
-    class FakeStream:
-        def __init__(self, path: Path) -> None:
-            opened.append(path)
+    class FakeSource:
+        error = None
+
+        def __init__(self) -> None:
+            opened.append(self)
 
         def start(self) -> None:
             pass
 
+        def latest(self):
+            return None, None
+
         def stop(self) -> None:
             pass
 
-    monkeypatch.setattr(matchrec.play, "available", lambda: True)
-    monkeypatch.setattr(matchrec, "_default_factory", FakeStream)
+    monkeypatch.setattr(matchrec, "_default_factory", FakeSource)
     monkeypatch.setattr(states, "classify", lambda screen, phase=None: State.IN_MATCH)
     observer.Observer(max_minutes=0.0).run()
     session = sorted((tmp_path / "calibration" / "recordings" / "alpha").iterdir())[0]
-    assert opened == [session / "match-1.h264"]
+    assert len(opened) == 1
+    assert (session / "match-1").is_dir()
 
 
 # --- the rails ------------------------------------------------------------------------

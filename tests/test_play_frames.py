@@ -317,3 +317,30 @@ def test_main_trims_container_videos_only(tmp_path, monkeypatch):
     assert frames.main(["--video", str(video), "--root", str(root)]) == 0
     assert frames.main(["--session", str(session), "--root", str(root)]) == 0
     assert calls == [("video", True, ["sampled"]), ("session", False, None)]
+
+
+def test_main_takes_match_folders_and_old_match_clips_beside_the_session(tmp_path, monkeypatch):
+    calls = []
+
+    def recorder(root, name, kind, made, **kwargs):
+        calls.append((name, kind, len(list(made))))
+        return {"seen": 0, "kept": 0, "duplicates": 0}
+
+    monkeypatch.setattr(frames, "iter_h264", lambda path: iter([(0.0, _gradient())]))
+    monkeypatch.setattr(frames, "add_source", recorder)
+    session = tmp_path / "20260918-101112"
+    session.mkdir()
+    _write_jpg(session / "0001-home.jpg", _gradient())
+    (session / "match-1.h264").write_bytes(b"old clip")
+    folder = session / "match-2"
+    folder.mkdir()
+    _write_jpg(folder / "0000.jpg", _gradient())
+    _write_jpg(folder / "0001.jpg", _checkerboard())
+    (folder / "frames.jsonl").write_text("{}\n", encoding="utf-8")
+
+    assert frames.main(["--session", str(session), "--root", str(tmp_path / "root")]) == 0
+    assert calls == [
+        ("20260918-101112", "session", 1),
+        ("20260918-101112-match-1", "match", 1),
+        ("20260918-101112-match-2", "match", 2),
+    ]
