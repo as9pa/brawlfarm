@@ -182,4 +182,4 @@ Bug reports and pull requests are welcome, and `CONTRIBUTING.md` has the convent
 
 ## Legal
 
-brawlfarm is not affiliated with or endorsed by Supercell. Brawler art is served from the Brawlify CDN and belongs to Supercell under its fan content policy. Automating the game may violate its terms of service; use at your own risk. MIT licensed.
+brawlfarm is not affiliated with or endorsed by Supercell. Brawler art is served from the Brawlify CDN and belongs to Supercell under its fan content policy. Showdown map grids come from Brawl Stars game data (version 69.230) via github.com/tailsjs/brawl-stars-assets at commit cc307ff; see [docs/play-maps.md](docs/play-maps.md). Automating the game may violate its terms of service; use at your own risk. MIT licensed.
