@@ -1,0 +1,7 @@
+"Name","Disabled","GameModeVariation","Map","TID","LocationTheme"
+"String","Boolean","String","String","String","String"
+"SurvivalTrio7","","TrioShowdown","Survival_7","TID_TEST_FLATS","FlatTheme"
+"SurvivalTrio1","","TrioShowdown","Survival_1","TID_TWIN","OldTheme"
+"SurvivalTrio604","","TrioShowdown","Survival_604","TID_TWIN","NewTheme"
+"SurvivalTrioGone","true","TrioShowdown","Survival_7","TID_GONE","FlatTheme"
+"SurvivalSolo7","","Showdown","Survival_7","TID_TEST_FLATS","FlatTheme"

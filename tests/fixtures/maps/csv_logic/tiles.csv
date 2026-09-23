@@ -1,0 +1,6 @@
+"Name","TileCode","BlocksMovement","BlocksProjectiles","IsDestructible","IsForest"
+"String","String","Boolean","Boolean","Boolean","Boolean"
+"Open",".","","","",""
+"Wall1","M","true","TRUE","",""
+"Forest","F","","","","true"
+"Water","W","TRUE","","",""

@@ -1,0 +1,2 @@
+brawlfarm/play/data/*.json text eol=lf
+tests/fixtures/maps/** text eol=lf
