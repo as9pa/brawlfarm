@@ -48,6 +48,7 @@ class BehaviorSection(_Section):
     bush_hide: bool = False  # experimental, not validated live
     close_game_on_stop: bool = True
     dnd_at_start: bool = True
+    shadow: bool = False  # play mode's detector runs beside the farm loop and logs; sends no input
 
 
 class AdvancedSection(_Section):
@@ -215,6 +216,7 @@ def worker_env(settings: AppSettings, inst: InstanceSettings, home: Path) -> dic
         "BRAWL_WINRATE_OPPORTUNITY_COST": _flag(b.opportunity_cost),
         "BRAWL_GAS_AWARE": _flag(b.gas_aware),
         "BRAWL_BUSH_HIDE": _flag(b.bush_hide),
+        "BRAWL_PLAY_SHADOW": _flag(b.shadow),
         "BRAWL_CLOSE_GAME_ON_STOP": _flag(b.close_game_on_stop),
         "BRAWL_FAST_INPUT": _flag(a.fast_input),
         "BRAWL_RAW_CAP": _flag(a.raw_cap),

@@ -1,5 +1,11 @@
 """The play stream: the BlueStacks display as 30 fps frames, read-only.
 
+Known defect: running this stream while a match is in progress makes the game show its
+disconnect modal, 31 times across 16 matches on the reference instance, at every bit rate,
+frame rate and frame size tried. See the open defect in
+docs/superpowers/specs/2026-09-18-play-mode.md, section 2. Shadow mode no longer uses this
+module; the observe-mode match recorder still does, and a match it records may disconnect.
+
 Transport: the bundled scrcpy server jar is pushed over adb, started with control off, and
 its raw H.264 comes back through an adb port forward. A thread decodes it and keeps only the
 newest frame. Nothing here sends input: ``control=false`` is a literal in SERVER_ARGS and this

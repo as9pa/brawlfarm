@@ -63,6 +63,15 @@ def test_a_match_opens_one_recording_and_a_results_screen_closes_it(rec, tmp_pat
     assert made[1].path == tmp_path / "match-2.h264"
 
 
+def test_starting_a_recording_warns_that_the_stream_can_disconnect_the_match(
+    rec, tmp_path: Path, caplog
+) -> None:
+    r, made, now = rec
+    with caplog.at_level(logging.WARNING, logger="brawlfarm.play.matchrec"):
+        r.observe(State.IN_MATCH, tmp_path)
+    assert sum("can disconnect the match" in message for message in caplog.messages) == 1
+
+
 def test_numbering_continues_from_files_already_in_the_session(rec, tmp_path: Path) -> None:
     r, made, now = rec
     (tmp_path / "match-1.h264").write_bytes(b"")

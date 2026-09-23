@@ -138,6 +138,7 @@ export function makeSettings(overrides: Partial<AppSettings> = {}): AppSettings 
       bush_hide: false,
       close_game_on_stop: true,
       dnd_at_start: true,
+      shadow: false,
     },
     advanced: {
       fast_input: true,

@@ -93,6 +93,9 @@ class MatchRecorder:
         self._start(session)
 
     def _start(self, session: Path) -> None:
+        log.warning(
+            "match recording uses the play stream, which can disconnect the match (spec section 2)"
+        )
         try:
             # The first match of a session numbers itself off the folder, so a resumed
             # session never overwrites; after that the counter carries, because the stream

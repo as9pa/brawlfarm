@@ -69,6 +69,19 @@ def test_put_saves_the_document_and_reapplies_it(api) -> None:
     assert "charlie" in S.config_path(home).read_text(encoding="utf-8")
 
 
+def test_put_round_trips_the_shadow_flag_no_component_renders(api) -> None:
+    client, sup, home = api
+    doc = client.get("/api/settings").json()
+    assert doc["behavior"]["shadow"] is False
+    doc["behavior"]["shadow"] = True
+    r = client.put("/api/settings", json=doc)
+    assert r.status_code == 200
+    assert r.json()["behavior"]["shadow"] is True
+    assert sup.settings.behavior.shadow is True
+    assert client.get("/api/settings").json()["behavior"]["shadow"] is True
+    assert "shadow = true" in S.config_path(home).read_text(encoding="utf-8")
+
+
 def test_put_names_the_field_it_rejected(api) -> None:
     client, sup, _home = api
     doc = client.get("/api/settings").json()

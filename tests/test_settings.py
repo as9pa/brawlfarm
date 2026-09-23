@@ -3,7 +3,10 @@ save/load, validation of instance names, ports and tags, and the worker env cont
 
 from __future__ import annotations
 
+import os
 import re
+import subprocess
+import sys
 import tomllib
 from pathlib import Path
 
@@ -33,6 +36,7 @@ def test_defaults_match_the_spec() -> None:
     assert s.behavior.bush_hide is False
     assert s.behavior.close_game_on_stop is True
     assert s.behavior.dnd_at_start is True
+    assert s.behavior.shadow is False
     assert s.scheduler.default_enabled is True
     assert s.notifications.webhook_url == ""
     assert s.notifications.ntfy_topic == ""
@@ -58,6 +62,7 @@ def test_round_trip_preserves_every_field(tmp_path: Path) -> None:
     original = _two_instances()
     original.app.port = 9000
     original.behavior.bush_hide = True
+    original.behavior.shadow = True
     original.notifications.events = ["crash"]
     path = S.save(original, tmp_path)
     assert path == tmp_path / "config.toml"
@@ -80,6 +85,13 @@ def test_malformed_toml_raises_settings_error(tmp_path: Path) -> None:
     with pytest.raises(S.SettingsError) as exc:
         S.load(tmp_path)
     assert "config.toml" in str(exc.value)
+
+
+def test_config_written_before_the_shadow_flag_still_loads(tmp_path: Path) -> None:
+    S.config_path(tmp_path).write_text("[behavior]\nbush_hide = true\n", encoding="utf-8")
+    s = S.load(tmp_path)
+    assert s.behavior.bush_hide is True
+    assert s.behavior.shadow is False
 
 
 def test_unknown_key_is_rejected(tmp_path: Path) -> None:
@@ -172,6 +184,7 @@ def test_worker_env_is_the_full_contract(tmp_path: Path) -> None:
         "BRAWL_WINRATE_OPPORTUNITY_COST": "1",
         "BRAWL_GAS_AWARE": "1",
         "BRAWL_BUSH_HIDE": "0",
+        "BRAWL_PLAY_SHADOW": "0",
         "BRAWL_CLOSE_GAME_ON_STOP": "1",
         "BRAWL_FAST_INPUT": "1",
         "BRAWL_RAW_CAP": "0",
@@ -186,6 +199,28 @@ def test_worker_env_is_the_full_contract(tmp_path: Path) -> None:
         "BRAWL_NOTIFY_EVENTS": "crash,offline",
     }
     assert all(isinstance(v, str) for v in env.values())
+
+
+def test_worker_env_carries_shadow_when_it_is_on(tmp_path: Path) -> None:
+    s = _two_instances()
+    s.behavior.shadow = True
+    assert S.worker_env(s, s.instances[0], tmp_path)["BRAWL_PLAY_SHADOW"] == "1"
+
+
+def test_config_play_shadow_follows_the_env() -> None:
+    """The worker reads the other end of the flag at import time, so check it in a fresh
+    process rather than by reloading the core into this one."""
+    base = {k: v for k, v in os.environ.items() if not k.startswith(("BRAWL_", "DISCORD_"))}
+    code = "from brawlfarm.core import config; print('1' if config.PLAY_SHADOW else '0')"
+    for value, expected in ((None, "0"), ("0", "0"), ("1", "1")):
+        env = dict(base)
+        if value is not None:
+            env["BRAWL_PLAY_SHADOW"] = value
+        result = subprocess.run(
+            [sys.executable, "-c", code], env=env, capture_output=True, text=True
+        )
+        assert result.returncode == 0, result.stderr
+        assert result.stdout.strip() == expected, value
 
 
 def test_worker_args_follow_dnd_and_cap() -> None:

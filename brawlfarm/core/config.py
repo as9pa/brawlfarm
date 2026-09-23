@@ -796,6 +796,10 @@ BUSH_JITTER_RADIUS = 45  # small joystick swipe magnitude for the in-bush micro-
 BUSH_JITTER_MIN_INTERVAL = 4.0  # seconds between micro-jitters (well under idle-kick)
 BUSH_JITTER_MAX_INTERVAL = 8.0
 
+# Play mode's detector runs beside an untouched farm loop and logs its boxes; it sends
+# no input. OFF by default: with the flag absent the worker behaves exactly as before.
+PLAY_SHADOW = os.environ.get("BRAWL_PLAY_SHADOW", "0") == "1"
+
 # --- Calibration overrides (phase 8): <home>/calibration/calibration.toml ----------
 # Floats and two-int tap tuples above may be overridden from that file. The
 # module below only reads; nothing in the app writes calibration.toml.

@@ -53,7 +53,21 @@ uv tool install "brawlfarm[play-gpu]" # the same, plus onnxruntime on CUDA for t
 uvx brawlfarm                         # run it once without installing it
 ```
 
-The `play-gpu` extra downloads NVIDIA's CUDA and cuDNN runtime wheels (well over a gigabyte) and needs only the NVIDIA display driver on the machine. Nothing uses it yet; the detector that does arrives in a later release. One known catch: `onnxruntime` (which the text reader needs) and `onnxruntime-gpu` install into the same folder, and which one wins depends on install order. To check, run `python -c "import onnxruntime as o; print(o.get_available_providers())"` in the environment; if `CUDAExecutionProvider` is missing, run `uv pip install --reinstall-package onnxruntime-gpu onnxruntime-gpu` there. The GPU package also carries the CPU provider, so the text reader keeps working.
+The `play-gpu` extra downloads NVIDIA's CUDA and cuDNN runtime wheels (well over a gigabyte) and needs only the NVIDIA display driver on the machine. Shadow mode's detector uses it when it is present: it picks the CUDA execution provider then, and the CPU one otherwise. No model ships yet, so nothing exercises it until you supply one. One known catch: `onnxruntime` (which the text reader needs) and `onnxruntime-gpu` install into the same folder, and which one wins depends on install order. To check, run `python -c "import onnxruntime as o; print(o.get_available_providers())"` in the environment; if `CUDAExecutionProvider` is missing, run `uv pip install --reinstall-package onnxruntime-gpu onnxruntime-gpu` there. The GPU package also carries the CPU provider, so the text reader keeps working.
+
+### Shadow mode
+
+Shadow mode runs the detector beside the farm loop while a match plays and logs what it sees. It sends no input: farm mode drives exactly as it does today.
+
+To turn it on, set `shadow = true` under `[behavior]` in `config.toml` under `%LOCALAPPDATA%\brawlfarm`, then restart the instance. There is no switch in the panel yet.
+
+It needs a model: `models\play.onnx` and `models\play.json` under `%LOCALAPPDATA%\brawlfarm`. Nothing else: `onnxruntime` is already a core dependency, so a plain install can run shadow mode. No model ships yet; without one, shadow mode says `model_missing` once in the feed and does nothing.
+
+Shadow files land under `instances\<name>\shadow\`, one JSON lines file per match, with boxes and timings only. The newest 50 files are kept.
+
+Three feed rows carry shadow mode: `play_on` when a session starts, `play_summary` once the match ends, and `play_fallback` when a session gives up, with a reason such as `model_missing`, `model_invalid`, `source_start`, `source_error`, `stale`, `detector_error` or `session_error`.
+
+Shadow mode captures the instance screen about 5 times a second. Measured against a run with it off on the same night, it costs the in-match farm loop about 8 percent at the median tick and about 13 percent at the ninety-fifth.
 
 The commands below assume the checkout and say `uv run brawlfarm`; with a tool install the command is just `brawlfarm`. `docs/setup.md` is the step by step walkthrough and `docs/release.md` is how a release ships.
 
@@ -92,7 +106,7 @@ uv run brawlfarm --window        # a desktop window and a tray icon instead of t
 
 `--window` needs the optional desktop extras, which `uv sync --group desktop` installs in a checkout and `uv tool install "brawlfarm[desktop]"` installs from PyPI; without them brawlfarm says so and opens the browser as usual. Closing the window only hides it to the tray icon, whose menu has Open panel and Quit.
 
-The play extras add a 30 fps video feed of the instance for the in-match play mode that is being built (spec in docs/superpowers/specs/2026-09-18-play-mode.md). In observe mode, with the recorder on, each match is also saved as `match-N.h264` in the session folder. `uv sync --group play` installs it in a checkout.
+The play extras add a 30 fps video feed of the instance, which the observe-mode match recorder uses (spec in docs/superpowers/specs/2026-09-18-play-mode.md). In observe mode, with the recorder on, each match is also saved as `match-N.h264` in the session folder. A match recorded that way can show the game's disconnect modal, so the recorder says so in the log when it starts. `uv sync --group play` installs it in a checkout.
 
 Turning recordings and video into a labelled training set for the play mode detector is its own kit under `tools/play/`; see `docs/play-training.md`.
 

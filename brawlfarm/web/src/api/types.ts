@@ -253,6 +253,7 @@ export interface AppSettings {
     bush_hide: boolean;
     close_game_on_stop: boolean;
     dnd_at_start: boolean;
+    shadow: boolean;
   };
   advanced: {
     fast_input: boolean;
