@@ -9,6 +9,8 @@ build/
 *.egg-info/
 # local runtime state (never commit account data)
 data/
+# except the shipped map grids (derived, see docs/play-maps.md)
+!brawlfarm/play/data/
 captures/
 logs/
 .env
