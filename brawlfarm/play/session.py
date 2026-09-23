@@ -13,8 +13,6 @@ the controller drains that row on a later tick. Only ``close()``, at process shu
 The source is the emulator's own screen captures (``brawlfarm.play.capture``), not a live video
 stream: one capture costs 180 to 280 ms, so a frame is 0.2 to 0.3 s old by the time the model
 sees it.
-
-Spec: the play mode design notes sections 1 and 5.
 """
 
 from __future__ import annotations

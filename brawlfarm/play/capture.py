@@ -1,7 +1,7 @@
 """The detector's frame source: the emulator's own screen captures, pulled on a thread.
 
 Play mode was designed around a live scrcpy stream. That stream disconnects the game during a
-match (see the open defect in the play mode design notes, section 2), so the
+match (an open defect with no known cause), so the
 detector reads ``adb.screencap()`` instead. One capture costs 180 to 280 ms, which gives about 5
 frames a second: the same rate the session consumed from the stream, with a later frame.
 

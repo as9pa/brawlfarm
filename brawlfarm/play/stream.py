@@ -2,14 +2,13 @@
 
 Known defect: running this stream while a match is in progress makes the game show its
 disconnect modal, 31 times across 16 matches on the reference instance, at every bit rate,
-frame rate and frame size tried. See the open defect in
-the play mode design notes, section 2. Shadow mode no longer uses this
+frame rate and frame size tried. The cause is unknown. Shadow mode no longer uses this
 module; the observe-mode match recorder still does, and a match it records may disconnect.
 
 Transport: the bundled scrcpy server jar is pushed over adb, started with control off, and
 its raw H.264 comes back through an adb port forward. A thread decodes it and keeps only the
 newest frame. Nothing here sends input: ``control=false`` is a literal in SERVER_ARGS and this
-module imports no tap or swipe. Spec: the play mode design notes section 2.
+module imports no tap or swipe.
 """
 
 from __future__ import annotations

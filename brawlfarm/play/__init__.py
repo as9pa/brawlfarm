@@ -1,4 +1,4 @@
-"""Play mode: the opt-in in-match brain. Spec: the play mode design notes.
+"""Play mode: the opt-in in-match brain..
 
 Nothing in this file imports PyAV or onnxruntime. The core loop and the API import this
 package to ask ``available()`` and must keep working when the play extra is absent.
