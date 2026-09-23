@@ -69,7 +69,7 @@ def test_one_finished_session_gives_the_seven_fields(tmp_path: Path) -> None:
     assert sessions.last_session(inst) == {
         "games": 2,
         "trophies": 8,
-        "avg_rank": 3.5,
+        "avg_placement": 3.5,
         "disconnects": 1,
         "duration_s": 4447,
         "interrupts": 2,
@@ -77,13 +77,13 @@ def test_one_finished_session_gives_the_seven_fields(tmp_path: Path) -> None:
     }
 
 
-def test_a_session_with_no_ranked_game_has_a_null_avg_rank(tmp_path: Path) -> None:
+def test_a_session_with_no_placed_game_has_a_null_avg_placement(tmp_path: Path) -> None:
     inst = tmp_path / "Pie64"
     write_session(inst, "20260912-210000", [{"ts": "2026-09-12T21:30:00", "kind": "recap"}])
     write_games(inst, [game("2026-09-12T21:10:00", "", "12")])
     block = sessions.last_session(inst)
     assert block is not None
-    assert block["avg_rank"] is None
+    assert block["avg_placement"] is None
     assert block["games"] == 1
     assert block["trophies"] == 12
 
@@ -111,7 +111,7 @@ def test_a_half_written_games_csv_gives_zeros_instead_of_raising(tmp_path: Path)
     (inst / "games.csv").write_bytes(GAMES_HEADER.encode() + b"\xff\xfe not utf-8 at all")
     block = sessions.last_session(inst)
     assert block is not None
-    assert (block["games"], block["trophies"], block["avg_rank"]) == (0, 0, None)
+    assert (block["games"], block["trophies"], block["avg_placement"]) == (0, 0, None)
 
 
 def test_the_newest_of_three_session_files_is_the_one_read(tmp_path: Path) -> None:
@@ -183,7 +183,7 @@ def test_every_instance_payload_carries_last_session(tmp_path: Path) -> None:
         assert payload["last_session"] == {
             "games": 1,
             "trophies": 12,
-            "avg_rank": 2.0,
+            "avg_placement": 2.0,
             "disconnects": 0,
             "duration_s": 4447,
             "interrupts": 0,
