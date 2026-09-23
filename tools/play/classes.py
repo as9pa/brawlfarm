@@ -22,6 +22,7 @@ CLASSES: tuple[str, ...] = (
     "proceed_button",
     "exit_button",
     "close_x",
+    "gas",
 )
 
 # templates whose match is a pre-label box for a class (template name -> class name)
