@@ -29,6 +29,7 @@ labelstudio/tasks.json           the import file, with pre-label boxes
 coco/{train,valid,test}/         the training set, split by source
 runs/<YYYYmmdd-HHMMSS>/          training output
 models/play.onnx, models/play.json    export output
+label-pack/, label-pack.zip      a pack for labelling on another computer
 ```
 
 ## Step 1: frames from your own recordings
@@ -194,6 +195,23 @@ Labelling rules:
 - Skip frames with no game in them (loading screens, black frames): leave them with no boxes.
 - Never label names or tags. A player's name or club tag showing in a screenshot is not a
   class this kit tracks, and it should never be typed into a label.
+
+### Labelling on another computer
+
+To label on a computer that has no checkout of this repository, a Mac for example, build a
+label pack after Step 4:
+
+```
+uv run python tools/play/pack.py
+```
+
+It writes `label-pack` under the dataset root and `label-pack.zip` next to it: the frames the
+import file references, `labelstudio/config.xml`, `labelstudio/tasks.json`, a start script
+for macOS and Linux (`start.sh`) and one for Windows (`start.ps1`), and a README that carries
+the rest of the recipe, from installing `uv` to exporting the labels. `--source` packs only
+the named sources (repeat the flag for more), `--out` picks another folder, and `--no-zip`
+skips the zip. Copy the zip over, follow its README, and bring the exported JSON file back
+for Step 6.
 
 ## Step 6: export and build the COCO set
 
