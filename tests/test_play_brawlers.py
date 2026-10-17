@@ -6,7 +6,10 @@ real player name never goes into a test.
 
 from __future__ import annotations
 
+import json
+
 import numpy as np
+import pytest
 
 from tools.play import brawlers
 
@@ -76,3 +79,83 @@ def test_measure_bar_without_a_bar_falls_back():
     hsv[..., 2] = 128
     anchor = brawlers.Anchor(x0=780, y0=280, x1=820, y1=298)
     assert brawlers.measure_bar(_any_fill(hsv), anchor) == (brawlers.DEFAULT_BW, 301, False)
+
+
+RED_BAR = {"green": 0, "red": 60, "blue": 0}
+BLUE_BAR = {"green": 0, "red": 0, "blue": 60}
+GREEN_BAR = {"green": 60, "red": 0, "blue": 0}
+GREEN_RING = {"green": 120, "red": 0, "blue": 0}
+RED_RING = {"green": 0, "red": 120, "blue": 0}
+
+
+def _ev(**over):
+    base = dict(
+        bar={"green": 0, "red": 0, "blue": 0},
+        ring={"green": 0, "red": 0, "blue": 0},
+        named=True,
+        found=True,
+        ammo=0.0,
+        centred=False,
+        crate=0.0,
+        name_ink=0.0,
+        solo=False,
+    )
+    base.update(over)
+    return brawlers.Evidence(**base)
+
+
+def test_top_colour_skips_and_needs():
+    votes = {"green": 50, "red": 30, "blue": 0}
+    assert brawlers.top_colour(votes, 12) == "green"
+    assert brawlers.top_colour(votes, 12, skip=("green",)) == "red"
+    assert brawlers.top_colour({"green": 5, "red": 3, "blue": 0}, 12) is None
+
+
+@pytest.mark.parametrize(
+    ("ev", "want"),
+    [
+        (_ev(bar=RED_BAR, ring=RED_RING), "enemy"),
+        (_ev(bar=BLUE_BAR), "teammate"),
+        (_ev(bar=BLUE_BAR, solo=True), "enemy"),
+        (_ev(bar=BLUE_BAR, ring=GREEN_RING), "teammate"),
+        (_ev(bar=GREEN_BAR, centred=True), "self"),
+        (_ev(bar=RED_BAR, ammo=0.8), "self"),
+        (_ev(bar=RED_BAR, ring=GREEN_RING), "self"),
+        (_ev(bar=RED_BAR, ring=GREEN_RING, named=False), "self"),
+        (_ev(bar=RED_BAR, named=False, crate=0.3), "box"),
+        (_ev(named=False, crate=0.15), "box"),
+        (_ev(bar=BLUE_BAR, named=False), None),
+        (_ev(bar=RED_BAR, named=False, name_ink=0.2), "enemy"),
+        (_ev(bar=RED_BAR, named=False), None),
+        (_ev(), "enemy"),
+    ],
+)
+def test_vote_class(ev, want):
+    assert brawlers.vote_class(ev) == want
+
+
+def _bar(cls, cx, bot, *, named=True, colour="green", ammo=0.0):
+    return brawlers.Bar(
+        cls=cls, cx=cx, bw=90.0, bot=bot, named=named, colour=colour, why="bar", ammo=ammo
+    )
+
+
+def test_one_self_survives_and_a_red_named_loser_turns_enemy():
+    real = _bar("self", 800, 380, ammo=0.7)
+    on_grass = _bar("self", 300, 600, colour="red")
+    pet = _bar("self", 900, 420, named=False, colour="blue")
+    mate = _bar("teammate", 1100, 300, colour="blue")
+    out = brawlers.resolve_selfs([real, on_grass, pet, mate], W, H)
+    assert [(b.cls, b.cx) for b in out] == [("self", 800), ("enemy", 300), ("teammate", 1100)]
+
+
+def test_dedupe_keeps_the_named_anchor_on_one_bar():
+    named = _bar("enemy", 800, 300)
+    echo = _bar("enemy", 810, 305, named=False)
+    other = _bar("enemy", 1200, 300)
+    assert brawlers.dedupe([echo, named, other]) == [named, other]
+
+
+def test_bar_round_trips_through_json():
+    bar = _bar("box", 640.5, 512, named=False, colour=None)
+    assert brawlers.Bar.from_json(json.loads(json.dumps(bar.to_json()))) == bar

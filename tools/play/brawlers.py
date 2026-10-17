@@ -5,16 +5,28 @@ floating damage numbers are rejected by their font height unless a name sits rig
 and a name with no number under it still anchors a bar where the number would be. Anchors in a
 zone mask (the HUD and any per-source exclusion) are dropped. OCR text is only read here, never
 kept: an anchor carries geometry and nothing else.
+
+The class vote reads the bar colour first and the ring under the feet second. Green counts as
+self only with the ammo bar under it or at the camera centre, a green ring still says self when
+a hurt self's bar reads red, and at most one self survives per frame.
 """
 
 from __future__ import annotations
 
+import math
 import re
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass, replace
 
 import numpy as np
 
 DEFAULT_BW = 92.0  # bar width when no bar is found under the anchor
+BAR_NEED = 12  # fill pixels one colour needs in the bar to decide it
+RING_NEED = 40  # ring pixels one colour needs under the feet to decide it
+AMMO_MIN = 0.3  # share of the bar width the orange ammo bar must pass to mark a self
+CRATE_MIN = 0.12  # crate share that makes an unnamed red or colourless bar a power cube box
+CRATE_STRONG = 0.2  # crate share that makes any unnamed bar a box
+NAME_INK_MIN = 0.05  # name-like ink above an unnamed red bar: a name OCR could not read
+CLASS_OF = {"green": "self", "blue": "teammate", "red": "enemy"}
 
 
 @dataclass
@@ -156,3 +168,125 @@ def measure_bar(any_fill: np.ndarray, anchor: Anchor) -> tuple[float, int, bool]
     if bot is None:
         bot = int(anchor.y1) + 3
     return min(bw, 130.0), int(bot), found
+
+
+@dataclass(frozen=True)
+class Evidence:
+    """What the class vote reads about one bar: colour votes, OCR facts and nearby fills."""
+
+    bar: dict[str, int]
+    ring: dict[str, int]
+    named: bool
+    found: bool
+    ammo: float
+    centred: bool
+    crate: float
+    name_ink: float
+    solo: bool
+
+
+@dataclass
+class Bar:
+    """One classified health bar: its class, geometry and why its colour was picked."""
+
+    cls: str
+    cx: float
+    bw: float
+    bot: int
+    named: bool
+    colour: str | None
+    why: str
+    ammo: float
+
+    def to_json(self) -> dict:
+        return asdict(self)
+
+    @classmethod
+    def from_json(cls, blob: dict) -> Bar:
+        return cls(**blob)
+
+
+def top_colour(votes: dict[str, int], need: int, skip: tuple[str, ...] = ()) -> str | None:
+    """The colour with the most votes, passing over `skip`, or None once votes fall below need."""
+    for colour in sorted(votes, key=lambda c: (-votes[c], c)):
+        if votes[colour] < need:
+            return None
+        if colour in skip:
+            continue
+        return colour
+    return None
+
+
+def bar_colour(ev: Evidence) -> tuple[str | None, str]:
+    """The bar's colour and where it came from: "bar", "ring" or "none".
+
+    Green only counts with the ammo bar under it or at the camera centre; elsewhere it is grass
+    or a heal effect behind the bar and the next colour decides.
+    """
+    skip = () if (ev.ammo > AMMO_MIN or ev.centred) else ("green",)
+    colour = top_colour(ev.bar, BAR_NEED, skip)
+    if colour:
+        return colour, "bar"
+    colour = top_colour(ev.ring, RING_NEED, skip)
+    if colour:
+        return colour, "ring"
+    return None, "none"
+
+
+def vote_class(ev: Evidence) -> str | None:
+    """The class of one bar: self, teammate, enemy or box, or None to drop it."""
+    colour, _why = bar_colour(ev)
+    if ev.ammo > AMMO_MIN:
+        return "self"
+    if not ev.named and (
+        (ev.crate >= CRATE_MIN and colour in ("red", None)) or ev.crate >= CRATE_STRONG
+    ):
+        return "box"
+    # a low-health self reads red; the green ring under its feet still says self
+    if colour in ("red", None) and top_colour(ev.ring, RING_NEED) == "green":
+        return "self"
+    if not ev.named:
+        if colour == "green":
+            return "self"
+        if colour == "red" and ev.found and ev.name_ink >= NAME_INK_MIN:
+            return "enemy"  # a name OCR could not read
+        return None  # own pet, turret or stray number
+    # no colour reads as an enemy; solo showdown has no teammates, so blue came from an effect
+    if colour is None or (colour == "blue" and ev.solo):
+        return "enemy"
+    return CLASS_OF[colour]
+
+
+def dedupe(bars: list[Bar]) -> list[Bar]:
+    """One bar per health bar: of anchors on the same bar the named, then the higher, one stays."""
+    keep: list[Bar] = []
+    for b in sorted(bars, key=lambda b: (not b.named, b.bot)):
+        if any(abs(b.cx - k.cx) < 0.8 * k.bw and abs(b.bot - k.bot) < 20 for k in keep):
+            continue
+        keep.append(b)
+    return keep
+
+
+def resolve_selfs(bars: list[Bar], width: int, height: int) -> list[Bar]:
+    """At most one self: the one with the ammo bar, then the one nearest the camera centre.
+
+    The spike turned every losing self into an enemy, which labelled own pets as enemies; a
+    losing self now stays only when its bar read red and it has a name.
+    """
+    selfs = [b for b in bars if b.cls == "self"]
+    if len(selfs) <= 1:
+        return bars
+    best = max(
+        selfs,
+        key=lambda b: (
+            b.ammo > AMMO_MIN,
+            -math.hypot(b.cx - 0.5 * width, b.bot - 0.42 * height),
+        ),
+    )
+    out: list[Bar] = []
+    for b in bars:
+        if b.cls != "self" or b is best:
+            out.append(b)
+        elif b.colour == "red" and b.named:
+            out.append(replace(b, cls="enemy"))
+    return out
