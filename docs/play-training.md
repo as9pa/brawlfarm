@@ -161,8 +161,9 @@ from Hugging Face (several GB on the first run). The third merges everything int
 `--root` picks the dataset root, `--source` restricts the run to one source (repeat the flag
 for more), `--no-sam` skips the SAM pass and boxes every brawler with a fixed-size box under its
 bar (quick and needs no GPU, but the boxes are looser), and `--model` picks another SAM
-checkpoint. With SAM on an RTX 4080 SUPER a frame takes about 0.4 s once the model has loaded; a
-6-frame run took 21 s including the model load. The SAM work folder `autolabel/` under the
+checkpoint. On an RTX 4080 SUPER the SAM pass alone takes about 0.4 s a frame once the model has
+loaded. The first pass also runs OCR on the CPU, and about 0.9 s a frame overall was measured in
+the spike; a 6-frame run took 21 s including the model load. The SAM work folder `autolabel/` under the
 dataset root exists only when SAM ran.
 
 Nothing is labelled inside the HUD: the counters and player cards at the top left, the attack,
@@ -221,8 +222,9 @@ Then, in the browser window Label Studio opens:
 3. Settings, Cloud Storage, Add Source Storage, Local files: set the absolute local path to
    the dataset root's `frames` folder. Do not press Sync; the tasks come from the import file
    in the next step, and this storage only lets Label Studio serve the images.
-4. Import: `labelstudio/tasks.json`. The import screen shows how many predictions it found;
-   opening a task shows a frame with its pre-label boxes already drawn, where it has any.
+4. Import: `labelstudio/autolabel.json` (or `labelstudio/tasks.json` for the template
+   pre-labels only). The import screen shows how many predictions it found; opening a task
+   shows a frame with its auto-label boxes already drawn, where it found any.
 
 What each class means:
 
