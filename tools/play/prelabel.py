@@ -60,7 +60,7 @@ def boxes_for(frame: np.ndarray, *, find=vision.find_with_score) -> list[dict]:
     return boxes
 
 
-def task_for(rel_file: str, boxes: list[dict]) -> dict:
+def task_for(rel_file: str, boxes: list[dict], *, model_version: str = MODEL_VERSION) -> dict:
     """One Label Studio task: the frame plus its drafts as a single prediction.
 
     Label Studio stores a box as percentages of the picture, and serves the picture through
@@ -93,7 +93,7 @@ def task_for(rel_file: str, boxes: list[dict]) -> dict:
     if result:
         mean = sum(box["score"] for box in boxes) / len(boxes)
         predictions.append(
-            {"model_version": MODEL_VERSION, "score": round(mean, 4), "result": result}
+            {"model_version": model_version, "score": round(mean, 4), "result": result}
         )
     return {
         "data": {"image": "/data/local-files/?d=" + rel_file, "file": rel_file},
