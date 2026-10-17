@@ -25,7 +25,10 @@ videos/<source>.mp4              downloads kept for re-extraction
 frames/<source>/<source>-NNNNNN.jpg   1600 x 900 JPEG frames
 index.jsonl                      one line per kept frame
 labelstudio/config.xml           the labelling interface
-labelstudio/tasks.json           the import file, with pre-label boxes
+labelstudio/tasks.json           the import file, with template pre-label boxes
+labelstudio/autolabel.json       the import file the auto-labeller writes, boxes as predictions
+autolabel/                       the auto-labeller's SAM work folder, only when SAM runs
+exclusions.json                  per-source facecam rectangles the auto-labeller skips
 coco/{train,valid,test}/         the training set, split by source
 runs/<YYYYmmdd-HHMMSS>/          training output
 models/play.onnx, models/play.json    export output
@@ -139,10 +142,51 @@ exactly the case where the move label matters least, but it is worth knowing tha
 Nothing reads `actions.jsonl` yet. It exists for the cloned policy proposed in release 1.3.0,
 which trains on it; this step only produces the file.
 
-## Step 4: pre-labels
+## Step 4: auto-labels
 
-The farm's own template matcher already knows how to find a handful of screens, so it can draw
-a first draft of some boxes for you instead of you drawing every one by hand.
+Nobody draws boxes by hand. The auto-labeller reads every frame in the index and writes a
+Label Studio import file whose predictions are the labels:
+
+    uv run python tools/play/autolabel.py
+
+It works in three passes. The first runs in the project environment: the template matcher
+boxes the menu buttons and cards, colour masks box `bush` and `power_cube`, and OCR finds the
+health number above each brawler, whose bar colour, ammo bar and ground ring decide between
+`self`, `teammate`, `enemy` and `box`. The second hands those bars to SAM 2.1
+(`facebook/sam2.1-hiera-large`, Apache 2.0) in `tools/play/segment.py`, a script with its own
+torch environment like `train.py`; `uv run` builds it on first use and downloads the model
+from Hugging Face (several GB on the first run). The third merges everything into
+`labelstudio/autolabel.json` under the dataset root, next to `labelstudio/config.xml`.
+
+`--root` picks the dataset root, `--source` restricts the run to one source (repeat the flag
+for more), `--no-sam` skips the SAM pass and boxes every brawler with a fixed-size box under its
+bar (quick and needs no GPU, but the boxes are looser), and `--model` picks another SAM
+checkpoint. With SAM on an RTX 4080 SUPER a frame takes about 0.4 s once the model has loaded; a
+6-frame run took 21 s including the model load. The SAM work folder `autolabel/` under the
+dataset root exists only when SAM ran.
+
+Nothing is labelled inside the HUD: the counters and player cards at the top left, the attack,
+super and gadget buttons at the bottom right, and the joystick corner. A box that falls mostly
+inside one of them is dropped. A streamer's facecam is the same problem in a place that changes
+per video, so it goes in `exclusions.json` at the dataset root: one entry per source, each a list
+of `[x0, y0, x1, y1]` rectangles in 1600 x 900 frame pixels, end exclusive.
+
+    {"yt-AAAAAAAAAAA": [[0, 370, 290, 900]]}
+
+A new source with a facecam is one more line in that file: open one of its frames, read the
+facecam's corners off it, and add the rectangle before running the auto-labeller.
+`--exclusions` points at another file.
+
+What it does not label: `skull_star`, `team_up_panel` and `event_tab` have neither a template
+nor a colour rule, so no frame carries them yet. Measured on frames it had never seen, `self`
+came out right 11 times in 12, `enemy` about 6 in 8, `box` and `bush` (within 3 px) reliably,
+and about half the power cubes were found; brawler boxes run 5 to 15 px loose.
+
+### Template pre-labels only
+
+The template part also runs on its own, which is useful for a quick look without waiting for the
+rest. The farm's own template matcher already knows how to find a handful of screens and draws
+a first draft of boxes for them.
 
 ```
 uv run python tools/play/prelabel.py
@@ -152,10 +196,13 @@ uv run python tools/play/prelabel.py
 the flag for more). Pre-labelling covers only `showdown_card`, `play_button`,
 `play_again_button`, `proceed_button`, `exit_button` and `close_x`. Everything that happens
 inside a match (`self`, `enemy`, `teammate`, `power_cube`, `box`, `bush`) and `skull_star`,
-`team_up_panel`, `event_tab` have no template behind them and are labelled by hand. Pre-labelling
+`team_up_panel`, `event_tab` have no template behind them. Pre-labelling
 2815 frames took about 9.5 minutes.
 
-## Step 5: labelling in Label Studio
+## Step 5: checking labels in Label Studio (optional)
+
+Label Studio is only needed to look at the auto-labels or correct a few by hand. Import
+`labelstudio/autolabel.json` from the dataset root; the rest of this step works the same.
 
 [Label Studio](https://labelstud.io/) is the tool you draw boxes in. Version 1.23.0 is what
 this kit was checked against, on Python 3.12 (Python 3.13 has not been tried). Start it with
@@ -228,9 +275,10 @@ not carry the split rule this kit needs, so `coco.py` does the conversion:
 uv run python tools/play/coco.py export.json
 ```
 
-`--root` picks the dataset root. `--from-predictions` builds the set from the template
-pre-labels instead of the hand-labelled boxes, which is only useful for a smoke run before any
-labelling has happened.
+`--root` picks the dataset root. `--from-predictions` builds the set from a task file's
+predictions instead of hand-made annotations, which is the normal route with the auto-labeller:
+
+    uv run python tools/play/coco.py <dataset root>/labelstudio/autolabel.json --from-predictions
 
 The split is by source video, never by frame: consecutive frames of one video look almost
 identical, so splitting by frame would put near-copies of the same picture on both sides of the
