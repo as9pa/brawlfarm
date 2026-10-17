@@ -9,6 +9,9 @@ kept: an anchor carries geometry and nothing else.
 The class vote reads the bar colour first and the ring under the feet second. Green counts as
 self only with the ammo bar under it or at the camera centre, a green ring still says self when
 a hurt self's bar reads red, and at most one self survives per frame.
+
+The box geometry prompts SAM with points and a box under each bar, keeps the mask that looks
+most like a body, and falls back to a fixed-size box under the bar when no mask passes.
 """
 
 from __future__ import annotations
@@ -28,6 +31,7 @@ CRATE_MIN = 0.12  # crate share that makes an unnamed red or colourless bar a po
 CRATE_STRONG = 0.2  # crate share that makes any unnamed bar a box
 NAME_INK_MIN = 0.05  # name-like ink above an unnamed red bar: a name OCR could not read
 CLASS_OF = {"green": "self", "blue": "teammate", "red": "enemy"}
+FALLBACK_SCORE = 0.3  # score of the fixed-size box used when SAM finds no body
 
 
 @dataclass
@@ -390,3 +394,174 @@ def classify(bgr: np.ndarray, hsv: np.ndarray, anchors: list[Anchor], solo: bool
         colour, why = bar_colour(ev)
         bars.append(Bar(cls, anchor.cx, bw, bot, anchor.named, colour, why, ev.ammo))
     return resolve_selfs(dedupe(bars), width, height)
+
+
+def sam_prompt(
+    bar: Bar, width: int, height: int
+) -> tuple[list[list[float]], list[int], list[float]]:
+    """SAM points, their labels and the prompt box for the body under one bar.
+
+    Two positive points run down the body and three negative points sit left, right and below
+    it. Every point is clamped to the frame.
+    """
+    bw, cx, bot = bar.bw, bar.cx, bar.bot
+    raw = [
+        [cx, bot + 0.45 * bw],
+        [cx, bot + 0.75 * bw],
+        [cx - 0.85 * bw, bot + 1.15 * bw],
+        [cx + 0.85 * bw, bot + 1.15 * bw],
+        [cx, bot + 1.55 * bw],
+    ]
+    points = [[min(width - 1, max(0, px)), min(height - 1, max(0, py))] for px, py in raw]
+    box = [
+        max(0, cx - 0.7 * bw),
+        bot + 2,
+        min(width - 1, cx + 0.7 * bw),
+        min(height - 1, bot + 1.35 * bw),
+    ]
+    return points, [1, 1, 0, 0, 0], box
+
+
+def ring_mask(hsv: np.ndarray, cls: str) -> np.ndarray:
+    """Bool mask of the ring colour under a brawler of one class: green, blue, else red."""
+    h, s, v = (hsv[..., i].astype(int) for i in range(3))
+    if cls == "self":
+        return (h >= 35) & (h <= 90) & (s >= 50) & (v >= 35)
+    if cls == "teammate":
+        return (h >= 90) & (h <= 125) & (s >= 60) & (v >= 40)
+    return ((h <= 6) | (h >= 165)) & (s >= 70) & (v >= 50)
+
+
+def pick_box(
+    masks: np.ndarray, scores: np.ndarray, bar: Bar, ring: np.ndarray
+) -> tuple[tuple[int, int, int, int], float, float] | None:
+    """The body box from the SAM mask that looks most like a body, or None when all are empty.
+
+    Returns the box, the mask's raw SAM score and that score less the shape penalties. A mask is
+    penalised for ring pixels, for being too wide, too tall, head-only, low, small or off the bar
+    centre. Ring pixels low in the mask are cut so the feet ring does not stretch the box.
+    """
+    best, best_score = None, -1e9
+    bw = bar.bw
+    ylow = int(bar.bot + 0.55 * bw)
+    kernel = np.ones((max(3, int(bw / 18)),) * 2, np.uint8)
+    for k in range(masks.shape[0]):
+        m = masks[k].copy()
+        m[: bar.bot + 2, :] = False
+        total = m.sum()
+        if total == 0:
+            continue
+        ring_share = (m & ring).sum() / total
+        m[ylow:] &= ~ring[ylow:]
+        m = cv2.morphologyEx(m.astype(np.uint8), cv2.MORPH_OPEN, kernel)
+        n, _labels, stats, _centroids = cv2.connectedComponentsWithStats(m, 8)
+        if n <= 1:
+            continue
+        j = 1 + int(np.argmax(stats[1:, cv2.CC_STAT_AREA]))
+        x, y, w, h, area = stats[j]
+        pen = 0.8 * ring_share
+        if w > 1.3 * bw:
+            pen += (w - 1.3 * bw) / bw
+        if h > 1.5 * bw:
+            pen += (h - 1.5 * bw) / bw
+        if h < 0.55 * bw:  # head-only masks
+            pen += 0.7 + (0.55 * bw - h) / bw
+        if y - bar.bot > 0.6 * bw:
+            pen += 1.0
+        if area < 0.15 * bw * bw:
+            pen += 1.0
+        if abs(x + w / 2 - bar.cx) > 0.45 * bw:
+            pen += 1.0
+        adjusted = float(scores[k]) - pen
+        if adjusted > best_score:
+            best_score = adjusted
+            best = ((int(x), int(y), int(w), int(h)), float(scores[k]), adjusted)
+    return best
+
+
+def sane(box: tuple[int, int, int, int], bar: Bar, height: int) -> bool:
+    """Whether a box sits under the bar with a body's size; edge brawlers may be cut short."""
+    x, y, w, h = box
+    bw, bot = bar.bw, bar.bot
+    visible = height - bot  # rows under the bar; the frame edge cuts a brawler standing there
+    return (
+        abs(x + w / 2 - bar.cx) <= 0.4 * bw
+        and bot - 2 <= y <= bot + 0.55 * bw
+        and 0.4 * bw <= w <= 1.45 * bw
+        and min(0.5 * bw, 0.8 * visible) <= h <= 1.6 * bw
+    )
+
+
+def fixed_box(bar: Bar, width: int, height: int) -> tuple[int, int, int, int]:
+    """A body-sized box just under the bar, clipped to the frame."""
+    bw = bar.bw
+    w, h = 0.95 * bw, 1.0 * bw
+    x0, y0 = max(0, bar.cx - w / 2), bar.bot + 0.15 * bw
+    x1, y1 = min(width, bar.cx + w / 2), min(height, y0 + h)
+    return int(x0), int(y0), int(x1 - x0), int(y1 - y0)
+
+
+def fallback_box(bar: Bar, w: int, h: int) -> dict:
+    """The box dict for a bar SAM found no body under: the fixed box at FALLBACK_SCORE.
+
+    `w` and `h` are the frame width and height.
+    """
+    x, y, box_w, box_h = fixed_box(bar, w, h)
+    return {
+        "class": bar.cls,
+        "x": x,
+        "y": y,
+        "w": box_w,
+        "h": box_h,
+        "score": FALLBACK_SCORE,
+        "fallback": True,
+    }
+
+
+def choose_box(masks: np.ndarray, scores: np.ndarray, bar: Bar, hsv: np.ndarray) -> dict:
+    """The box dict for one bar from its SAM masks, or the fallback box when no mask passes.
+
+    `masks` is (k, H, W) bool and `scores` is (k,), both for this bar's prompt.
+    """
+    height, width = hsv.shape[:2]
+    ring = ring_mask(hsv, "enemy" if bar.cls == "box" else bar.cls)
+    picked = pick_box(masks, scores, bar, ring)
+    if picked is None or not sane(picked[0], bar, height) or picked[2] <= -0.5:
+        return fallback_box(bar, width, height)
+    (x, y, w, h), score, _adjusted = picked
+    if bar.cls == "box":
+        # SAM often splits the crate lid from the front face; the union of masks has the lid top
+        union = masks.any(axis=0)[:, x + w // 5 : x + w - w // 5]
+        union[: bar.bot + 2] = False
+        rows = np.where(union.any(axis=1))[0]
+        if len(rows) and rows.min() < y and y - rows.min() < 0.8 * w:
+            h += y - int(rows.min())
+            y = int(rows.min())
+    return {
+        "class": bar.cls,
+        "x": int(x),
+        "y": int(y),
+        "w": int(w),
+        "h": int(h),
+        "score": round(float(score), 3),
+        "fallback": False,
+    }
+
+
+def suppress(boxes: list[dict]) -> list[dict]:
+    """Boxes from the best score down, without any that overlaps a better box too much.
+
+    Two boxes clash when their overlap passes half the smaller one's area, whatever the class.
+    """
+    keep: list[dict] = []
+    for t in sorted(boxes, key=lambda b: b["score"], reverse=True):
+        clash = False
+        for k in keep:
+            ix = max(0, min(t["x"] + t["w"], k["x"] + k["w"]) - max(t["x"], k["x"]))
+            iy = max(0, min(t["y"] + t["h"], k["y"] + k["h"]) - max(t["y"], k["y"]))
+            if ix * iy > 0.5 * min(t["w"] * t["h"], k["w"] * k["h"]):
+                clash = True
+                break
+        if not clash:
+            keep.append(t)
+    return keep

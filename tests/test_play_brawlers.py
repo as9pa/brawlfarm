@@ -188,3 +188,97 @@ def test_ammo_share_counts_columns_under_the_bar():
     hsv = _bar_frame((0, 200, 220))
     hsv[310:316, 755:845] = (14, 200, 230)
     assert brawlers.ammo_share(hsv, 800.0, 306, 100.0) == pytest.approx(0.9)
+
+
+def _bar_at(cls="enemy", cx=800.0, bw=100.0, bot=300):
+    return brawlers.Bar(
+        cls=cls, cx=cx, bw=bw, bot=bot, named=True, colour="red", why="bar", ammo=0.0
+    )
+
+
+def test_fixed_box_sits_under_the_bar():
+    assert brawlers.fixed_box(_bar_at(), W, H) == (752, 315, 95, 100)
+
+
+def test_sane_accepts_a_body_and_refuses_a_far_box():
+    bar = _bar_at()
+    assert brawlers.sane((755, 310, 90, 100), bar, H)
+    assert not brawlers.sane((900, 310, 90, 100), bar, H)
+    assert not brawlers.sane((755, 310, 30, 100), bar, H)
+
+
+def test_sam_prompt_points_and_box_follow_the_bar():
+    points, labels, box = brawlers.sam_prompt(_bar_at(), W, H)
+    assert labels == [1, 1, 0, 0, 0]
+    assert len(points) == 5 and points[0] == [800.0, 345.0]
+    assert box == [730.0, 302, 870.0, 435.0]
+
+
+def test_pick_box_prefers_the_body_mask():
+    body = np.zeros((H, W), dtype=bool)
+    body[310:405, 755:845] = True
+    head = np.zeros((H, W), dtype=bool)
+    head[305:330, 780:820] = True
+    ring = np.zeros((H, W), dtype=bool)
+    box, raw, _adjusted = brawlers.pick_box(
+        np.stack([head, body]), np.array([0.95, 0.9]), _bar_at(), ring
+    )
+    assert box == (755, 310, 90, 95)
+    assert raw == pytest.approx(0.9)
+
+
+def test_choose_box_falls_back_when_sam_misses():
+    hsv = np.zeros((H, W, 3), dtype=np.uint8)
+    out = brawlers.choose_box(
+        np.zeros((3, H, W), dtype=bool), np.array([0.5, 0.5, 0.5]), _bar_at(), hsv
+    )
+    assert out == {
+        "class": "enemy",
+        "x": 752,
+        "y": 315,
+        "w": 95,
+        "h": 100,
+        "score": 0.3,
+        "fallback": True,
+    }
+
+
+def test_suppress_drops_the_lower_overlapping_box():
+    a = {"class": "enemy", "x": 100, "y": 100, "w": 80, "h": 80, "score": 0.9}
+    b = {"class": "enemy", "x": 110, "y": 110, "w": 80, "h": 80, "score": 0.5}
+    c = {"class": "self", "x": 400, "y": 100, "w": 80, "h": 80, "score": 0.4}
+    assert brawlers.suppress([b, c, a]) == [a, c]
+
+
+def test_fallback_box_is_the_fixed_box_with_the_fallback_score():
+    out = brawlers.fallback_box(_bar_at(cls="box", cx=20.0), W, H)
+    assert out == {
+        "class": "box",
+        "x": 0,
+        "y": 315,
+        "w": 67,
+        "h": 100,
+        "score": 0.3,
+        "fallback": True,
+    }
+
+
+def test_choose_box_takes_the_crate_lid_from_the_mask_union():
+    face = np.zeros((H, W), dtype=bool)
+    face[330:405, 755:845] = True
+    lid = np.zeros((H, W), dtype=bool)
+    lid[305:330, 760:840] = True
+    masks, scores = np.stack([face, lid]), np.array([0.9, 0.8])
+    hsv = np.zeros((H, W, 3), dtype=np.uint8)
+    crate = brawlers.choose_box(masks, scores, _bar_at(cls="box"), hsv)
+    assert crate == {
+        "class": "box",
+        "x": 755,
+        "y": 305,
+        "w": 90,
+        "h": 100,
+        "score": 0.9,
+        "fallback": False,
+    }
+    enemy = brawlers.choose_box(masks, scores, _bar_at(), hsv)
+    assert (enemy["y"], enemy["h"], enemy["fallback"]) == (330, 75, False)
