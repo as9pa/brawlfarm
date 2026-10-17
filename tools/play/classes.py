@@ -2,6 +2,8 @@
 
 The order of CLASSES is the COCO category order for the whole kit: category ids are 1-based
 positions in it, so a class may be appended but never reordered or removed without retraining.
+`gas` was removed on 2026-10-17, before any model was trained with it: the gas cloud is read at
+runtime from a colour mask, the map grid and the match timer instead.
 """
 
 from __future__ import annotations
@@ -22,7 +24,6 @@ CLASSES: tuple[str, ...] = (
     "proceed_button",
     "exit_button",
     "close_x",
-    "gas",
 )
 
 # templates whose match is a pre-label box for a class (template name -> class name)

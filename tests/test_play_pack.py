@@ -9,7 +9,7 @@ from pathlib import Path
 
 import numpy as np
 
-from tools.play import dataset, pack, prelabel
+from tools.play import classes, dataset, pack, prelabel
 
 DOC = Path(__file__).resolve().parents[1] / "docs" / "play-training.md"
 
@@ -94,7 +94,12 @@ def test_readme_class_meanings_and_rules_match_the_training_doc():
     doc = DOC.read_text(encoding="utf-8")
 
     assert pack.CLASS_NOTES in doc
-    assert "- `gas`:" in pack.CLASS_NOTES
+    assert "`gas`" not in pack.CLASS_NOTES
+
+
+def test_gas_is_not_a_detector_class():
+    assert "gas" not in classes.CLASSES
+    assert "gas" not in prelabel.CONFIG_XML.read_text(encoding="utf-8")
 
 
 def test_zip_marks_start_sh_executable(tmp_path, capsys):
