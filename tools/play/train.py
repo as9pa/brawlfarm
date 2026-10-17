@@ -11,7 +11,7 @@
 # ///
 """Train RF-DETR nano on the COCO folder coco.py built.
 
-This is the one script in the kit that needs torch, so it is not part of the project
+Like export.py and segment.py, this script needs torch, so it is not part of the project
 environment: the inline metadata above pins its own, with torch from the CUDA 12.8 index.
 Run it from the repository root and it resolves everything else itself:
 

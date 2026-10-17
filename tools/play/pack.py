@@ -39,8 +39,6 @@ What each class means:
 - `proceed_button`: the Proceed button, such as after a reward screen.
 - `exit_button`: an Exit button.
 - `close_x`: a close (X) control on a dialog or banner.
-- `gas`: the Showdown poison cloud. Box the visible cloud area, edge to edge, one box per
-  connected area; the policy uses the box's near edge to know where the safe ground ends.
 
 Labelling rules:
 
