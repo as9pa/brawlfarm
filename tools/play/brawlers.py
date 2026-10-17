@@ -17,6 +17,7 @@ import math
 import re
 from dataclasses import asdict, dataclass, replace
 
+import cv2
 import numpy as np
 
 DEFAULT_BW = 92.0  # bar width when no bar is found under the anchor
@@ -290,3 +291,102 @@ def resolve_selfs(bars: list[Bar], width: int, height: int) -> list[Bar]:
         elif b.colour == "red" and b.named:
             out.append(replace(b, cls="enemy"))
     return out
+
+
+def colour_votes(
+    fills: dict[str, np.ndarray], hsv: np.ndarray, cx: float, bot: int, bw: float, num_bottom: float
+) -> tuple[dict[str, int], dict[str, int]]:
+    """Fill pixels per colour in the bar, and ring pixels per colour under the feet.
+
+    The bar box runs from just above the HP number's bottom edge down to the bar bottom; the
+    ring box sits where the feet are, below the body.
+    """
+    height, width = hsv.shape[:2]
+    y0, y1 = max(0, int(num_bottom) - 11), min(height, bot + 1)
+    x0, x1 = int(max(0, cx - 0.55 * bw)), int(min(width, cx + 0.55 * bw))
+    bar = {k: int(m[y0:y1, x0:x1].sum()) for k, m in fills.items()}
+    ry0, ry1 = min(height, bot + int(0.7 * bw)), min(height, bot + int(1.6 * bw))
+    rx0, rx1 = int(max(0, cx - 0.8 * bw)), int(min(width, cx + 0.8 * bw))
+    h, s, v = (hsv[ry0:ry1, rx0:rx1, i].astype(int) for i in range(3))
+    ring = {
+        "green": int(((h >= 35) & (h <= 85) & (s >= 100) & (v >= 120)).sum()),
+        "blue": int(((h >= 95) & (h <= 120) & (s >= 120) & (v >= 140)).sum()),
+        "red": int((((h <= 6) | (h >= 172)) & (s >= 140) & (v >= 140)).sum()),
+    }
+    return bar, ring
+
+
+def crate_share(hsv: np.ndarray, cx: float, bot: int, bw: float) -> float:
+    """Share of crate-orange pixels in the body box under the bar."""
+    height, width = hsv.shape[:2]
+    y0, y1 = min(height, bot + int(0.15 * bw)), min(height, bot + int(1.05 * bw))
+    x0, x1 = int(max(0, cx - 0.4 * bw)), int(min(width, cx + 0.4 * bw))
+    h, s, v = (hsv[y0:y1, x0:x1, i] for i in range(3))
+    if h.size == 0:
+        return 0.0
+    return float(((h >= 6) & (h <= 24) & (s >= 120) & (v >= 120)).mean())
+
+
+def ammo_share(hsv: np.ndarray, cx: float, bot: int, bw: float) -> float:
+    """Share of the bar width with the orange ammo bar in the band just under the bar."""
+    width = hsv.shape[1]
+    band = hsv[bot + 1 : bot + 13, int(max(0, cx - bw / 2)) : int(min(width, cx + bw / 2))]
+    if band.size == 0:
+        return 0.0
+    h, s, v = (band[..., i] for i in range(3))
+    mask = (h >= 8) & (h <= 20) & (s >= 140) & (v >= 170)
+    return float(mask.any(axis=0).mean())
+
+
+def name_ink(bgr: np.ndarray, cx: float, bw: float, top: float) -> float:
+    """Edge density of bright ink over the HP number: a name. Crates and pets have none."""
+    width = bgr.shape[1]
+    y1 = int(top) - 1
+    y0 = max(0, y1 - 22)
+    x0, x1 = int(max(0, cx - 0.6 * bw)), int(min(width, cx + 0.6 * bw))
+    if y1 <= y0 + 4:
+        return 0.0
+    patch = bgr[y0:y1, x0:x1]
+    edges = cv2.Canny(cv2.cvtColor(patch, cv2.COLOR_BGR2GRAY), 80, 200)
+    v = cv2.cvtColor(patch, cv2.COLOR_BGR2HSV)[..., 2]
+    return float(edges.mean() / 255.0) * float((v > 150).mean() + 0.01) * 10
+
+
+def is_centred(cx: float, bot: int, width: int, height: int) -> bool:
+    """Whether a bar sits where the camera keeps the own brawler."""
+    return abs(cx - 0.5 * width) < 0.3 * width and abs(bot - 0.42 * height) < 0.08 * height
+
+
+def classify(bgr: np.ndarray, hsv: np.ndarray, anchors: list[Anchor], solo: bool) -> list[Bar]:
+    """One classified bar per brawler or power cube box on a frame, at most one of them self.
+
+    `bgr` and `hsv` are the same frame; `solo` says the frame is solo showdown.
+    """
+    height, width = hsv.shape[:2]
+    fills = fill_masks(hsv)
+    any_fill = fills["green"] | fills["red"] | fills["blue"] | (hsv[..., 2] <= 70)
+    bars: list[Bar] = []
+    for anchor in anchors:
+        bw, bot, found = measure_bar(any_fill, anchor)
+        if anchor.from_name and not found:
+            continue
+        if height - bot < 0.35 * bw:  # body off-screen under the bottom edge
+            continue
+        bar, ring = colour_votes(fills, hsv, anchor.cx, bot, bw, anchor.y1)
+        ev = Evidence(
+            bar=bar,
+            ring=ring,
+            named=anchor.named,
+            found=found,
+            ammo=ammo_share(hsv, anchor.cx, bot, bw),
+            centred=is_centred(anchor.cx, bot, width, height),
+            crate=crate_share(hsv, anchor.cx, bot, bw),
+            name_ink=0.0 if anchor.named else name_ink(bgr, anchor.cx, bw, anchor.y0),
+            solo=solo,
+        )
+        cls = vote_class(ev)
+        if cls is None:
+            continue
+        colour, why = bar_colour(ev)
+        bars.append(Bar(cls, anchor.cx, bw, bot, anchor.named, colour, why, ev.ammo))
+    return resolve_selfs(dedupe(bars), width, height)

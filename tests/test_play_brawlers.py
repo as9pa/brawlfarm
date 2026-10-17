@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import json
 
+import cv2
 import numpy as np
 import pytest
 
@@ -159,3 +160,31 @@ def test_dedupe_keeps_the_named_anchor_on_one_bar():
 def test_bar_round_trips_through_json():
     bar = _bar("box", 640.5, 512, named=False, colour=None)
     assert brawlers.Bar.from_json(json.loads(json.dumps(bar.to_json()))) == bar
+
+
+def _frame_with_bar(fill_hsv, *, cx=800, top=380, ammo=False):
+    hsv = _bar_frame(fill_hsv, cx=cx, top=top)
+    if ammo:
+        hsv[top + 13 : top + 19, cx - 45 : cx + 45] = (14, 200, 230)
+    return cv2.cvtColor(hsv, cv2.COLOR_HSV2BGR), hsv
+
+
+def test_classify_low_health_self_with_ammo_is_self():
+    bgr, hsv = _frame_with_bar((0, 200, 220), ammo=True)
+    anchor = brawlers.Anchor(x0=780, y0=360, x1=820, y1=378, named=True, name_y0=336)
+    bars = brawlers.classify(bgr, hsv, [anchor], solo=False)
+    assert [b.cls for b in bars] == ["self"]
+    assert bars[0].ammo > brawlers.AMMO_MIN
+
+
+def test_classify_red_named_bar_is_enemy():
+    bgr, hsv = _frame_with_bar((0, 200, 220), cx=400, top=500)
+    anchor = brawlers.Anchor(x0=380, y0=480, x1=420, y1=498, named=True, name_y0=456)
+    bars = brawlers.classify(bgr, hsv, [anchor], solo=False)
+    assert [(b.cls, b.colour, b.why) for b in bars] == [("enemy", "red", "bar")]
+
+
+def test_ammo_share_counts_columns_under_the_bar():
+    hsv = _bar_frame((0, 200, 220))
+    hsv[310:316, 755:845] = (14, 200, 230)
+    assert brawlers.ammo_share(hsv, 800.0, 306, 100.0) == pytest.approx(0.9)
